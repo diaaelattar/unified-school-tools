@@ -1,0 +1,8 @@
+/* رسالة تحقق داخل الحقل (تُحقن في مستند النافذة المنبثقة، خارج Shadow DOM) */
+.n-field-msg {
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+  font-size: var(--n-fs-sm, 13px); font-weight: 700; line-height: 1.6;
+  color: var(--n-error, #b91c1c);
+}
+.n-field-msg .n-icon { flex: none; }
+[aria-invalid="true"] { border-color: var(--n-error, #b91c1c) !important; box-shadow: 0 0 0 3px rgba(185, 28, 28, .14) !important; }

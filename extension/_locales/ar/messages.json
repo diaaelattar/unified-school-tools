@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "نبراس — أدوات المدرسة الموحّدة"
+  },
+  "extensionShortName": {
+    "message": "نبراس"
+  },
+  "extensionDescription": {
+    "message": "إدارة شاملة للمدرسة: الطلاب (مع تنقية الأسماء)، العاملين، الغياب، المصروفات، الإحصاء، وقوائم الفصول مع تصدير Excel."
+  },
+  "actionTitle": {
+    "message": "نبراس"
+  }
+}

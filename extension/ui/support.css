@@ -1,0 +1,25 @@
+/* ==========================================================================
+   support.css — شريط التواصل الدائم أسفل النافذة: واتساب · الموقع الرسمي · فيسبوك.
+   ثلاثة روابط ظاهرة دائمًا (لا تُخفى في قائمة ولا تبويب): أيقونة بلون العلامة + اسم واضح + سطر توضيحي.
+   ========================================================================== */
+.n-support { flex: none; padding: var(--n-s2); background: var(--n-surface); border: 1px solid var(--n-line); border-radius: var(--n-r-lg); box-shadow: var(--n-shadow-1); }
+.n-support__links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--n-s2); }
+.n-support__link { text-decoration: none; min-height: calc(var(--n-touch) + 12px); }
+.n-support__link .n-btn__text b { font-size: var(--n-fs-sm); color: var(--n-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n-support__link .n-btn__text small { font-size: var(--n-fs-xs); opacity: 1; color: var(--n-text-muted); font-weight: var(--n-fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n-support__link .n-btn__text small.is-ltr { direction: ltr; text-align: right; }
+.n-support__icon { flex: none; width: 36px; height: 36px; border-radius: var(--n-r-md); display: grid; place-items: center; color: #fff; background: var(--n-primary); }
+.n-support__link--wa .n-support__icon { background: #128c7e; }
+.n-support__link--web .n-support__icon { background: var(--n-primary); }
+.n-support__link--fb .n-support__icon { background: #1877f2; }
+.theme-dark .n-support__icon { color: #fff; }
+
+/* الشاشات الضيقة: أيقونة فوق الاسم، وتبقى الروابط الثلاثة ظاهرة */
+@media (max-width: 430px) {
+  .n-support { padding: var(--n-s1); }
+  .n-support__links { gap: var(--n-s1); }
+  .n-support__link { flex-direction: column; justify-content: center; gap: var(--n-s1); padding: var(--n-s1) 2px; text-align: center; }
+  .n-support__link .n-btn__text { align-items: center; max-width: 100%; }
+  .n-support__link .n-btn__text small { display: none; }
+  .n-support__icon { width: 32px; height: 32px; }
+}

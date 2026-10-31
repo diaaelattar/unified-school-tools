@@ -1,0 +1,1679 @@
+
+:root{
+  /* ===== Phase 0 — توكِنز موحّدة: هذه الكتلة تحل محل 15 كتلة :root
+     كانت متفرقة في الملف (أُدمجت بالقيم النهائية نفسها تمامًا،
+     بدون أي تغيير في القيمة الفعلية لأي متغيّر). ===== */
+
+  /* -- لوحة الألوان الأساسية -- */
+  --font:'Cairo',"Segoe UI",Tahoma,Arial,sans-serif;
+  --ink:var(--n-text);
+  --muted:var(--n-text-muted);
+  --page:#f1f5f9;
+  --panel:#ffffff;
+  --line:#cbd5e1;
+  --blue:#2563eb;
+  --blue2:var(--n-primary);
+  --green:#059669;
+  --green2:#10b981;
+  --orange:#d97706;
+  --orange2:#f59e0b;
+  --purple:#7c3aed;
+  --purple2:#8b5cf6;
+  --teal:#0d9488;
+  --teal2:#14b8a6;
+  --rose:#e11d48;
+  --rose2:#f43f5e;
+  --shadow:0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+
+  /* -- متغيّرات الخطوط المتراكمة تاريخيًا --
+     Phase "توحيد الخط": فحص فعلي بمحلل CSS حقيقي (css-tree) أثبت أن أكثر
+     تعريفات font-family في الملف (129 تعريفًا) تتنازع عبر عدة قواعد بنفس
+     الأهمية (!important) وتخصيصات مختلفة، والفائز الفعلي لمعظم النصوص لم
+     يكن الخط المقصود أصلًا (Cairo، المُحمَّل فعليًا عبر Google Fonts) بل
+     خطوط نظام احتياطية (Segoe UI / Tahoma) لأن "NeprasArabicBold" و"GE SS
+     TV" غير محمَّلين إطلاقًا. [ملاحظة Phase 3: كلا الاسمين حُذفا نهائيًا الآن
+     لأن ملف الخط المصدر أصلاً غير موجود في الحزمة — راجع الشرح أسفل الملف.]
+     الإصلاح هنا نقطة تحكّم واحدة: بدل تعديل الـ129
+     موضعًا (خطر حقيقي لتفويت حالة)، جُعلت هذه المتغيّرات الأربعة تُحيل إلى
+     --font نفسه (Cairo) — فيصل التصحيح تلقائيًا لكل مكان يستخدمها بلا أي
+     تغيير في الـ129 تعريفًا نفسها. */
+  --ui-font:var(--font)!important;
+  --ui-font-clear:var(--font)!important;
+  --v1.0-ui-font:"Segoe UI",Tahoma,Arial,sans-serif;
+  --nepras-ui-font:var(--font) !important;
+  --nepras-text:#1f3a57;
+  --nepras-muted:#5f7690;
+  --nepras-border:#d8e2ee;
+  --nepras-soft:#f8fbff;
+  --nepras-body-font:var(--font) !important;
+  --sultan-bold:'Cairo', sans-serif !important;
+  --sultan-medium:'Cairo', sans-serif !important;
+  --nepras-sultan-black:'Cairo', sans-serif !important;
+  --nepras-sultan-medium:'Cairo', sans-serif !important;
+  --nepras-symbol-font:"Segoe UI Symbol","Segoe UI Emoji","Segoe UI",Tahoma,Arial,sans-serif;
+  --nepras-v1.0-medium:'Cairo', sans-serif !important;
+  --nepras-v1.0-black:'Cairo', sans-serif !important;
+  --nepras-v1.0-symbol:"Segoe UI Symbol","Segoe UI Emoji","Segoe UI",Tahoma,Arial,sans-serif;
+
+  /* -- ألوان الأقسام (كروت السحب/الحضور...) --
+     [Phase 5] أُعيد ضبط الدرجات لتنسجم مع نفس الألوان الأساسية المعرّفة
+     أعلاه (--blue/--green/--orange/--purple...) بدل درجات منفصلة قريبة
+     الشكل لكنها ليست مطابقة (مصدرين للون الواحد بلا سبب واضح)، ولتتقارب
+     في الوزن البصري (كان لون الحضور البرتقالي أعلى تشبّعًا بوضوح من
+     باقي الأقسام فيشد العين أكثر من قصده). لم يتغيّر أي اسم متغيّر، فكل
+     قاعدة تستخدمها تتحدّث تلقائيًا. */
+  --student-a:#2563eb; --student-b:#5b8def; --student-soft:#f2f6ff;
+  --report-a:#0891b2; --report-b:#22b8d4; --report-soft:#eefbfd;
+  --teacher-a:#059669; --teacher-b:#34d399; --teacher-soft:#eefbf5;
+  --attendance-a:#d97706; --attendance-b:#f0a836; --attendance-soft:#fff8ec;
+  --accept-a:#7c3aed; --accept-b:#a78bfa; --accept-soft:#f7f4fe;
+  --support-a:#db2777; --support-b:#f472b6; --support-soft:#fef1f7;
+
+  /* -- توكِنز نظام الأزرار الموحّد (جديدة كليًا — Phase 0/1/2) --
+     مساحة أسماء مستقلة (--radius-*/--space-*/--shadow-btn*/--btn-*) حتى لا تتعارض
+     مع أي من المتغيرات القديمة أعلاه. الألوان الدلالية مبنية على نفس لوحة العلامة
+     التجارية الحالية (لا ألوان جديدة مخترعة). */
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-pill:999px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px;
+  --shadow-btn:0 2px 8px rgba(15,23,42,.08);
+  --shadow-btn-hover:0 6px 16px rgba(15,23,42,.14);
+  --touch-target:44px;
+  --btn-primary:var(--blue2);
+  --btn-primary-hover:var(--blue);
+  --btn-success:var(--green);
+  --btn-danger:var(--rose);
+  --btn-warning:var(--orange);
+  --btn-surface:var(--panel);
+  --btn-ink:var(--ink);
+  --btn-muted:var(--muted);
+}
+
+/* [Phase 0] كتلة :root رقم 1 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+*{box-sizing:border-box;margin:0;padding:0;font-family:var(--font)!important}
+html,body{background:var(--page);color:var(--ink)}
+body{padding:10px;direction:rtl;overflow:hidden}
+button,select,input{font:inherit}
+button{touch-action:manipulation}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid rgba(39,104,235,.18);outline-offset:2px}
+.app-shell,.container{height:100%}
+.container{display:flex;flex-direction:column;gap:9px}
+
+/* ===== Header ===== */
+@keyframes pulse{0%,100%{transform:scale(.9);opacity:.78}50%{transform:scale(1.18);opacity:1}}
+
+/* ===== Stage selector ===== */
+
+/* ===== Accordion ===== */
+.report-icon{font-size:12px;color:#007d8a}
+
+.panel-grid{display:grid;gap:10px;align-items:stretch}.panel-grid.two-col{grid-template-columns:minmax(0,1fr) minmax(260px,.9fr)}
+.field-block{background:rgba(255,255,255,.96);border:1px solid #dbe6ef;border-radius:13px;padding:9px;display:flex;flex-direction:column;gap:6px}
+.field-block label{font-size:12px;font-weight:700;color:#304b65}.mini-note{font-size:9px;font-weight:700;color:#71869a;line-height:1.6}
+.grade-picker-button {width:100%;height:43px;border-radius:11px;border:1.5px solid #cad8e5;background:#fff;color:#263f57;padding:0 11px;font-size:13px;font-weight:700;outline:none}
+.grade-picker-row{display:flex;gap:7px;align-items:flex-start}.nepras-grade-picker{position:relative;flex:1;min-width:0}.grade-picker-button{text-align:right;cursor:pointer;padding-left:32px;position:relative}.grade-picker-button:after{content:"⌄";position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:16px;color:#56718e}.grade-picker-menu{display:none;position:absolute;z-index:999999;top:calc(100% + 5px);left:0;right:0;max-height:210px;overflow:auto;padding:5px;background:#fff;border:1px solid #cad9e7;border-radius:12px;box-shadow:0 18px 40px rgba(29,62,91,.20)}.grade-picker-menu.open{display:flex;flex-direction:column;gap:3px}.grade-option{border:0;border-radius:9px;background:transparent;text-align:right;padding:8px 10px;color:#2f4b67;font-size:12px;font-weight:700;cursor:pointer}.grade-option:hover,.grade-option.selected{background:#edf5ff;color:#1766d7}
+.action-grid{display:grid;gap:7px}.action-grid.two-actions{grid-template-columns:1fr 1fr}.align-end{align-content:end}.single-action-row{display:flex;justify-content:flex-start}.support-grid{display:grid;gap:9px}.info-strip{display:flex;flex-wrap:wrap;gap:7px 15px;background:#fff;border:1px solid #f0c6ce;border-radius:12px;padding:10px;font-size:9px;font-weight:700;color:#6a5860}.settings-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.facebook-setting-btn{background:#f0f7ff!important;color:#1877f2!important;border-color:#bae0fd!important;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.whatsapp-link{min-height:50px;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;border-radius:15px;background:linear-gradient(135deg,#28c75d,#17a849);color:#fff;box-shadow:0 9px 20px rgba(23,167,72,.18);padding:8px 14px}
+.whatsapp-link .wa-icon{width:34px;height:34px;display:grid;place-items:center;border:2px solid rgba(255,255,255,.86);border-radius:50%;font-size:20px}
+.whatsapp-link span:last-child{display:flex;flex-direction:column;gap:1px}
+.whatsapp-link b{font-size:14px}
+.whatsapp-link small{font-size:8px;font-weight:700;opacity:.95}
+
+.security-note{margin-top:12px;color:#73869a;font-size:9px;font-weight:700;line-height:1.8;text-align:center}
+
+/* ===== Help modal ===== */
+.help-modal[hidden]{display:none!important}.help-modal{position:fixed;inset:0;z-index:200000;background:rgba(15,31,51,.45);backdrop-filter:blur(5px);display:grid;place-items:center;padding:16px}.help-card{width:min(96vw,680px);max-height:88vh;overflow:auto;background:#fff;border-radius:22px;border:1px solid #dbe7f3;box-shadow:0 30px 90px rgba(15,35,60,.28)}.help-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;background:linear-gradient(135deg,#edf5ff,#f7f3ff);border-bottom:1px solid #dbe5ef}.help-head b{display:block;font-size:18px;color:#244b78}.help-head small{display:block;margin-top:3px;font-size:10px;color:#6f8399;font-weight:700}.help-body{padding:13px;display:grid;gap:8px}.help-body article{border:1px solid #e1eaf2;background:#fbfdff;border-radius:13px;padding:10px 11px}.help-body article b{font-size:13px;color:#244a72}.help-body article p{margin-top:4px;font-size:11px;line-height:1.7;color:#536b82;font-weight:700}.modal-open{overflow:hidden}
+
+/* ===== Dark mode ===== */
+/* ===== [Phase 3b] نظام الوضع الليلي — موحّد =====
+   كانت قواعد .theme-dark مبعثرة في 117 قاعدة CSS منفصلة عبر
+   الملف (نفس نمط تكرار :root الذي عولج في Phase 0). حُسبت القيمة
+   النهائية الفعلية لكل (selector,خاصية) بترتيب الأولوية الحقيقي
+   (important يتغلّب، ثم آخر تعريف بنفس الترتيب يفوز) بواسطة سكربت
+   تحليل فعلي (css-tree) — وليس تخمينًا بالعين. النتيجة مطابقة رياضيًا
+   لما كان يُعرض فعلاً قبل هذا التوحيد. القواعد الأصلية أُزيلت من
+   أماكنها المتفرقة وتركت علامات مرجعية مختصرة مكانها. */
+body.theme-dark{--page:#111827;--ink:#eaf2fb;--muted:#9db0c4;--btn-surface:#172033;background:#111827;color:#eaf2fb;}
+.theme-dark .field-block{background:#172233!important;color:#eaf2fb;border-color:#33455f!important;box-shadow:none!important;}
+.theme-dark .info-strip{background:#172033;color:#c7d7e8!important;border-color:#2b3b52;}
+.theme-dark .help-card{background:#172033;color:#eaf2fb;border-color:#2b3b52;}
+.theme-dark .field-block label{color:#e2ecf8!important;}
+.theme-dark .mini-note{color:#c7d7e8!important;}
+.theme-dark .grade-picker-button{background:#1d2940!important;color:#e4eef9!important;border-color:#34485f!important;}
+.theme-dark .grade-picker-menu{background:#0f1827;color:#e8f0fa;border-color:#34465e;}
+.theme-dark .grade-option{color:#dbe8f5;}
+.theme-dark .grade-option:hover{background:#20334f!important;color:#a8ccff!important;}
+.theme-dark .grade-option.selected{background:#20334f!important;color:#a8ccff!important;}
+.theme-dark .help-head{background:linear-gradient(135deg,#1a2a42,#2a2241);border-color:#35465e;}
+.theme-dark .help-head b{color:#e7f0fb!important;}
+.theme-dark .help-head small{color:#c7d6e5!important;}
+.theme-dark .help-body article{background:#131d2d;border-color:#2b3a50;}
+.theme-dark .help-body article b{color:#9dc5ff;}
+.theme-dark .help-body article p{color:#c7d7e8!important;}
+.theme-dark .security-note{color:#aebfd0;}
+.theme-dark .whatsapp-link{background:#1a2d1f!important;border-color:#2f5b3b!important;color:#d9f7e2!important;}
+.theme-dark .student-mode-card{background:#172233!important;border-color:#33455f!important;box-shadow:none!important;}
+.theme-dark .student-grade-card{background:#172233!important;border-color:#33455f!important;box-shadow:none!important;}
+.theme-dark .student-card-head label{color:#e8f0fa!important;}
+.theme-dark .student-mode-caption{color:#b9c9d8!important;}
+.theme-dark .teacher-pull-head b{color:#eaf2fb!important;}
+.theme-dark .teacher-pull-head small{color:#aebfd0!important;}
+body.theme-dark .btn.is-loading::after{color:#eaf2fb;}
+.theme-dark .bulk-nid-file-name{color:#c3d4e5;}
+.theme-dark .bulk-nid-progress-track{background:#233045;}
+.theme-dark .quick-toggle-all-btn{background:#172033;border-color:#2b3b52;color:#eaf2fb;}
+.theme-dark .quick-toggle-all-btn:hover{background:#1b2639;}
+.theme-dark .recent-export-item{background:#111b2b;border-color:#2b3b52;}
+.theme-dark .recent-export-item .recent-export-name{color:#eaf2fb;}
+.theme-dark .recent-export-item .recent-export-time{color:#9db0c4;}
+.theme-dark .recent-exports-empty{color:#9db0c4;}
+
+/* ===== Responsive/mobile ===== */
+
+/* ==========================================================
+   Nepras v1.0 — Wide desktop + compact header + mobile responsive
+   ========================================================== */
+/* [Phase 0] كتلة :root رقم 2 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+body{padding:9px!important;overflow:hidden!important;background:linear-gradient(145deg,#f4f8fc,#eef5fb)!important}
+.container{gap:8px!important}
+
+/* approved lighter section treatment */
+.grade-picker-button {height:41px!important;font-size:12px!important}
+
+/* Dark mode keeps logo visible */
+
+/* Mobile/narrow mode only. Do NOT trigger this on the 800px desktop popup. */
+@media (max-width:560px){
+  body{padding:7px!important;overflow:auto!important}
+  .app-shell,.container{height:auto!important}
+                              .panel-grid.two-col{grid-template-columns:1fr!important}.action-grid.two-actions{grid-template-columns:1fr!important}.settings-actions{grid-template-columns:1fr!important}}
+
+/* ==========================================================
+   Nepras v1.0 — wider popup, fixed text logo, accept section visibility
+   ========================================================== */
+body{padding:8px!important;overflow:hidden!important}
+.container{gap:8px!important}
+
+.security-note{font-size:10px!important}
+.accept-card.is-hidden{display:none!important}
+@media (max-width:680px){html,body{width:100vw!important;min-width:320px!important;max-width:100vw!important;height:auto!important;min-height:100%!important;max-height:none!important}body{overflow:auto!important;padding:7px!important}.app-shell,.container{height:auto!important}}
+
+/* ==========================================================
+   Nepras v1.0 — desktop width fix (width only)
+   IMPORTANT: desktop popup must NOT fall into the narrow/mobile layout.
+   ========================================================== */
+/* [Phase 3] "GE SS TV" @font-face حُذفت: ملفها (assets/GE_SS_TV_Bold.otf)
+   غير موجود أصلاً داخل حزمة الإضافة، فكانت هذه القاعدة تفشل بصمت دائمًا
+   ولم يظهر هذا الخط قط — كل مكان استخدمها كان يعرض فعليًا خط fallback
+   (Tahoma/Arial). استبدال اسم الخط في كل مكان بـ Cairo (المحمّل فعليًا
+   وهو خط الواجهة الأساسي أصلاً) لا يغيّر أي شيء ظاهر سلبًا، بل يوحّد شكل
+   عنوان العلامة التجارية مع باقي الواجهة بدل عرضه بخط Windows عشوائي. */
+/* [Phase 0] كتلة :root رقم 3 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+*{font-family:var(--font)!important}
+
+/* Desktop popup: increase WIDTH only. Keep v1.0 typography/card sizes. */
+body{padding:9px!important;overflow:hidden!important}
+.app-shell,.container{height:100%!important}
+.container{gap:8px!important}
+
+/* Keep the desktop header horizontal/compact. */
+
+/* Do not enlarge cards/fonts — retain the compact v1.0 proportions. */
+.grade-picker-button {height:41px!important;font-size:12px!important}
+
+/* Mobile/phone layout only on a coarse pointer device. This prevents
+   Chrome desktop popup from incorrectly collapsing to the narrow layout. */
+@media (max-width:680px) and (pointer:coarse){
+  body{padding:7px!important;overflow:auto!important}
+  .app-shell,.container{height:auto!important}
+                          .panel-grid.two-col{grid-template-columns:1fr!important}
+  .action-grid.two-actions,.settings-actions{grid-template-columns:1fr!important}
+}
+
+/* ==========================================================
+   Nepras v1.0 — keep v1.0 width, fix accordion content visibility + clearer Arabic type
+   ========================================================== */
+/* Keep the exact v1.0 desktop dimensions. */
+/* IMPORTANT: accordion cards must never shrink when another card is opened.
+   The stack scrolls instead, so the opened panel keeps its full content height. */
+
+/* Use GE SS TV for the brand/headings only; Tahoma for controls/body text.
+   This is much clearer at small UI sizes than forcing the display font everywhere. */
+/* [Phase 0] كتلة :root رقم 4 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+body,
+button,
+select,
+input,
+.field-block,
+.field-block label,
+.mini-note,
+.info-strip,
+.grade-picker-button,
+.grade-option,
+.security-note {
+  font-family:var(--ui-font)!important;
+  font-weight:700!important;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* Improve legibility without enlarging the cards. */
+.grade-picker-button {font-size:12.5px!important;}
+.field-block label{font-size:12px!important;}
+.mini-note{font-size:10px!important;}
+
+/* Give open panels a clean separation so their content is obvious. */
+
+/* Phone layout remains responsive. */
+@media (max-width:680px) and (pointer:coarse){
+  body{overflow:auto!important;}
+  }
+
+/* ==========================================================
+   Nepras v1.0 — fix hidden grade menu + clearer UI fonts
+   ========================================================== */
+/* 1) Make the student grade list visible above neighboring cards. */
+
+/* 2) Use a clearer font for titles/body text. Keep the decorative logo only for the logo. */
+/* [Phase 0] كتلة :root رقم 5 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+body,
+button,
+select,
+input,
+.field-block,
+.field-block label,
+.mini-note,
+.info-strip,
+.grade-picker-button,
+.grade-option,
+.security-note {
+  font-family:var(--ui-font-clear)!important;
+  font-weight:700!important;
+}
+
+/* 3) Improve title and control clarity without changing the overall popup size. */
+.field-block label{font-size:12.5px!important;color:#304b65!important;}
+.grade-picker-button {font-size:13px!important;color:#243b53!important;}
+.grade-option{font-size:13px!important;}
+.mini-note{font-size:10px!important;color:#62768b!important;}
+
+/* 4) Slightly rebalance the open student panel so controls remain fully visible. */
+.student-card .panel-grid.two-col{
+  grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr)!important;
+  align-items:end!important;
+}
+.student-card .action-grid.two-actions{
+  grid-template-columns:1fr 1fr!important;
+}
+.student-card .field-block{
+  padding:10px!important;
+}
+
+@media (max-width:680px) and (pointer:coarse){
+      .student-card .panel-grid.two-col{grid-template-columns:1fr!important;}
+  .student-card .action-grid.two-actions{grid-template-columns:1fr!important;}
+}
+
+/* ==========================================================
+   Nepras v1.0 — polished logo, spacing, open panels, clearer fonts
+   ========================================================== */
+/* Keep the same popup size, improve only readability and panel aesthetics. */
+
+/* ===== Header / wordmark ===== */
+
+/* ===== Card headings ===== */
+
+/* ===== Open panels styling ===== */
+.panel-grid.two-col{gap:14px!important;align-items:end!important}
+.field-block{
+  border-radius:15px!important;
+  padding:12px!important;
+  gap:8px!important;
+  box-shadow:0 4px 14px rgba(55,86,118,.05)!important;
+}
+.field-block label{font-size:13.5px!important;font-weight:800!important;color:#2a4765!important}
+.mini-note{font-size:11px!important;line-height:1.6!important;color:#667c93!important}
+.grade-picker-button {
+  height:45px!important;
+  font-size:14px!important;
+  font-weight:800!important;
+  border-radius:12px!important;
+  padding:0 13px!important;
+}
+.grade-option{font-size:13.5px!important;font-weight:800!important;padding:10px 12px!important}
+.action-grid{gap:10px!important}
+.info-strip{font-size:12px!important;line-height:1.65!important;gap:8px!important;padding:12px 13px!important;border-radius:14px!important}
+
+/* ===== Stage selector ===== */
+
+/* ===== Help modal ===== */
+.help-card{border-radius:24px!important}
+.help-head{padding:16px 18px!important}
+.help-head b{font-size:22px!important;font-weight:800!important}
+.help-head small{font-size:12px!important;font-weight:700!important}
+.help-body{padding:16px!important;gap:10px!important}
+.help-body article{padding:14px 15px!important;border-radius:16px!important}
+.help-body article b{font-size:15px!important;font-weight:800!important}
+.help-body article p{font-size:13px!important;line-height:1.8!important;font-weight:700!important}
+
+.security-note {font-size:13px!important;line-height:1.7!important}
+
+/* ===== Mobile keeps same spirit ===== */
+@media (max-width:680px) and (pointer:coarse){
+            .field-block label{font-size:13px!important}
+  .grade-picker-button {font-size:13px!important}
+  .help-head b{font-size:19px!important}
+  .help-body article p{font-size:12px!important}
+}
+
+/* ==========================================================
+   Nepras v1.0 — pro color harmony, refined arrows, release header
+   ========================================================== */
+/* [Phase 0] كتلة :root رقم 6 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+/* ===== Release-ready header ===== */
+
+/* ===== Stage bar ===== */
+
+/* ===== Professional section colors ===== */
+
+/* ===== Better arrows & open controls ===== */
+
+/* ===== Open section content aesthetics ===== */
+.field-block{background:linear-gradient(180deg,#ffffff,#f8fbff)!important;border:1px solid #dfe9f3!important}
+.grade-picker-button {background:#fff!important;border:1.5px solid #cdd9e7!important;box-shadow:0 4px 10px rgba(58,84,112,.05)!important}
+.grade-picker-button:focus {outline:none!important;border-color:#7ba9ff!important;box-shadow:0 0 0 4px rgba(82,134,255,.12)!important}
+.grade-picker-menu{border:1px solid #d5e0ec!important;border-radius:14px!important;box-shadow:0 18px 36px rgba(41,67,95,.18)!important}
+.grade-option:hover,.grade-option.selected{background:#edf4ff!important;color:#1f5fd6!important}
+.info-strip{background:linear-gradient(180deg,#fff,#fff8fb)!important;border-color:#f1d0da!important;font-size:12px!important}
+
+/* ==========================================================
+   Nepras v1.0 — reference-style typography/header + WhatsApp
+   ========================================================== */
+/* [Phase 0] كتلة :root رقم 7 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+html,body,body *,button,select,input,option,a,label,small,b,p,span,div{
+  font-family:var(--v1.0-ui-font)!important;
+  font-kerning:normal;
+  text-rendering:optimizeLegibility;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Header */
+
+/* Typography */
+.field-block label{font-size:14px!important;font-weight:800!important}
+.grade-picker-button,
+.grade-option {font-size:14px!important;font-weight:700!important}
+.mini-note,.info-strip{font-size:12px!important;line-height:1.65!important}
+.help-head b{font-size:23px!important;font-weight:800!important}
+.help-head small{font-size:13px!important}
+.help-body article b{font-size:16px!important;font-weight:800!important}
+.help-body article p{font-size:14px!important;line-height:1.8!important}
+
+/* Light cards like the reference */
+
+/* WhatsApp restored and also inside Settings */
+.whatsapp-link{
+  min-height:44px!important;
+  border-radius:14px!important;
+  background:linear-gradient(135deg,#25d366,#1db954)!important;
+  box-shadow:0 9px 18px rgba(29,185,84,.18)!important;
+  font-size:14px!important;
+}
+.whatsapp-link b{font-size:14px!important;font-weight:800!important}
+.whatsapp-link small{font-size:11px!important;font-weight:600!important}
+.whatsapp-link .wa-icon{width:31px!important;height:31px!important;font-size:17px!important}
+.settings-actions{grid-template-columns:1fr 1fr 1fr!important}
+
+.security-note {font-size:13px!important}
+
+/* Mobile */
+@media (max-width:680px) and (pointer:coarse){
+                          .field-block label{font-size:13px!important}
+  .grade-picker-button,
+.grade-option {font-size:13px!important}
+  .settings-actions{grid-template-columns:1fr!important}
+  .whatsapp-link{min-height:46px!important}
+}
+
+/* ==========================================================
+   Nepras v1.0 — match approved reference header + typography
+   ========================================================== */
+/* [Phase 0] كتلة :root رقم 8 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+html,body,button,input,select,textarea,option,a,small,span,div,b,p,label{
+  font-family: var(--nepras-ui-font) !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html,body{
+  
+  
+  
+  
+  
+  
+  background: #eef3f8 !important;
+}
+body{padding: 10px !important; overflow: hidden !important; color: var(--nepras-text) !important;}
+.app-shell,.container{height:100% !important;}
+.container{gap:10px !important;}
+
+/* ---------- Header ---------- */
+
+/* ---------- Stage toolbar ---------- */
+
+/* ---------- Cards / sections ---------- */
+
+/* fields/buttons */
+.panel-grid{gap:14px!important}
+.field-block label{font-size:13px!important;font-weight:800!important;color:#27415f!important;margin-bottom:8px!important}
+.grade-picker-button,
+.grade-option {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #27415f !important;
+}
+.grade-picker-button {
+  height: 42px !important;
+  border-radius: 13px !important;
+  border:1px solid #cad8e6!important;
+  background:#fff!important;
+}
+.grade-picker-menu{border:1px solid #d2deea!important;border-radius:14px!important;box-shadow:0 14px 28px rgba(62,87,118,.12)!important}
+.grade-option{padding:10px 12px!important}
+.mini-note,
+.info-strip,
+.help-body article p,
+.security-note {font-size:12px!important;line-height:1.7!important;color:#637a93!important}
+.info-strip b{color:#213c59!important}
+
+/* WhatsApp */
+.whatsapp-link{
+  min-height: 42px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg,#f5fff8,#ebfbf1) !important;
+  border: 1px solid #b7e6c8 !important;
+  color: #178646 !important;
+  box-shadow: 0 8px 18px rgba(45,192,95,.10) !important;
+}
+.whatsapp-link b{font-size:13px!important;font-weight:800!important}
+.whatsapp-link small{font-size:11px!important;font-weight:700!important;color:#3c9f61!important}
+.whatsapp-link .wa-icon{width:30px!important;height:30px!important;background:#27c563!important;color:#fff!important;font-size:16px!important}
+.settings-actions{grid-template-columns:1fr 1fr 1fr!important;gap:10px!important}
+
+/* Support/help modal text */
+.help-head b{font-size:22px!important;font-weight:800!important}
+.help-head small{font-size:12px!important}
+.help-body article b{font-size:15px!important;font-weight:800!important;color:#213c59!important}
+.help-body article p{font-size:13px!important;line-height:1.8!important}
+
+/* Mobile */
+@media (max-width:680px) and (pointer:coarse){
+  body{padding:7px!important;overflow:auto!important}
+  .app-shell,.container{height:auto!important}
+                  
+              .panel-grid.two-col,.action-grid.two-actions,.settings-actions{grid-template-columns:1fr!important}
+}
+
+/* ==========================================================
+   Nepras v1.0 — compact professional sections
+   ========================================================== */
+/* [Phase 3] "NeprasArabicBold" @font-face حُذفت أيضًا: نفس الملف الناقص
+   بالضبط تحت اسم ثانٍ. راجع الشرح أعلى الملف. */
+
+/* [Phase 0] كتلة :root رقم 9 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+body,
+button,
+select,
+input,
+textarea,
+option,
+.field-block label,
+.grade-picker-button,
+.grade-option,
+.info-strip,
+.mini-note,
+.help-head b,
+.help-head small,
+.help-body article b,
+.help-body article p,
+.security-note,
+.whatsapp-link {
+  font-family:var(--nepras-body-font) !important;
+  letter-spacing:0 !important;
+  text-rendering:optimizeLegibility;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Header closer to approved reference */
+
+/* Stage toolbar */
+
+/* Sections: smaller height, clearer bold Arabic font */
+.panel-grid{gap:10px !important;}
+.field-block label{
+  font-size:12px !important;
+  margin-bottom:6px !important;
+  font-weight:700 !important;
+}
+.grade-picker-button,
+.grade-option {
+  font-size:12.2px !important;
+  font-weight:700 !important;
+}
+.grade-picker-button {
+  height:40px !important;
+  border-radius:12px !important;
+}
+.grade-option{padding:9px 11px !important;}
+.mini-note,
+.info-strip,
+.help-body article p,
+.security-note {font-size:11px !important;line-height:1.6 !important;}
+
+/* Footer WhatsApp link stays visible */
+.whatsapp-link{min-height:40px !important;border-radius:13px !important;}
+.whatsapp-link b{font-size:12.5px !important;}
+.whatsapp-link small{font-size:10px !important;}
+.whatsapp-link .wa-icon{width:28px !important;height:28px !important;font-size:15px !important;}
+
+/* Help modal tighter typography */
+.help-head b{font-size:20px !important;font-weight:700 !important;}
+.help-body article b{font-size:14px !important;font-weight:700 !important;}
+.help-body article p{font-size:12px !important;}
+
+/* Mobile harmony */
+
+/* ==========================================================
+   Nepras v1.0 — final logo fix + slightly larger readable fonts
+   ========================================================== */
+
+body,
+button,
+select,
+input,
+textarea,
+option,
+.security-note,
+.field-block label,
+.grade-picker-button,
+.grade-option,
+.info-strip,
+.help-body article p,
+.help-head small,
+.whatsapp-link {
+  font-family:"Cairo","Segoe UI",Tahoma,Arial,sans-serif !important;
+}
+
+.security-note{font-size:10px !important;font-weight:700 !important;line-height:1.75 !important;}
+
+.field-block label{font-size:13px !important;font-weight:800 !important;}
+.grade-picker-button,
+.grade-option {font-size:13px !important;font-weight:800 !important;}
+.info-strip,.mini-note,.help-body article p{font-size:11.5px !important;}
+.help-head b{font-size:22px !important;font-weight:800 !important;}
+.help-head small{font-size:12px !important;font-weight:700 !important;}
+.help-body article b{font-size:15px !important;font-weight:800 !important;}
+
+.whatsapp-link b{font-size:13px !important;font-weight:800 !important;}
+.whatsapp-link small{font-size:10.5px !important;font-weight:700 !important;}
+
+/* ==========================================================
+   Nepras v1.0 — correct RTL wordmark + one-step larger typography
+   ========================================================== */
+/* IMPORTANT: render the logo as real Arabic text, not the old reversed bitmap. */
+
+/* Slightly larger everywhere than v1.0, without increasing card heights. */
+
+.field-block label{font-size:14px !important;font-weight:800 !important;}
+.grade-picker-button,
+.grade-option {font-size:14px !important;font-weight:800 !important;}
+.mini-note,.info-strip{font-size:12px !important;font-weight:700 !important;}
+
+.security-note{font-size:11px !important;font-weight:700 !important;}
+
+.help-head b{font-size:23px !important;font-weight:800 !important;}
+.help-head small{font-size:13px !important;font-weight:700 !important;}
+.help-body article b{font-size:16px !important;font-weight:800 !important;}
+.help-body article p{font-size:13px !important;font-weight:700 !important;}
+
+.whatsapp-link b{font-size:14px !important;font-weight:800 !important;}
+.whatsapp-link small{font-size:11px !important;font-weight:700 !important;}
+
+#nepras-plan-label,#nepras-expiry-label{font-weight:900!important}
+
+/* v1.0 — feature permissions */
+
+/* ==========================================================
+   Nepras v1.0 — in-app account requests
+   ========================================================== */
+
+/* ==========================================================
+   Nepras v1.0 — account request button + modal visibility fix
+   ========================================================== */
+
+/* Make the primary request button visually distinct and easier to read. */
+
+/* Keep the status button secondary but readable. */
+
+/* Same visual priority for the request/renew button inside Settings. */
+
+/* ==========================================================
+   Nepras v1.0 — clearer account request typography + required phone
+   ========================================================== */
+
+/* ===== Nepras v1.0 — floating Arabic notifications ===== */
+
+/* ===== Nepras v1.0 — persistent large window + topmost notices ===== */
+/* v1.0 opens in a dedicated browser window, so use all available space. */
+body{overflow:hidden!important}
+
+/* Floating notices are above every Nepras modal and gate. */
+
+/* Keep the main card scrollable inside the taller dedicated window. */
+
+@media (max-width:680px) and (pointer:coarse){
+  }
+
+/* ===== Nepras v1.0 — normal toolbar popup + robust top notices ===== */
+html,body{
+  width:var(--popup-w)!important;min-width:var(--popup-w)!important;max-width:var(--popup-w)!important;
+  height:var(--popup-h)!important;min-height:var(--popup-h)!important;max-height:var(--popup-h)!important;
+}
+body{overflow:hidden!important}
+/* Keep long forms usable inside Chrome's popup height limit. */
+
+@media (max-width:680px) and (pointer:coarse){
+  }
+
+/* Nepras v1.0 — Admin account requests panel */
+
+/* v1.0 automatic account creation */
+
+/* v1.0 - Admin account management */
+
+.security-note{margin-top:8px!important}
+
+/* [Phase 3] "SultanBold"/"SultanMedium" @font-face حُذفتا: ملفاهما
+   (assets/SULTAN_BOLD.TTF, assets/SULTAN_MEDIUM.TTF) غير موجودين في الحزمة،
+   والقواعد تحتهما أصلًا تستخدم var(--sultan-bold)/var(--sultan-medium) اللي
+   Phase 0 حوّلهما بالفعل لـ Cairo — فهذان الاسمان لم يكونا مُستخدَمين حاليًا. */
+/* [Phase 0] كتلة :root رقم 10 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+body,
+.security-note {
+  font-family:var(--sultan-medium)!important;
+}
+button {
+  font-family:var(--sultan-bold)!important;
+}
+
+.security-note{margin-top:6px!important;font-size:9.5px!important;line-height:1.45!important}
+
+/* Compact request dialog */
+
+/* [Phase 3] "Sultan Bold"/"Sultan Medium" @font-face حُذفتا لنفس السبب —
+   نفس الملفين الناقصين، محاولة رابعة بأسماء مختلفة، وغير مُستخدَمتين حاليًا. */
+/* [Phase 0] كتلة :root رقم 11 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+/* Sultan is the UI font; restore only the Nepras wordmark to the previous GE SS TV look. */
+body,
+input,
+select,
+textarea,
+.security-note {
+  font-family:var(--sultan-medium)!important;
+  font-weight:500!important;
+}
+button {
+  font-family:var(--sultan-bold)!important;
+  font-weight:700!important;
+}
+
+/* Main header brand keeps the previous visual identity. */
+
+/* ===== Nepras v1.0 — symbol-safe fallback ===== */
+/* [Phase 3] أول تكرار لـ "Nepras Sultan Black"/"Nepras Sultan Medium" حُذف —
+   local() فقط، غير موجود عند شبه كل المستخدمين، وأصلًا غير مُستخدَم حاليًا
+   لأن var(--nepras-sultan-black)/var(--nepras-sultan-medium) = Cairo فعلًا. */
+/* [Phase 0] كتلة :root رقم 12 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+/* Medium for normal/small descriptive Arabic text. */
+body,
+input,
+select,
+textarea,
+.security-note,
+.mini-note,
+.info-strip,
+.help-body article p {
+  font-family:var(--nepras-sultan-medium)!important;
+  font-weight:500!important;
+}
+
+/* Heavy real SF Sultan Black for headings, buttons and important labels. */
+button,
+.help-body article b {
+  font-family:var(--nepras-sultan-black)!important;
+  font-weight:900!important;
+}
+
+/* Preserve the classic colorful Nepras wordmark without depending on a font file. */
+
+/* Symbols / emoji must never inherit a legacy Arabic face. */
+.symbol-font,
+.emoji,
+.accordion-icon,
+button .icon,
+[aria-hidden="true"] {
+  font-family:var(--nepras-symbol-font)!important;
+}
+
+/* [Phase 3] ثاني تكرار لـ "Nepras Sultan Black"/"Nepras Sultan Medium" حُذف —
+   نفس السبب: local() غير موجود، وغير مُستخدَم فعليًا. */
+/* [Phase 0] كتلة :root رقم 13 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+/* Default every visible popup/modal/admin text node to Sultan Medium.
+   This final rule intentionally overrides the many historical font declarations kept in the stylesheet. */
+html body,
+html body *,
+html body input,
+html body select,
+html body textarea,
+html body option{
+  font-family:var(--nepras-v1.0-medium)!important;
+}
+
+/* Important text and actions use the requested SF Sultan Black. */
+html body button,
+html body [role="button"],
+html body h1,
+html body h2,
+html body h3,
+html body h4,
+html body h5,
+html body h6,
+html body b,
+html body strong,
+html body label,
+html body .help-body article b {
+  font-family:var(--nepras-v1.0-black)!important;
+}
+
+/* Keep explicit symbol/emoji controls on system symbol fonts. */
+html body .symbol-font,
+html body .emoji,
+html body .accordion-icon,
+html body button .icon,
+html body [aria-hidden="true"] {
+  font-family:var(--nepras-v1.0-symbol)!important;
+}
+
+/* The old v1.0-approved wordmark is now a raster asset made from the original classic mark.
+   It no longer depends on any webfont and therefore cannot reverse/break when Sultan is changed. */
+
+/* ===== Nepras v1.0 — larger readable headers =====
+   Typography-only refinement after real-device v1.0 screenshots. */
+/* [Phase 3] ثالث ورابع وخامس تكرار لـ "Nepras Sultan Black"/"Nepras Sultan
+   Medium" حُذف — آخر محاولة من خمس محاولات بنفس الاسم بالضبط، وبنفس السبب:
+   local() غير موجود إطلاقًا، وغير مُستخدَم فعليًا حاليًا. */
+/* [Phase 0] كتلة :root رقم 14 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+/* Do not synthesize artificial bold/italic from Sultan Medium. */
+html body,html body *{font-synthesis:none!important}
+
+/* One consistent body/control face. Labels and field values intentionally stay Medium;
+   Black is reserved for hierarchy and actions so the interface no longer looks patchy. */
+html body,
+html body input,
+html body select,
+html body textarea,
+html body option,
+html body label,
+html body b,
+html body strong,
+html body .security-note,
+html body .mini-note,
+html body .info-strip,
+html body .help-body article p {
+  font-family:var(--nepras-v1.0-medium)!important;
+  font-weight:500!important;
+}
+
+/* True SF Sultan Black only where a strong visual anchor is needed. */
+html body .help-body article b {
+  font-family:var(--nepras-v1.0-black)!important;
+  font-weight:900!important;
+}
+
+.security-note{
+  margin-top:8px!important;
+  font-size:11px!important;
+  line-height:1.6!important;
+}
+
+/* Account request dialog: make the internal header unmistakable and normalize all form text. */
+
+/* Main popup headings use the same scale instead of inheriting historical mixed sizes. */
+
+/* Keep Latin handles / account identifiers on a predictable system face. */
+.username,
+.email,
+[dir="ltr"] {
+  font-family:"Segoe UI",Arial,sans-serif!important;
+}
+
+/* ===== Nepras v1.0 — final popup scale + selector coverage fix ===== */
+/* Root cause: several late legacy blocks still left some selectors on older sizing/weights.
+   This final block intentionally targets the exact elements that remained visually unchanged in the screenshots. */
+.security-note{font-size:11.5px!important;line-height:1.7!important;margin-top:8px!important}
+
+.grade-picker-button,
+.grade-option {font-family:var(--nepras-v1.0-medium)!important;font-size:16px!important;font-weight:700!important}
+.field-block label{font-family:var(--nepras-v1.0-black)!important;font-size:15px!important;font-weight:900!important;line-height:1.45!important}
+.mini-note{font-size:12.5px!important;line-height:1.65!important}
+
+/* ===== Nepras v1.0 — School Statistics ===== */
+.stats-card{--accent:#2f80ed;border-right-color:#2f80ed!important}
+.school-stats-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.school-stats-empty{background:#f3f8ff;border:1px dashed #bdd5ef;border-radius:12px;padding:12px;text-align:center;font-size:12px;line-height:1.7;color:#59728b}
+.school-stats-meta{background:#f7fafc;border:1px solid #e1e8ef;border-radius:10px;padding:8px 10px;margin-bottom:9px;text-align:center;font-size:11px;font-weight:700;color:#5b7187}
+.school-stats-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:9px}
+.stat-mini{background:#fff;border:1px solid #dbe7f1;border-radius:11px;padding:7px 4px;text-align:center;box-shadow:0 2px 8px rgba(35,74,110,.05)}
+.stat-mini b{display:block;font-size:19px!important;line-height:1.1;color:#1e5fa6;font-weight:700!important}
+.stat-mini span{display:block;margin-top:3px;font-size:9.5px;white-space:nowrap;color:#667b8f}
+.school-stats-statuses{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.school-stats-statuses span{background:#fff8e8;border:1px solid #f1d99d;border-radius:999px;padding:5px 8px;font-size:10px;color:#75550b}
+.school-stats-statuses b{font-weight:700!important}
+.school-stats-table-wrap{overflow:auto;max-height:210px;border:1px solid #dbe7f1;border-radius:11px;background:#fff}
+.school-stats-table{width:100%;border-collapse:collapse;min-width:590px;font-size:10.5px}
+.school-stats-table th{position:sticky;top:0;background:#92d050;color:#111;padding:7px 6px;border:1px solid #6a9d30;font-weight:700!important;z-index:1}
+.school-stats-table td{padding:6px;border:1px solid #d9e2ea;text-align:center;font-weight:400!important}
+.school-stats-table td:first-child{font-weight:700!important;text-align:right}
+@media(max-width:560px){.school-stats-cards{grid-template-columns:repeat(3,1fr)}.school-stats-actions{grid-template-columns:1fr}.stat-mini b{font-size:17px!important}}
+
+/* ===== Nepras v1.0 — detailed school status statistics ===== */
+.school-stats-subtitle{
+  margin:10px 0 6px;
+  font-size:13px!important;
+  font-weight:700!important;
+  color:#214f7c;
+  text-align:right;
+}
+.school-stats-statuses{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(105px,1fr));
+  gap:6px!important;
+  margin:6px 0 11px!important;
+}
+.school-status-card{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  min-height:50px;
+  padding:6px 8px;
+  border-radius:11px;
+  border:1px solid #ead7a7;
+  background:linear-gradient(180deg,#fffaf0,#fff5dc);
+  color:#70500a;
+  text-align:center;
+}
+.school-status-card b{
+  font-size:16px!important;
+  line-height:1.1!important;
+  font-weight:700!important;
+  color:#a06b00;
+}
+.school-status-card span{
+  font-size:10.5px!important;
+  line-height:1.3!important;
+  font-weight:400!important;
+}
+.school-status-empty{
+  grid-column:1/-1;
+  background:#f7fafc;
+  border:1px dashed #ccd9e5;
+  border-radius:10px;
+  padding:8px;
+  text-align:center;
+  font-size:11px;
+  color:#63798f;
+}
+.school-stats-table-wrap{
+  max-height:255px!important;
+  overflow:auto!important;
+}
+.school-stats-table{
+  width:max-content!important;
+  min-width:100%!important;
+  font-size:10.5px!important;
+}
+.school-stats-table th,
+.school-stats-table td{
+  min-width:64px;
+  white-space:nowrap;
+}
+.school-stats-table th:first-child,
+.school-stats-table td:first-child{
+  min-width:105px;
+  position:sticky;
+  right:0;
+}
+.school-stats-table th:first-child{
+  z-index:3!important;
+  background:#92d050!important;
+}
+.school-stats-table td:first-child{
+  z-index:2;
+  background:#fff;
+}
+.school-stats-total-row td{
+  font-weight:700!important;
+  background:#eef7e4!important;
+  border-top:2px solid #7eaf42!important;
+}
+.school-stats-total-row td:first-child{
+  background:#dff1c8!important;
+}
+
+/* ===== Nepras v1.0 — clickable statistics + student detail modal ===== */
+.school-stat-click{cursor:pointer!important}
+.school-stat-cell{
+  width:100%;
+  min-width:42px;
+  border:0;
+  background:transparent;
+  padding:4px 6px;
+  color:#185fac;
+  font:inherit;
+  font-weight:700!important;
+  border-radius:7px;
+}
+.school-stat-cell:hover{
+  background:#e8f3ff;
+  box-shadow:inset 0 0 0 1px #bbd8f4;
+}
+button.school-status-card{
+  appearance:none;
+  width:100%;
+  font:inherit;
+  cursor:pointer;
+}
+button.school-status-card:hover{
+  box-shadow:0 4px 12px rgba(160,107,0,.12);
+  transform:translateY(-1px);
+}
+.school-stats-detail-modal{
+  position:fixed;
+  inset:0;
+  z-index:2147483600;
+  background:rgba(18,34,52,.58);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  direction:rtl;
+}
+.school-stats-detail-modal[hidden]{display:none!important}
+.school-stats-detail-card{
+  width:min(940px,calc(100vw - 28px));
+  max-height:min(88vh,760px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  background:#fff;
+  border:1px solid #cbdbe8;
+  border-radius:18px;
+  box-shadow:0 24px 70px rgba(0,0,0,.28);
+}
+.school-stats-detail-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+  background:linear-gradient(135deg,#176bc1,#0e82d8);
+  color:#fff;
+}
+.school-stats-detail-head>div{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.school-stats-detail-head b{
+  font-size:19px!important;
+  line-height:1.35!important;
+}
+.school-stats-detail-head small{
+  font-size:12px!important;
+  opacity:.9;
+}
+#school-stats-detail-close{
+  border:0;
+  width:36px;
+  height:36px;
+  border-radius:10px;
+  background:rgba(255,255,255,.18);
+  color:#fff;
+  font-size:18px!important;
+  cursor:pointer;
+}
+.school-stats-detail-tools{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+  padding:11px 13px;
+  background:#f7fafc;
+  border-bottom:1px solid #dce7f0;
+}
+.school-stats-detail-tools input{
+  min-height:42px;
+  border:1px solid #c9d9e8;
+  border-radius:10px;
+  padding:8px 12px;
+  font-size:13px!important;
+}
+#school-stats-detail-export{
+  min-height:42px;
+  border:0;
+  border-radius:10px;
+  padding:8px 14px;
+  background:#159b63;
+  color:#fff;
+  font-size:13px!important;
+  font-weight:700!important;
+  cursor:pointer;
+}
+.school-stats-detail-table-wrap{
+  overflow:auto;
+  flex:1;
+}
+.school-stats-detail-table{
+  width:max-content;
+  min-width:100%;
+  border-collapse:collapse;
+  font-size:11.5px!important;
+}
+.school-stats-detail-table th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#92d050;
+  color:#111;
+  border:1px solid #6f9f39;
+  padding:8px 9px;
+  white-space:nowrap;
+  font-weight:700!important;
+}
+.school-stats-detail-table td{
+  border:1px solid #d9e3eb;
+  padding:7px 9px;
+  white-space:nowrap;
+  text-align:center;
+}
+.school-stats-detail-table td:nth-child(2){
+  text-align:right;
+  min-width:240px;
+}
+.school-stats-detail-empty{
+  padding:24px!important;
+  color:#63798d;
+  text-align:center!important;
+}
+@media(max-width:600px){
+  .school-stats-detail-tools{grid-template-columns:1fr}
+  .school-stats-detail-card{width:calc(100vw - 14px);max-height:92vh}
+}
+
+/* v1.0 — المصروفات والإعفاءات */
+.expenses-stats-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.expenses-stat { border: 1px solid #dbe7f2; cursor: pointer; font: inherit; width: 100%; }
+.expenses-stat:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(31,78,121,.10); }
+.expenses-note { margin-top: 10px; background: #f7fbff; border: 1px solid #dceaf7; color: #315779; }
+@media (max-width: 620px) { .expenses-stats-cards { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+/* v1.0 — عنوان واضح لقسم المصروفات */
+.expenses-panel-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 12px;padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#eef7ff,#f2fbf6);border:1px solid #d6e7f4;direction:rtl}.expenses-panel-title b{font-size:18px;font-weight:900;color:#185a91}.expenses-panel-title small{font-size:12px;font-weight:800;color:#5b7187}.expenses-stat[data-exp-cat="allExemptions"]{background:#fffaf0;border-color:#efd9a6}
+
+/* Nepras v1.0 — مصروفات: عنوان القسم في رأس الكارت */
+.expenses-stat[data-exp-cat="homes"]{background:#f2f8ff;border-color:#cbdff6;}
+
+/* v1.0 — تفاصيل المصروفات */
+#expenses-detail-close,
+#school-stats-detail-close{
+  width:46px!important;
+  height:46px!important;
+  min-width:46px!important;
+  border:0!important;
+  border-radius:14px!important;
+  background:rgba(255,255,255,.20)!important;
+  color:#fff!important;
+  font-size:25px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  cursor:pointer!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+#expenses-detail-export{
+  min-height:42px;
+  border:0;
+  border-radius:10px;
+  padding:8px 14px;
+  background:#159b63;
+  color:#fff;
+  font-size:13px!important;
+  font-weight:800!important;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+/* v1.0 — تكبير زر الإغلاق */
+#expenses-detail-close,
+#school-stats-detail-close {
+  width: 50px !important;
+  height: 50px !important;
+  min-width: 50px !important;
+  border-radius: 15px !important;
+  font-size: 28px !important;
+  font-weight: 900 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.nationwide-student-result{margin-top:12px;border:1px solid #cfe2f5;border-radius:16px;background:#f8fbff;padding:14px;direction:rtl}.nationwide-result-title{font-weight:900;color:#1673c9;font-size:16px;margin-bottom:10px;text-align:center}.nationwide-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.nationwide-result-grid>div{background:#fff;border:1px solid #dbe7f2;border-radius:12px;padding:9px 10px;display:flex;flex-direction:column;gap:4px}.nationwide-result-grid span{font-size:11px;color:#6a7f93;font-weight:800}.nationwide-result-grid b{font-size:13px;color:#163b5d;font-weight:900;word-break:break-word}.nationwide-search-card input{width:100%;min-height:44px;border:1px solid #ccddeb;border-radius:12px;padding:10px 12px;font-family:Arial,sans-serif;font-weight:700;direction:ltr;text-align:center}.expenses-stats-cards .expenses-stat[data-exp-cat="reportOnly"]{border-color:#f0b36a!important;background:#fff8eb!important}
+
+/* v1.0 — قسم البحث الشامل واضح كقسم مستقل */
+
+/* v1.0 — إصلاح ظهور عنوان «بحث جماعي عن الطلاب بالرقم القومي» (كان بلون أبيض غير ظاهر) وتوحيد حجم خطه مع باقي الأقسام */
+
+/* ==========================================================
+   Nepras v1.0 — desktop readability + persistent large window
+   ========================================================== */
+
+/* النصوص التوضيحية الصغيرة أصبحت أوضح وأثقل */
+.school-stats-empty,
+.expenses-note,
+.mini-note,
+.help-body article p,
+.security-note {
+  font-size:13.5px!important;
+  line-height:1.75!important;
+  font-weight:900!important;
+  color:#4e6984!important;
+  opacity:1!important;
+}
+.school-stats-empty{
+  padding:13px 15px!important;
+  border-width:1.5px!important;
+}
+.grade-picker-button {
+  font-size:15px!important;
+  font-weight:900!important;
+}
+.grade-option{
+  font-size:15px!important;
+  line-height:1.6!important;
+  font-weight:900!important;
+  padding:11px 12px!important;
+}
+
+/* نافذة نبراس الكبيرة المستقلة */
+html.large-window-mode,
+html.large-window-mode body{
+  width:100vw!important;
+  min-width:900px!important;
+  max-width:none!important;
+  height:100vh!important;
+  min-height:720px!important;
+  max-height:none!important;
+}
+html.large-window-mode body{padding:14px!important;overflow:hidden!important}
+html.large-window-mode .container{max-width:1180px!important;margin:0 auto!important}
+html.large-window-mode #btn-open-large-window{display:none!important}
+html.large-window-mode .school-stats-detail-card{width:min(1080px,calc(100vw - 34px))!important;max-height:90vh!important}
+
+/* ==========================================================
+   Nepras v1.0 — real mobile / Kiwi responsive layout
+   Applied by mobile-ui.js so the normal 680px desktop popup is untouched.
+   ========================================================== */
+html.nepras-mobile{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:auto!important;
+  min-height:100%!important;
+  max-height:none!important;
+  overflow-x:hidden!important;
+  -webkit-text-size-adjust:100%!important;
+  text-size-adjust:100%!important;
+  background:var(--page)!important;
+}
+html.nepras-mobile body{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:auto!important;
+  min-height:100dvh!important;
+  max-height:none!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  padding:8px!important;
+  background:var(--page)!important;
+}
+html.nepras-mobile .app-shell,
+html.nepras-mobile .container{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  height:auto!important;
+  min-height:calc(100dvh - 16px)!important;
+  max-height:none!important;
+}
+html.nepras-mobile .container{gap:8px!important}
+
+html.nepras-mobile .security-note{font-size:11px!important}
+
+/* Main header */
+
+/* Stage selector */
+
+/* Let the phone page scroll naturally instead of squeezing a 600px desktop canvas. */
+html.nepras-mobile .panel-grid.two-col,
+html.nepras-mobile .panel-grid,
+html.nepras-mobile .school-stats-actions,
+html.nepras-mobile .settings-actions,
+html.nepras-mobile .action-grid.two-actions{
+  grid-template-columns:1fr!important;
+}
+html.nepras-mobile .field-block{padding:9px!important}
+html.nepras-mobile .field-block label{font-size:14px!important}
+html.nepras-mobile .grade-picker-button {height:46px!important;font-size:15px!important}
+html.nepras-mobile .single-action-row{display:block!important}
+html.nepras-mobile .school-stats-cards,
+html.nepras-mobile .expenses-stats-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+html.nepras-mobile .school-stats-table-wrap,
+html.nepras-mobile .school-stats-detail-table-wrap{max-width:100%!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important}
+html.nepras-mobile .whatsapp-link{min-height:50px!important}
+
+/* Dialogs/forms on phone */
+html.nepras-mobile .help-modal,
+html.nepras-mobile .school-stats-detail-modal {
+  padding:8px!important;
+}
+html.nepras-mobile .help-card,
+html.nepras-mobile .school-stats-detail-card {
+  width:100%!important;
+  max-width:calc(100vw - 16px)!important;
+  max-height:calc(100dvh - 16px)!important;
+}
+
+/* Landscape phones: keep compact spacing while preserving readable text. */
+@media (orientation:landscape){
+  html.nepras-mobile body{padding:6px!important}
+  html.nepras-mobile .container{gap:6px!important}
+          }
+
+/* =========================================================
+   v1.0 — Student pull mode selector (normal / deep)
+   ========================================================= */
+
+/* =========================================================
+   v1.0 — Student section UX redesign
+   ========================================================= */
+.student-workspace{display:flex;flex-direction:column;gap:14px}
+.student-mode-card,.student-grade-card,.student-actions-card{background:#fff;border:1px solid #dbe6f2;border-radius:18px;padding:14px;box-shadow:0 10px 24px rgba(39,71,106,.07)}
+.student-mode-card{background:linear-gradient(180deg,#f8fbff 0%,#fdfefe 100%)}
+.student-mode-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.student-mode-caption{display:block;color:#698097;font-size:12px;font-weight:700;margin-top:2px}
+.student-grade-card{padding:14px!important}
+.student-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.student-card-head label{margin:0!important;font-size:14px!important;font-weight:900!important;color:#1f3f5c!important}
+.student-grade-row{align-items:center!important}
+.student-grade-card .grade-picker-button{height:48px!important;font-size:15px!important;border-radius:14px!important}
+.student-actions-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0;background:transparent;border:0;box-shadow:none}
+
+@media (max-width:760px){
+  .student-workspace{gap:12px!important}
+  .student-mode-card,.student-grade-card{padding:12px!important;border-radius:16px!important}
+  .student-mode-head{flex-direction:column;align-items:flex-start!important;margin-bottom:8px!important}
+      .student-actions-card{grid-template-columns:1fr!important}
+  }
+html.nepras-mobile .student-mode-card,html.nepras-mobile .student-grade-card{border-radius:18px!important;padding:13px!important}
+
+/* =========================================================
+   v1.0 — Student section compact layout + bolder typography
+   ========================================================= */
+.student-workspace{display:grid!important;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr)!important;grid-template-areas:"mode grade" "actions actions";gap:12px!important;align-items:start!important}
+.student-mode-card{grid-area:mode!important}
+.student-grade-card{grid-area:grade!important}
+.student-actions-card{grid-area:actions!important}
+.student-mode-card,.student-grade-card{padding:11px 12px!important;border-radius:15px!important;box-shadow:0 6px 16px rgba(39,71,106,.06)!important}
+.student-mode-head{margin-bottom:7px!important}
+.student-mode-caption{font-size:11.5px!important;font-weight:800!important;line-height:1.4!important}
+.student-card-head{margin-bottom:8px!important}
+.student-card-head label{font-size:15px!important;font-weight:900!important}
+.student-grade-card .grade-picker-button{height:44px!important;font-size:15px!important;font-weight:800!important;padding-right:12px!important}
+.student-actions-card{grid-template-columns:1fr 1fr!important;gap:10px!important}
+@media (max-width:900px){
+  .student-workspace{grid-template-columns:1fr!important;grid-template-areas:"mode" "grade" "actions"!important;gap:10px!important}
+}
+html.nepras-mobile .student-workspace{display:flex!important;flex-direction:column!important;gap:10px!important}
+html.nepras-mobile .student-mode-card,html.nepras-mobile .student-grade-card{padding:11px!important;border-radius:15px!important}
+html.nepras-mobile .student-grade-card .grade-picker-button{height:44px!important;font-size:14.5px!important}
+
+/* =========================================================
+   v1.0 — Large-window top-level popup notices
+   ========================================================= */
+
+/* =========================================================
+   v1.0 — Extra-compact student section
+   ========================================================= */
+.student-workspace{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.35fr) minmax(260px,.85fr) minmax(220px,.72fr)!important;
+  grid-template-areas:"mode grade actions"!important;
+  gap:9px!important;
+  align-items:stretch!important;
+}
+.student-mode-card,.student-grade-card{
+  padding:9px 10px!important;
+  border-radius:13px!important;
+  box-shadow:0 4px 12px rgba(39,71,106,.05)!important;
+}
+.student-mode-card{grid-area:mode!important}
+.student-grade-card{grid-area:grade!important}
+.student-actions-card{grid-area:actions!important}
+.student-mode-head{margin:0 0 6px!important;display:block!important}
+.student-mode-caption{display:none!important}
+.student-card-head{margin:0 0 6px!important;min-height:32px!important}
+.student-card-head label{font-size:14px!important;font-weight:900!important}
+.student-grade-card .grade-picker-button{
+  height:44px!important;
+  font-size:14px!important;
+  font-weight:900!important;
+  border-radius:11px!important;
+}
+.student-actions-card{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:1fr 1fr!important;
+  gap:7px!important;
+  align-content:stretch!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+@media (max-width:980px){
+  .student-workspace{
+    grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr)!important;
+    grid-template-areas:"mode grade" "actions actions"!important;
+  }
+  .student-actions-card{grid-template-columns:1fr 1fr!important;grid-template-rows:auto!important}
+}
+html.nepras-mobile .student-workspace{display:flex!important;flex-direction:column!important;gap:7px!important}
+html.nepras-mobile .student-mode-card,html.nepras-mobile .student-grade-card{padding:8px 9px!important;border-radius:12px!important}
+html.nepras-mobile .student-mode-head{margin-bottom:5px!important}
+html.nepras-mobile .student-card-head{margin-bottom:5px!important;min-height:30px!important}
+html.nepras-mobile .student-grade-card .grade-picker-button{height:42px!important;font-size:14px!important}
+html.nepras-mobile .student-actions-card{grid-template-columns:1fr 1fr!important;grid-template-rows:auto!important;gap:6px!important}
+@media (max-width:360px){
+  html.nepras-mobile .student-actions-card{grid-template-columns:1fr!important}
+}
+
+/* =========================================================
+   v1.0 RC7 — compact teacher category buttons
+   ========================================================= */
+.teacher-pull-panel{display:flex;flex-direction:column;gap:10px}
+.teacher-pull-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 2px 0}
+.teacher-pull-head b{font-size:14px!important;font-weight:900!important;color:#17476f}
+.teacher-pull-head small{font-size:11px!important;font-weight:800!important;color:#6d8296}
+.teacher-pull-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+
+@media(max-width:760px){.teacher-pull-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.teacher-pull-head{align-items:flex-start;flex-direction:column;gap:2px}}
+html.nepras-mobile .teacher-pull-panel{gap:9px!important}
+html.nepras-mobile .teacher-pull-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+
+/* =========================================================
+   v1.0 RC13 — prominent status sheets + release polish
+   ========================================================= */
+
+/* ===== Nepras v1.0 — paid annual offer + stronger request form readability ===== */
+
+/* v1.0 — one trial per user/phone */
+
+/* ==========================================================
+   NeprasPro Unified Cairo Font & Corporate Palette
+   ========================================================== */
+/* [Phase 0] كتلة :root رقم 15 السابقة أُدمجت أعلى الملف بلا تغيير في القيم. */
+
+body,
+button,
+input,
+select,
+textarea,
+b,
+strong,
+span,
+p,
+div,
+small,
+label,
+h1,
+h2,
+h3,
+a,
+article,
+header,
+footer,
+.grade-picker-button,
+.grade-option,
+.help-head b,
+.help-head small,
+.help-body article b,
+.help-body article p {
+  font-family: 'Cairo',  'Segoe UI', Tahoma, Arial, sans-serif !important;
+  letter-spacing: -0.15px !important;
+}
+
+/* NeprasPro Brand Accent Enhancements */
+
+/* Nepras Brand Header Wordmark Fix (No Image, Clean Cairo Text) */
+
+/* Stage Toolbar */
+
+/* Accordions */
+
+/* Action buttons and inputs */
+.field-block {
+  padding: 6px 8px !important;
+  border-radius: 10px !important;
+  gap: 4px !important;
+}
+.field-block label {
+  font-size: 11.5px !important;
+}
+.grade-picker-button {
+  height: 36px !important;
+  font-size: 12px !important;
+  border-radius: 9px !important;
+}
+.mini-note {
+  font-size: 9.5px !important;
+  line-height: 1.4 !important;
+}
+
+/* Footer and Settings */
+.info-strip {
+  padding: 6px 9px !important;
+  font-size: 9.5px !important;
+  gap: 5px 12px !important;
+  border-radius: 10px !important;
+}
+
+/* ==========================================================
+   Phase 1+2 — نظام حالات الأزرار الموحّد (نبراس برو v1.0.2)
+   ==========================================================
+   إضافة خالصة (Additive-only): لا تُغيَّر هنا أي أبعاد/حشو/نصف قطر
+   حالي لأي زر في المشروع، فقط تُضاف حالات التفاعل الناقصة
+   (hover/active/focus-visible/disabled) بالإضافة إلى أول قدرة
+   "تحميل" (.is-loading) في تاريخ هذا المشروع. توحيد المقاييس
+   الفعلية (نصف قطر واحد بدل 14 قيمة، حذف تعارضات !important
+   المتراكمة عبر عشرات المقاطع "RC") يحتاج مرحلة تالية منفصلة
+   تُختبر بصريًا في متصفح حقيقي قبل حذف أي تعريف قديم، لأن كل
+   واحدة من 16 عائلة الأزرار فيها فعليًا حتى 8 تعريفات !important
+   متضاربة للحجم تراكمت عبر إصدارات سابقة (RC12/RC13 وغيرها).
+   انظر ملف "الخطوات_التالية_للأزرار.md" المرفق لتفاصيل كل عائلة. */
+
+.btn{
+  cursor:pointer;
+  border:1px solid transparent;
+  font-weight:800;
+  transition:transform .12s ease, box-shadow .12s ease, filter .12s ease, opacity .12s ease;
+}
+.btn:hover{ transform:translateY(-1px); box-shadow:var(--shadow-btn-hover); }
+.btn:active{ transform:translateY(0); box-shadow:none; filter:brightness(.97); }
+.btn:focus-visible{ outline:3px solid rgba(29,78,216,.35); outline-offset:2px; }
+.btn:disabled,.btn[disabled]{ opacity:.55 !important; cursor:not-allowed; transform:none; filter:none; pointer-events:none; }
+
+/* حالة "جاري التنفيذ" — أول ظهور لهذا المفهوم في المشروع (Phase 2).
+   تُخفي محتوى الزر الحالي (نص/أيقونات) دون تغيير أبعاده، وتُظهر
+   مؤشر دوران مكانه. يُستدعى برمجيًا فقط عبر modules/ui-button-state.js */
+.btn.is-loading{ position:relative; color:transparent !important; pointer-events:none; }
+.btn.is-loading > *{ visibility:hidden; }
+.btn.is-loading::after{
+  content:"";
+  position:absolute; inset:0; margin:auto;
+  width:16px; height:16px;
+  border:2.5px solid currentColor;
+  border-top-color:transparent;
+  border-radius:50%;
+  color:#ffffff;
+  animation:nepras-btn-spin .6s linear infinite;
+}
+
+@keyframes nepras-btn-spin{ to{ transform:rotate(360deg); } }
+
+/* أدوات جاهزة لأي زر جديد لا يملك لونًا خاصًا بعد (مبنية على التوكِنز
+   الموحّدة أعلى الملف) — لا تُطبَّق قسرًا على الأزرار الملوّنة القديمة
+   حتى لا تتغيّر ألوان التمييز بين الأقسام (طالب/معلم/حضور...) الحالية. */
+.btn-primary{ background:var(--btn-primary); color:#fff; border-color:var(--btn-primary); }
+.btn-primary:hover{ background:var(--btn-primary-hover); }
+.btn-outline{ background:var(--btn-surface); color:var(--btn-primary); border-color:var(--btn-primary); }
+.btn-danger{ background:var(--btn-danger); color:#fff; border-color:var(--btn-danger); }
+.btn-sm{ font-size:12.5px; }
+
+/* حالة تفاعل "هادئة" (Phase 3) لعناصر بنيوية/تبديلية لا تناسبها حركة
+   الرفع الكاملة الخاصة بـ .btn (ترويسات أكورديون كاملة العرض، شبكة إحصاء
+   مصروفات مضغوطة، قائمة منسدلة مخصّصة) — تضيف فقط حلقة تركيز واستجابة
+   ضغط خفيفة، دون رفع/ظل قد يبدو مقحمًا على عنصر بنيوي أو يتداخل داخل شبكة. */
+.btn-quiet{ cursor:pointer; transition:filter .12s ease, opacity .12s ease; }
+.btn-quiet:hover{ filter:brightness(0.98); }
+.btn-quiet:active{ filter:brightness(0.95); }
+.btn-quiet:focus-visible{ outline:3px solid rgba(29,78,216,.35); outline-offset:2px; }
+.btn-quiet:disabled,.btn-quiet[disabled]{ opacity:.55; cursor:not-allowed; }
+
+/* =========================================================
+   v1.2.7 — إصلاحان: (١) قسم "تسكين وتوزيع الفصول آلياً" كان
+   عنوانه وسهمه بلون أبيض فوق خلفية بيضاء تقريبًا (غير مرئي)،
+   لأن تعديلات سابقة متراكمة أضافت لونًا مخصصًا لكل قسم (طالب/
+   تقارير/معلم/حضور...) فيما عدا قسم "assign-card" فنسي تمامًا.
+   (٢) عنوان الشعار العلوي "أدوات المدرسة الموحّدة" كان مضبوطًا
+   14px داخل الـ HTML نفسه، لكن عشرات القواعد المتراكمة بـ!important
+   في هذا الملف رفعته فعليًا لأكثر من 44px فسبّب قصّ النص ("ادوا"
+   فقط بدل الجملة كاملة). نُثبّت هنا القيم الصحيحة بشكل نهائي. */
+
+/* ==================== بحث جماعي بالرقم القومي ==================== */
+.bulk-nid-file-row{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bulk-nid-file-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 16px;border-radius:11px;background:linear-gradient(135deg,#2f80ed,#1768c5);color:#fff;font-weight:800;font-size:12.5px;cursor:pointer;transition:.15s;box-shadow:0 6px 14px rgba(48,78,108,.10)}
+.bulk-nid-file-btn:hover{transform:translateY(-1px);filter:saturate(1.08)}
+#bulk-nid-file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.bulk-nid-file-name{font-size:11.5px;font-weight:700;color:#4a6178;word-break:break-all}
+.bulk-nid-summary{color:#1673c9!important;font-weight:800!important}
+.bulk-nid-progress-wrap{margin-top:4px;display:flex;flex-direction:column;gap:6px}
+.bulk-nid-progress-track{width:100%;height:10px;border-radius:999px;background:#e4edf6;overflow:hidden}
+.bulk-nid-progress-bar{height:100%;width:0%;border-radius:999px;background:linear-gradient(135deg,#24b85a,#0f9642);transition:width .2s ease}
+.bulk-nid-progress-text{font-size:11.5px;font-weight:800;color:#304b65;text-align:center}
+
+/* ============================================================
+   [Phase 4] ميزات جديدة: بحث سريع داخل الـ popup، فتح/طي كل
+   الأقسام دفعة واحدة، وسجل آخر الملفات المُصدّرة.
+   كتلة مستقلة كليًا — لا تُعدّل أي قاعدة موجودة قبلها.
+   ============================================================ */
+.quick-toggle-all-btn{flex-shrink:0;height:38px;padding:0 12px;border-radius:var(--radius-md);border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.quick-toggle-all-btn:hover{background:var(--page)}
+.quick-toggle-all-btn[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.recent-exports-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+.recent-export-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px}
+.recent-export-item .recent-export-name{font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:plaintext;text-align:start}
+.recent-export-item .recent-export-time{flex-shrink:0;color:var(--muted);font-size:10.5px;font-weight:700;white-space:nowrap}
+.recent-exports-empty{text-align:center;color:var(--muted);font-size:12px;font-weight:700;padding:14px 8px}
+.recent-exports-list:focus-visible {outline:2px solid var(--blue);outline-offset:1px}
+
+@media(max-width:560px){
+      .quick-toggle-all-btn{flex:1}
+}
+
+/* الوضع الداكن: خلفية الصفحة نفسها (كانت تبقى فاتحة بين البطاقات) + عنوان الهيدر (لونه مكتوب inline في HTML) */
+html:has(body.theme-dark), html:has(body.theme-dark) body { background: var(--n-bg) !important; }
+
+/* الوضع الداكن: جسم البطاقة المفتوحة كان يبقى فاتحًا فيختفي نصه ويتنافر مع الأزرار الداكنة (تنقيح كامل في المرحلة 7) */
+
+/* v1.2.77 — الخاصية hidden تُخفي العنصر دائمًا حتى لو حدّد له CSS قيمة display
+   (كان شريط «0 / 0» في البحث الجماعي يظهر قبل اختيار أي ملف). */
+[hidden]{display:none!important}
+
+/* v1.2.78 — سطر «التنقية جارية الآن» في قسم منقّي أسماء الطلاب: يبرز عن الملاحظة التي فوقه ويتبع ألوان الواجهة. */
+.name-fixer-status{margin-top:6px;font-size:11px;font-weight:800;color:inherit}
+
+/* ============================================================
+   v1.2.79: السجلات والكشوف والخدمات المدرسية المتقدمة
+   ============================================================ */
+.student-records-card, .records-nid-card, .school-health-card, .class-org-card, .download-any-table-card {
+  margin-top: 10px;
+}
+.three-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+}
+@media (max-width: 480px) {
+  .three-actions {
+    grid-template-columns: 1fr;
+  }
+}
+#records-nid-result {
+  font-size: 12px;
+  border-radius: var(--radius-md, 8px);
+}
+
+/* v1.2.92: دفاتر الفصول (بطاقة الإعدادات: أنواع الدفاتر وحقولها) */
+.class-books-card { margin-top: 10px; }
+.class-books-card .n-section__body { display: flex; flex-direction: column; gap: var(--n-s2, 8px); }
+.cb-jobs { display: flex; flex-direction: column; gap: 6px; }
+.cb-job { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--n-line, #d3dce6); border-radius: var(--n-r-md, 10px); background: var(--n-surface-2, #f8fafc); }
+.cb-job[hidden] { display: none; }
+.cb-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; line-height: 1.5; }
+.cb-check input[type="checkbox"] { width: 18px; height: 18px; flex: none; accent-color: var(--n-primary, #1e5aa8); }
+.cb-grades { min-height: 34px; text-align: center; }
+.cb-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.cb-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cb-trio.cb-duo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cb-adv { border: 1px dashed var(--n-line, #d3dce6); border-radius: var(--n-r-md, 10px); padding: 6px 8px; }
+.cb-adv > summary { cursor: pointer; font-size: 12px; font-weight: 800; padding: 4px 0; }
+.cb-adv[open] > summary { margin-bottom: 8px; }
+.cb-tpl-list { display: flex; flex-direction: column; gap: 6px; }
+.cb-tpl-row { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border: 1px solid var(--n-line, #d3dce6); border-radius: var(--n-r-md, 10px); background: var(--n-surface-2, #f8fafc); }
+.cb-tpl-row.is-busy { opacity: .7; }
+.cb-tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 700; }
+.cb-tpl-badge { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 8px; border-radius: 999px; font-size: var(--n-fs-xs, 12px); font-weight: 700; color: var(--n-text-muted, #526074); background: var(--n-surface, #fff); border: 1px solid var(--n-line, #d3dce6); }
+.cb-tpl-badge.is-custom { color: var(--n-success, #15803d); background: var(--n-success-soft, #ecfdf3); border-color: var(--n-success-line, #86efac); }
+.cb-tpl-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cb-tpl-actions .n-btn { flex: 1 1 auto; justify-content: center; text-align: center; cursor: pointer; }
+@media (max-width: 480px) { .cb-job { grid-template-columns: 1fr; } }

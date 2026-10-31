@@ -1,0 +1,54 @@
+/* ==========================================================================
+   mobile.css — يحلّ محلّ release-mobile.css (طبقة الترقيع القديمة).
+   قواعد الهيكل الأساسية + شريط تبويبات سفلي (6 مجموعات) فوقه شريط التواصل الدائم.
+   مبني على tokens.css؛ لا يستهدف أصنافًا قديمة (المكوّنات نفسها متجاوبة).
+   ========================================================================== */
+:root { --n-tabbar-h: 60px; --n-support-h: 76px; }
+
+/* الهيكل: صفحة تُمرَّر بدل نافذة ثابتة 680×600 */
+html.nepras-mobile, html.nepras-mobile body { width: 100% !important; min-width: 0 !important; max-width: 100% !important; min-height: 100% !important; height: auto !important; overflow-x: hidden !important; }
+html.nepras-mobile body {
+  min-height: 100dvh !important; overscroll-behavior-y: contain !important;
+  padding: max(6px, env(safe-area-inset-top)) 6px calc(var(--n-tabbar-h) + 12px) !important;
+}
+html.nepras-mobile .app-shell, html.nepras-mobile .container { width: 100% !important; min-width: 0 !important; max-width: 100% !important; height: auto !important; }
+html.nepras-mobile .container { gap: var(--n-s2) !important; }
+html.nepras-mobile-full, html.nepras-mobile-full body { height: 100% !important; min-height: 100dvh !important; max-height: none !important; overflow-y: auto !important; overscroll-behavior-y: auto !important; -webkit-overflow-scrolling: touch; touch-action: pan-y !important; }
+html.nepras-mobile-full body { position: static !important; }
+html.nepras-mobile-full .app-shell, html.nepras-mobile-full .container { max-width: 760px !important; min-height: 0 !important; max-height: none !important; margin: 0 auto !important; overflow: visible !important; }
+html.nepras-mobile button, html.nepras-mobile select, html.nepras-mobile input { touch-action: manipulation; }
+html.nepras-mobile #btn-open-large-window, html.nepras-edge.nepras-mobile #btn-open-large-window { display: none !important; }
+
+/* جداول وقوائم عريضة تُمرَّر أفقيًا داخل حاويتها بدل تمديد الصفحة */
+html.nepras-mobile .school-stats-table-wrap, html.nepras-mobile .table-wrap { max-width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+/* نافذة الشرح */
+html.nepras-mobile .help-modal { padding: 10px !important; align-items: flex-start !important; padding-top: max(14px, env(safe-area-inset-top)) !important; }
+html.nepras-mobile .help-card { width: min(96vw, 560px) !important; max-height: 90vh !important; overflow: auto !important; border-radius: var(--n-r-lg) !important; }
+
+/* شريط التبويبات السفلي */
+html.nepras-mobile .n-shell { display: block; }
+html.nepras-mobile .n-content { overflow: visible; }
+html.nepras-mobile .n-sidebar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 30; box-sizing: border-box;
+  width: auto; flex-direction: row; gap: 0; overflow: visible; margin: 0;
+  padding: var(--n-s1) var(--n-s1) calc(var(--n-s1) + env(safe-area-inset-bottom, 0px));
+  border: 0; border-top: 1px solid var(--n-line); border-radius: var(--n-r-lg) var(--n-r-lg) 0 0; box-shadow: 0 -6px 20px rgba(15, 23, 42, .14);
+}
+html.nepras-mobile .n-tab {
+  flex: 1 1 0; width: auto; min-width: 0; flex-direction: column; justify-content: center; gap: 2px;
+  min-height: calc(var(--n-tabbar-h) - 8px); padding: var(--n-s1) 2px; text-align: center;
+  border-inline-start: 0; border-top: 3px solid transparent; border-radius: var(--n-r-md); font-size: var(--n-fs-xs); white-space: normal;
+}
+html.nepras-mobile .n-tab[aria-selected="true"] { border-top-color: var(--n-primary); border-bottom-color: transparent; }
+html.nepras-mobile .n-tab__label { display: none; }
+html.nepras-mobile .n-tab__short { display: inline; }
+
+/* شريط التواصل: ثابت فوق شريط التبويبات (الروابط الثلاثة ظاهرة دائمًا) */
+html.nepras-mobile .n-support {
+  position: static !important;
+  margin: var(--n-s3) 0 !important;
+  border-radius: var(--n-r-lg) !important;
+  border: 1px solid var(--n-line) !important;
+  box-shadow: var(--n-shadow-1) !important;
+}
+.theme-dark html.nepras-mobile .n-sidebar, html.nepras-mobile .theme-dark .n-sidebar { box-shadow: 0 -6px 20px rgba(0, 0, 0, .5); }

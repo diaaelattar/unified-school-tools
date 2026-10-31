@@ -1,0 +1,65 @@
+/* رسوم نبراس البيانية — ألوان السلاسل من لوحة مُتحقَّق منها (أزرق/برتقالي) بالوضعين */
+.viz, .viz-tip {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-grid: var(--n-line, #d3dce6);
+  --viz-axis: var(--n-text-muted, #526074);
+  --viz-surface: var(--n-surface, #fff);
+  margin: 0;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--n-line, #d3dce6);
+  border-radius: 12px;
+  background: var(--viz-surface);
+  position: relative;
+}
+.theme-dark .viz, .theme-dark .viz-tip { --viz-1: #3987e5; --viz-2: #d95926; }
+
+.viz-title { font-size: 13px; font-weight: 800; color: var(--n-text, #0f172a); margin-bottom: 6px; }
+.viz-title small { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; color: var(--n-text-muted, #526074); }
+.viz-empty { font-size: 12px; color: var(--n-text-muted, #526074); padding: 14px 0; }
+
+.viz-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 4px; font-size: 11.5px; color: var(--n-text-2, #334155); font-weight: 700; }
+.viz-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.viz-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--n-text-muted, #526074); flex: none; }
+.viz-k1 { background: var(--viz-1); }
+.viz-k2 { background: var(--viz-2); }
+.viz-k0 { background: var(--n-text-muted, #526074); }
+
+.viz-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.viz-svg text { font-family: inherit; unicode-bidi: plaintext; }
+.viz-grid { stroke: var(--viz-grid); stroke-width: 1; }
+.viz-axis { stroke: var(--viz-axis); stroke-width: 1; }
+.viz-ref { stroke: var(--viz-axis); stroke-width: 1; }
+.viz-tick, .viz-reflabel { font-size: 10px; fill: var(--n-text-muted, #526074); }
+.viz-cat { font-size: 11px; font-weight: 700; fill: var(--n-text-2, #334155); }
+.viz-val { font-size: 11px; font-weight: 800; fill: var(--n-text, #0f172a); paint-order: stroke; stroke: var(--viz-surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-s1 { fill: var(--viz-1); }
+.viz-s2 { fill: var(--viz-2); }
+.viz-hit { fill: transparent; }
+.viz-mark { outline: none; cursor: default; }
+.viz-mark.is-hover .viz-hit, .viz-mark:focus-visible .viz-hit { fill: var(--n-primary-soft, #eaf0ff); opacity: .6; }
+.viz-mark:focus-visible .viz-hit { stroke: var(--n-primary, #1d4ed8); stroke-width: 1.5; }
+
+.viz-table { margin-top: 6px; font-size: 11px; color: var(--n-text-2, #334155); }
+.viz-table summary { cursor: pointer; font-weight: 700; color: var(--n-primary, #1d4ed8); }
+.viz-table table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.viz-table th, .viz-table td { border-bottom: 1px solid var(--n-line, #d3dce6); padding: 3px 6px; text-align: center; }
+.viz-table th:first-child, .viz-table td:first-child { text-align: right; }
+
+.viz-tip {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 120px;
+  padding: 7px 10px; border-radius: 8px; font-size: 11.5px;
+  background: var(--n-surface, #fff); color: var(--n-text, #0f172a);
+  border: 1px solid var(--n-line, #d3dce6); box-shadow: 0 6px 18px rgba(15, 23, 42, .18);
+}
+.viz-tip[hidden] { display: none; }
+.viz-tip-title { font-weight: 700; color: var(--n-text-2, #334155); margin-bottom: 4px; }
+.viz-tip-row { display: flex; align-items: center; gap: 6px; line-height: 1.7; }
+.viz-tip-row b { font-size: 12.5px; color: var(--n-text, #0f172a); }
+.viz-tip-row span { color: var(--n-text-2, #334155); }
+
+.viz-grid-wrap { display: grid; gap: 10px; }
+@media (forced-colors: active) {
+  .viz-s1 { fill: Highlight; }
+  .viz-s2 { fill: LinkText; stroke: CanvasText; }
+}

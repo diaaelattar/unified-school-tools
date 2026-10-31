@@ -1,0 +1,83 @@
+{
+    "manifest_version": 3,
+    "minimum_chrome_version": "116",
+    "name": "__MSG_extensionName__",
+    "short_name": "__MSG_extensionShortName__",
+    "version": "1.3.2",
+    "description": "__MSG_extensionDescription__",
+    "homepage_url": "https://unified-school-tools-website.vercel.app/",
+    "permissions": [
+        "tabs",
+        "storage",
+        "unlimitedStorage",
+        "downloads",
+        "downloads.open",
+        "scripting",
+        "webRequest",
+        "offscreen"
+    ],
+    "host_permissions": [
+        "https://moe-register.emis.gov.eg/*",
+        "https://student.emis.gov.eg/*",
+        "https://prep.emis.gov.eg/*",
+        "https://teacher.emis.gov.eg/*",
+        "https://tansik-adtik.emis.gov.eg/*",
+        "https://studaapi.emis.gov.eg/*",
+        "https://professopi.emis.gov.eg/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "https://moe-register.emis.gov.eg/*",
+                "https://student.emis.gov.eg/*",
+                "https://prep.emis.gov.eg/*",
+                "https://teacher.emis.gov.eg/*",
+                "https://tansik-adtik.emis.gov.eg/*"
+            ],
+            "js": [
+                "page_loader.js"
+            ],
+            "run_at": "document_start"
+        }
+    ],
+    "action": {
+        "default_title": "__MSG_actionTitle__",
+        "default_icon": {
+            "16": "icons/nepras16.png",
+            "32": "icons/nepras32.png",
+            "48": "icons/nepras48.png",
+            "128": "icons/nepras128.png"
+        },
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "icons": {
+        "16": "icons/nepras16.png",
+        "32": "icons/nepras32.png",
+        "48": "icons/nepras48.png",
+        "128": "icons/nepras128.png"
+    },
+    "version_name": "نبراس 1.3.2",
+    "default_locale": "ar",
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self';"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "fonts/cairo-arabic.woff2",
+                "fonts/cairo-latin.woff2"
+            ],
+            "matches": [
+                "https://moe-register.emis.gov.eg/*",
+                "https://student.emis.gov.eg/*",
+                "https://prep.emis.gov.eg/*",
+                "https://teacher.emis.gov.eg/*",
+                "https://tansik-adtik.emis.gov.eg/*"
+            ],
+            "use_dynamic_url": true
+        }
+    ]
+}

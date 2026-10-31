@@ -1,0 +1,138 @@
+/* ==========================================================================
+   layout.css — الشريط الجانبي بست مجموعات + أقسام مسطّحة (المرحلة 4 / جزء 2).
+   بدل 12 أكورديون: 6 مجموعات في tablist عمودي، ومحتوى المجموعة المختارة كاملًا (بلا فتح/طي).
+   ========================================================================== */
+.n-shell { flex: 1 1 auto; min-height: 0; display: flex; gap: var(--n-s2); align-items: stretch; }
+
+/* الشريط الجانبي */
+.n-sidebar {
+  flex: none; width: 152px; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--n-s1);
+  padding: var(--n-s2); overflow-y: auto;
+  background: var(--n-surface); border: 1px solid var(--n-line); border-radius: var(--n-r-lg); box-shadow: var(--n-shadow-1);
+}
+.n-tab {
+  appearance: none; display: flex; align-items: center; gap: var(--n-s2); width: 100%; min-height: var(--n-touch);
+  padding: 0 var(--n-s3); border: 0; border-inline-start: 3px solid transparent; border-radius: var(--n-r-md);
+  background: transparent; color: var(--n-text-2); font: inherit; font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); line-height: 1.3;
+  text-align: right; cursor: pointer; transition: background-color .15s, color .15s;
+}
+.n-tab .n-icon { flex: none; }
+.n-tab__label { min-width: 0; }
+.n-tab__short { display: none; }
+.n-tab:hover { background: var(--n-surface-2); color: var(--n-text); }
+.n-tab[aria-selected="true"] { background: var(--n-primary-soft); color: var(--n-primary); border-inline-start-color: var(--n-primary); }
+.n-tab:focus-visible { outline: 3px solid var(--n-focus); outline-offset: -2px; }
+
+/* المحتوى */
+.n-content { flex: 1 1 auto; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--n-s3); padding: 2px; }
+.n-content:focus-visible, .n-group:focus-visible { outline: 3px solid var(--n-focus); outline-offset: 2px; border-radius: var(--n-r-md); }
+.n-group { display: none; flex-direction: column; gap: var(--n-s3); }
+.n-group.is-active { display: flex; }
+.n-content.is-searching .n-group { display: flex; }
+.n-content.is-searching .n-group:not(:has(.n-section:not(.is-search-hidden):not(.is-hidden))) { display: none; }
+.n-empty { margin: var(--n-s6) 0; text-align: center; color: var(--n-text-muted); font-weight: var(--n-fw-bold); }
+
+/* القسم */
+.n-section { flex: none; box-sizing: border-box; background: var(--n-surface); border: 1px solid var(--n-line); border-radius: var(--n-r-lg); box-shadow: var(--n-shadow-1); overflow: hidden; }
+.n-section.is-hidden, .n-section.is-search-hidden { display: none; }
+.n-section__head {
+  display: flex; align-items: center; gap: var(--n-s3);
+  padding: var(--n-s3) var(--n-s4);
+  background: linear-gradient(to left, var(--n-surface-2), var(--n-surface));
+  border-bottom: 1.5px solid var(--n-line);
+  border-inline-start: 4px solid var(--n-primary);
+  transition: border-color .2s;
+}
+.n-section:hover .n-section__head {
+  border-inline-start-color: var(--n-focus);
+}
+.n-section__icon {
+  flex: none; width: 38px; height: 38px; display: grid; place-items: center;
+  border-radius: var(--n-r-md); background: var(--n-primary-soft); color: var(--n-primary);
+  border: 1px solid var(--n-line); box-shadow: var(--n-shadow-1);
+}
+.n-section__copy { min-width: 0; }
+.n-section__copy h2 {
+  margin: 0; font-size: var(--n-fs-lg); font-weight: var(--n-fw-black);
+  color: var(--n-primary); line-height: 1.35; letter-spacing: -0.2px;
+}
+.theme-dark .n-section__copy h2 {
+  color: var(--n-primary);
+}
+.n-section__copy p {
+  margin: 3px 0 0; font-size: var(--n-fs-xs); color: var(--n-text-muted);
+  font-weight: var(--n-fw-bold); line-height: 1.5;
+}
+.n-section__body { padding: var(--n-s3) var(--n-s4) var(--n-s4); color: var(--n-text); }
+
+/* الشاشات الضيقة: الشريط يصير صفًّا أفقيًا قابلًا للتمرير أعلى المحتوى */
+@media (max-width: 430px) {
+  .n-shell { flex-direction: column; }
+  .n-sidebar { width: auto; flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: var(--n-s1); gap: var(--n-s1); scrollbar-width: none; }
+  .n-sidebar::-webkit-scrollbar { display: none; }
+  .n-tab { flex: none; width: auto; border-inline-start: 0; border-bottom: 3px solid transparent; padding: 0 var(--n-s3); white-space: nowrap; }
+  .n-tab[aria-selected="true"] { border-bottom-color: var(--n-primary); }
+}
+/* بطاقتا «نوع التنزيل» و«الصف» تُرصّان عموديًا في عرض المحتوى الضيق (تُفصل في نافذة كبيرة فقط) */
+.n-section__body .student-workspace { grid-template-columns: 1fr !important; grid-template-areas: "mode" "grade" "actions" !important; gap: var(--n-s3) !important; }
+html.large-window-mode .n-section__body .student-workspace { grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr) !important; grid-template-areas: "mode grade" "actions actions" !important; }
+
+/* قسم الغياب: مواصفات الأيام + مجموعات الأوامر */
+.att-spec { margin: 0 0 var(--n-s3); padding: var(--n-s3); border: 1px solid var(--n-line); border-radius: var(--n-r-md); background: var(--n-surface-2); }
+.att-spec legend { padding: 0 var(--n-s2); font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); color: var(--n-text); }
+.att-modes { display: flex; flex-wrap: wrap; gap: var(--n-s2); }
+.att-choice { flex: 1 1 140px; display: flex; align-items: center; gap: var(--n-s2); min-height: var(--n-touch); padding: 0 var(--n-s3); border: 1.5px solid var(--n-line); border-radius: var(--n-r-md); background: var(--n-surface); color: var(--n-text); font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); cursor: pointer; }
+.att-choice:has(input:checked) { border-color: var(--n-primary); background: var(--n-primary-soft); color: var(--n-primary); }
+.att-choice:has(input:focus-visible) { outline: 3px solid var(--n-focus); outline-offset: 2px; }
+.att-choice input { accent-color: var(--n-primary); width: 18px; height: 18px; }
+.att-fields { margin-top: var(--n-s3); }
+.att-field { display: flex; align-items: center; gap: var(--n-s2); flex-wrap: wrap; }
+.att-field[hidden] { display: none; }
+.att-field label { font-size: var(--n-fs-sm); font-weight: var(--n-fw-bold); color: var(--n-text-2); }
+.att-field .n-input { width: 88px; text-align: center; }
+.att-hint { margin: var(--n-s2) 0 0; font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-muted); line-height: 1.7; }
+.att-group { margin-top: var(--n-s3); }
+.att-group h3 { margin: 0 0 var(--n-s2); font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); color: var(--n-text-2); }
+.att-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--n-s2); }
+.att-upload { margin-top: var(--n-s2); }
+.att-upload > label { display: block; margin-bottom: var(--n-s1); font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-muted); }
+.att-upload .att-row { margin-top: var(--n-s2); }
+.att-open { padding-top: var(--n-s2); border-top: 1px dashed var(--n-line); }
+
+/* ==========================================================================
+   صف الأدوات داخل المحتوى: المرحلة الدراسية (تظهر حيث تلزم) + البحث السريع — سطر واحد بدل بطاقتين
+   ========================================================================== */
+.n-tools { display: flex; align-items: center; gap: var(--n-s2); flex-wrap: wrap; flex: none; }
+.n-tools:not(:has(> :not([hidden]))) { display: none; } /* لا فراغ إن كانت المرحلة مخفية وبلا محتوى آخر */
+.n-stage { flex: 1 1 auto; display: flex; align-items: center; gap: var(--n-s2); min-width: 0; max-width: 420px; }
+.n-stage[hidden] { display: none; }
+.n-stage__label { flex: none; display: flex; align-items: center; gap: var(--n-s1); font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); color: var(--n-text-2); white-space: nowrap; }
+.n-stage .n-input { flex: 1 1 auto; min-width: 0; }
+/* رأس القسم أكثر إحكامًا */
+.n-section__head { padding: var(--n-s2) var(--n-s3); }
+.n-section__icon { width: 32px; height: 32px; }
+
+/* ==========================================================================
+   مفتاح مقسّم مدمج لنوع التنزيل (سريع/شامل): صف واحد بأيقونة + اسم فقط.
+   الشرح الكامل ينتقل بالكامل إلى التلميح الديناميكي أسفله (#student-scrape-mode-hint)
+   بدل تكراره تحت كل خيار — يوفّر ارتفاعًا ملموسًا مقارنة بالبطاقتين الطويلتين السابقتين.
+   ========================================================================== */
+.n-split { display: flex; gap: var(--n-s1); padding: 3px; background: var(--n-surface-2); border: 1px solid var(--n-line); border-radius: var(--n-r-md); }
+.n-split__opt {
+  flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: var(--n-s2);
+  min-height: calc(var(--n-touch) + 2px); padding: 0 var(--n-s2); border: 0; border-radius: var(--n-r-sm);
+  background: transparent; color: var(--n-text-2); font: inherit; font-size: var(--n-fs-sm); font-weight: var(--n-fw-black);
+  cursor: pointer; transition: background-color .15s, color .15s, box-shadow .15s;
+}
+.n-split__opt .n-icon { flex: none; }
+.n-split__opt:hover { background: var(--n-surface); color: var(--n-text); }
+.n-split__opt:focus-visible { outline: 3px solid var(--n-focus); outline-offset: 2px; }
+.n-split__opt.is-active { background: var(--n-primary); color: var(--n-on-primary); box-shadow: var(--n-shadow-1); }
+.n-split__opt.is-active:hover { background: var(--n-primary-hover); }
+.student-scrape-mode-label { font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); color: var(--n-text); }
+.student-mode-caption { display: block; margin-top: 2px; font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-muted); }
+.student-mode-head { margin-bottom: var(--n-s2); }
+#student-scrape-mode-hint { display: block; margin-top: var(--n-s2); padding: var(--n-s2) var(--n-s3); border-radius: var(--n-r-md); background: var(--n-info-soft); color: var(--n-info); border: 1px solid var(--n-info-line); font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); line-height: 1.7; }
+
+/* الرابط الصغير أسفل قسم الفصول */
+.n-link-row { justify-content: flex-start; color: var(--n-primary); }

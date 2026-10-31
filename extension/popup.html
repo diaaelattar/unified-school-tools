@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<title>نبراس — أدوات المدرسة الموحّدة</title>
+<script src="nepras-shim.js"></script>
+<link href="ui/fonts.css" rel="stylesheet"/>
+<link href="ui/tokens.css" rel="stylesheet"/>
+<link href="ui/field.css" rel="stylesheet"/>
+<link href="ui/buttons.css" rel="stylesheet"/>
+<link href="ui/header.css" rel="stylesheet"/>
+<link href="ui/support.css" rel="stylesheet"/>
+<link href="ui/layout.css" rel="stylesheet"/>
+<link href="popup.css" rel="stylesheet"/>
+<link href="ui/charts.css" rel="stylesheet"/>
+<link href="ui/mobile.css" rel="stylesheet"/>
+<script src="mobile-ui.js"></script>
+</head>
+<body>
+<div class="app-shell" id="nepras-app-shell">
+<div class="container">
+<header class="n-header" role="banner">
+<img class="n-header__logo" src="assets/logo.png" alt="" width="32" height="32">
+<div class="n-header__title"><b>نبراس</b></div>
+<span class="n-status site-waiting" id="nepras-site-status" role="status" aria-live="polite"><i class="n-status__dot" aria-hidden="true"></i><span class="n-status__label">انتظار موقع الوزارة</span></span>
+<span class="n-header__spacer"></span>
+<button class="n-btn n-btn--secondary n-btn--sm" id="btn-stop-active" title="إيقاف العملية الحالية" type="button" hidden><i data-icon="stop"></i><span class="n-btn__label">إيقاف العملية الجارية</span></button>
+<button class="n-btn n-btn--ghost n-btn--icon" id="btn-command-search" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="n-command-bar" title="بحث في الأدوات" aria-label="بحث في الأدوات"><i data-icon="search"></i></button>
+<button class="n-btn n-btn--ghost n-btn--icon n-header__close" id="btn-close-popup" type="button" title="إغلاق" aria-label="إغلاق النافذة"><i data-icon="close"></i></button>
+<div class="n-menu" id="n-menu">
+<button class="n-btn n-btn--ghost n-btn--icon" id="btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="n-menu-list" aria-label="المزيد من الخيارات" title="المزيد"><i data-icon="more"></i></button>
+<div class="n-menu__list" id="n-menu-list" role="menu" aria-labelledby="btn-menu" hidden>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-open-large-window" type="button" title="فتح الأداة في نافذة كبيرة مستقلة"><i data-icon="window"></i><span class="n-btn__label">فتح نافذة أكبر</span></button>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-toggle-keep-open" type="button" title="تفعيل بقاء الأداة نشطة ومفتوحة بعد تنفيذ المهام"><i data-icon="check"></i><span class="n-btn__label" id="lbl-toggle-keep-open">إبقاء الأداة نشطة دائماً</span></button>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-copy-enabler" type="button" title="تفعيل النسخ وتجاوز حظر التحديد في صفحة الوزارة"><i data-icon="edit"></i><span class="n-btn__label">تفعيل النسخ والتحديد</span></button>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-theme-toggle" type="button"><i data-icon="moon"></i><span class="n-btn__label">الوضع الليلي</span></button>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-help" type="button"><i data-icon="help"></i><span class="n-btn__label">شرح استخدام الأداة</span></button>
+<div class="n-menu__sep" role="separator"></div>
+<a class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" href="https://wa.me/201118209309" rel="noopener noreferrer" target="_blank"><i data-icon="whatsapp"></i><span class="n-btn__label">مراسلة الدعم على واتساب</span></a>
+<a class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" href="https://unified-school-tools-website.vercel.app/" rel="noopener noreferrer" target="_blank"><i data-icon="globe"></i><span class="n-btn__label">فتح موقع نبراس</span></a>
+<a class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" href="https://www.facebook.com/profile.php?id=61593183145085" rel="noopener noreferrer" target="_blank"><i data-icon="facebook"></i><span class="n-btn__label">فتح صفحة فيسبوك</span></a>
+<div class="n-menu__sep" role="separator"></div>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-stop-all-settings" type="button"><i data-icon="stop"></i><span class="n-btn__label">إيقاف كل العمليات الجارية</span></button>
+<div class="n-menu__meta" role="none"><span>الإصدار</span><b id="nepras-version-top" dir="ltr">—</b></div>
+</div>
+</div>
+</header>
+<div class="n-command-bar" id="n-command-bar" hidden>
+<div class="n-command-bar__box" role="search">
+<span class="n-search__icon" aria-hidden="true"><i data-icon="search"></i></span>
+<input type="text" id="nepras-quick-search" class="n-input" placeholder="بحث سريع في الأدوات..." aria-label="بحث سريع في الأدوات" autocomplete="off">
+<button class="n-btn n-btn--ghost n-btn--icon n-btn--sm" type="button" id="btn-clear-quick-search" title="مسح البحث" aria-label="مسح البحث" hidden><i data-icon="close"></i></button>
+</div>
+</div>
+
+<div class="n-shell">
+<nav class="n-sidebar" role="tablist" aria-orientation="vertical" aria-label="أقسام الأداة">
+<button class="n-tab" role="tab" type="button" id="tab-students" aria-label="الطلاب" aria-controls="group-students" aria-selected="true" tabindex="0" data-group="students"><i data-icon="users"></i><span class="n-tab__label">الطلاب</span><span class="n-tab__short" aria-hidden="true">الطلاب</span></button>
+<button class="n-tab" role="tab" type="button" id="tab-reports" aria-label="التقارير والإحصاء" aria-controls="group-reports" aria-selected="false" tabindex="-1" data-group="reports"><i data-icon="chart"></i><span class="n-tab__label">التقارير والإحصاء</span><span class="n-tab__short" aria-hidden="true">التقارير</span></button>
+<button class="n-tab" role="tab" type="button" id="tab-classes" aria-label="الفصول" aria-controls="group-classes" aria-selected="false" tabindex="-1" data-group="classes"><i data-icon="school"></i><span class="n-tab__label">الفصول</span><span class="n-tab__short" aria-hidden="true">الفصول</span></button>
+<button class="n-tab" role="tab" type="button" id="tab-staff" aria-label="العاملون" aria-controls="group-staff" aria-selected="false" tabindex="-1" data-group="staff"><i data-icon="user"></i><span class="n-tab__label">العاملون</span><span class="n-tab__short" aria-hidden="true">العاملون</span></button>
+<button class="n-tab" role="tab" type="button" id="tab-attendance" aria-label="تسجيل الغياب" aria-controls="group-attendance" aria-selected="false" tabindex="-1" data-group="attendance"><i data-icon="calendar"></i><span class="n-tab__label">تسجيل الغياب</span><span class="n-tab__short" aria-hidden="true">الغياب</span></button>
+<button class="n-tab" role="tab" type="button" id="tab-files" aria-label="الملفات والإعدادات" aria-controls="group-files" aria-selected="false" tabindex="-1" data-group="files"><i data-icon="folder"></i><span class="n-tab__label">الملفات والإعدادات</span><span class="n-tab__short" aria-hidden="true">الملفات</span></button>
+</nav>
+<main class="n-content" id="n-content">
+<div id="nepras-license-banner" hidden></div>
+<div class="n-tools">
+<div class="n-school-profile-bar" id="n-school-profile-row" style="margin-bottom:8px;background:var(--n-surface);border:1px solid var(--n-line);border-radius:var(--n-r-md);padding:6px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+  <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+    <i data-icon="school" style="color:var(--n-primary,#0f766e);flex-shrink:0;"></i>
+    <div style="display:flex;flex-direction:column;min-width:0;flex:1;">
+      <span style="font-size:10px;color:#64748b;font-weight:600;">المدرسة / المرحلة الحالية المحفوظة:</span>
+      <select id="school-profile-select" class="n-input" style="padding:2px 6px;font-size:12px;font-weight:700;height:28px;margin-top:2px;">
+        <option value="">المدرسة الحالية (تلقائي من الموقع)</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;">
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-add-school-profile" type="button" title="حفظ المدرسة الحالية في السجل المستقل" style="padding:4px 7px;font-size:11px;">
+      <i data-icon="plus"></i> حفظ
+    </button>
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-export-school-profile" type="button" title="تصدير ملف المدرسة بالكامل (نسخة احتياطية على جهازك للعمل بدون إنترنت)" style="padding:4px 7px;font-size:11px;color:#0284c7;">
+      <i data-icon="download"></i> تصدير
+    </button>
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-import-school-profile" type="button" title="استيراد ملف مدرسة محفوظة من جهازك بدون إعادة التنزيل من الوزارة" style="padding:4px 7px;font-size:11px;color:#16a34a;">
+      <i data-icon="upload"></i> استيراد
+    </button>
+    <input type="file" id="school-file-input" accept=".nepras,.json" style="display:none;" />
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-remove-school-profile" type="button" title="حذف المدرسة المحددة من السجل المحفوظ" style="padding:4px 7px;font-size:11px;color:#ef4444;" hidden>
+      <i data-icon="trash"></i> حذف
+    </button>
+  </div>
+</div>
+<div id="n-login-banner" class="n-notice n-notice--info" style="display:none;margin-bottom:8px;padding:8px 10px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px;">
+    <span style="font-weight:700;font-size:12px;"><i data-icon="key"></i> أنت الآن في صفحة تسجيل الدخول</span>
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-login-open-settings" type="button" style="font-size:11px;padding:2px 6px;">⚙️ إعدادات الحساب</button>
+  </div>
+  <div style="font-size:11px;margin-bottom:6px;" id="n-login-banner-desc">يمكنك تعبئة بيانات الدخول المحفوظة بنبراس بضغطة زر واحدة:</div>
+  <div style="display:flex;gap:6px;">
+    <button class="n-btn n-btn--primary n-btn--sm" id="btn-login-autofill-banner" type="button" style="background:#2563eb;flex:1;">
+      <i data-icon="check"></i> ⚡ تعبئة وتسجيل الدخول فوراً
+    </button>
+  </div>
+</div>
+<div class="n-stage" id="n-stage-row"><label class="n-stage__label" for="stage-select"><i data-icon="school"></i><span>المرحلة الدراسية</span></label><select class="n-input" id="stage-select">
+<option disabled="" selected="" value="">اختر المرحلة...</option>
+<option value="KG">رياض الأطفال</option>
+<option value="PRIMARY">المرحلة الابتدائية</option>
+<option value="PREP">المرحلة الإعدادية</option>
+<option value="GENERAL_SECONDARY">الثانوي العام</option>
+<option value="TECHNICAL_SECONDARY">الثانوي الفني (3–5 سنوات)</option>
+</select></div>
+</div>
+<p class="n-empty" id="n-search-empty" hidden>لا توجد أدوات مطابقة لبحثك. جرّب كلمة أخرى.</p>
+<div class="n-group is-active" role="tabpanel" id="group-students" aria-labelledby="tab-students" tabindex="0" data-group="students">
+<section class="n-section student-dossier-card" data-section="student-dossier" id="sec-student-dossier" aria-labelledby="sec-dossier-title">
+<header class="n-section__head">
+  <span class="n-section__icon"><i data-icon="search"></i></span>
+  <div class="n-section__copy">
+    <h2 id="sec-dossier-title">الملف الرقمي والبحث الشامل للطالب</h2>
+    <p>بحث فوري بالاسم، الرقم القومي، الكود، أو هاتف ولي الأمر لعرض الملف المجمع</p>
+  </div>
+</header>
+<div class="n-section__body" id="section-body-dossier">
+  <div class="field-block">
+    <div style="position:relative;display:flex;gap:6px;">
+      <input class="n-input" id="input-dossier-search" type="search" placeholder="اكتب اسم الطالب، رقمه القومي، الكود، أو هاتف ولي الأمر...">
+      <button class="n-btn n-btn--primary" id="btn-dossier-search" type="button" style="white-space:nowrap;padding:0 14px;">
+        <i data-icon="search"></i> بحث
+      </button>
+    </div>
+    <div id="dossier-search-summary" class="mini-note" style="margin-top:6px;display:none;"></div>
+    <div id="dossier-search-results" style="margin-top:8px;max-height:240px;overflow-y:auto;display:none;flex-direction:column;gap:6px;"></div>
+  </div>
+</div>
+</section>
+
+<section class="n-section student-card" data-section="students" aria-labelledby="sec-students-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="users"></i></span><div class="n-section__copy"><h2 id="sec-students-title">بيانات الطلاب</h2><p>تنزيل سريع أو شامل للصف أو جميع الصفوف</p></div></header>
+<div class="n-section__body" id="section-body-students">
+<div class="student-workspace">
+<div class="student-mode-card">
+<div class="student-mode-head">
+<label class="student-scrape-mode-label">نوع التنزيل</label>
+<small class="student-mode-caption">اختر الطريقة المناسبة ثم ابدأ التنزيل</small>
+</div>
+<div class="student-scrape-mode n-split" role="group" aria-label="نوع تنزيل بيانات الطلاب">
+<button class="student-scrape-mode-btn n-split__opt is-active" id="btn-student-mode-normal" type="button" aria-pressed="true" title="أسرع — أعمدة قائمة الطلاب الأساسية">
+<span class="student-mode-title"><i data-icon="bolt"></i>تنزيل سريع</span>
+</button>
+<button class="student-scrape-mode-btn n-split__opt" id="btn-student-mode-deep" type="button" aria-pressed="false" title="أبطأ — كل بيانات الطالب من ملفه">
+<span class="student-mode-title"><i data-icon="search"></i>تنزيل شامل</span>
+</button>
+</div>
+<small class="student-scrape-mode-hint" id="student-scrape-mode-hint">التنزيل السريع: أسرع، ويكتفي بأعمدة قائمة الطلاب الأساسية.</small>
+</div>
+<div class="student-grade-card field-block compact-field">
+<div class="student-card-head">
+<label>الصف الدراسي</label>
+<button class="n-btn n-btn--secondary n-btn--sm n-btn--icon" id="btn-refresh-grades" type="button" title="تحديث قائمة الصفوف" aria-label="تحديث قائمة الصفوف"><i data-icon="refresh"></i></button>
+</div>
+<div class="grade-picker-row student-grade-row">
+<div class="nepras-grade-picker" id="grade-picker">
+<input id="grade-select" type="hidden" value=""/>
+<button aria-expanded="false" aria-haspopup="listbox" class="btn-quiet grade-picker-button" id="grade-picker-button" type="button">اختر المرحلة أولًا...</button>
+<div aria-label="الصفوف الدراسية" class="grade-picker-menu" id="grade-picker-menu" role="listbox"></div>
+</div>
+</div>
+</div>
+<div class="student-actions-card action-grid two-actions">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-export-single" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل بيانات الصف</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-export-all" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل كل الصفوف</span></button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="n-section nationwide-search-card" data-section="nationwide-search" aria-labelledby="sec-nationwide-search-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="search"></i></span><div class="n-section__copy"><h2 id="sec-nationwide-search-title">بحث عن طالب في أي مدرسة</h2><p>بحث بالرقم القومي وعرض المدرسة والصف والحالة الحالية</p></div></header>
+<div class="n-section__body" id="section-body-nationwide-search"><div class="field-block"><label for="nationwide-student-national-id">الرقم القومي للطالب</label><input class="n-input" id="nationwide-student-national-id" type="text" inputmode="numeric" maxlength="14" placeholder="اكتب الرقم القومي 14 رقمًا"></div><div class="single-action-row"><button class="n-btn n-btn--primary n-btn--block" id="btn-nationwide-student-search" type="button"><i data-icon="search"></i><span class="n-btn__label">بحث عن الطالب</span></button></div><div id="nationwide-student-result" class="nationwide-student-result" hidden></div></div>
+</section>
+
+<section class="n-section bulk-nid-search-card" data-section="bulk-nid-search" aria-labelledby="sec-bulk-nid-search-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="sheet"></i></span><div class="n-section__copy"><h2 id="sec-bulk-nid-search-title">بحث جماعي عن الطلاب بالرقم القومي</h2><p>ارفع كشف Excel وسيتم البحث عن كل طالب وإرجاع تقرير تفصيلي</p></div></header>
+<div class="n-section__body" id="section-body-bulk-nid-search">
+<div class="field-block">
+<label for="bulk-nid-file-input">ملف الأرقام القومية (Excel أو CSV)</label>
+<div class="bulk-nid-file-row">
+<label class="bulk-nid-file-btn" for="bulk-nid-file-input"><i data-icon="folder"></i>اختيار ملف</label>
+<input class="n-input" id="bulk-nid-file-input" type="file" accept=".xlsx,.xls,.csv">
+<span id="bulk-nid-file-name" class="bulk-nid-file-name">لم يتم اختيار ملف</span>
+</div>
+<div class="mini-note">يجب أن يحتوي الملف على عمود بالأرقام القومية (14 رقمًا لكل طالب)، سواء كان اسم العمود «الرقم القومي» أو بدون عنوان محدد. يفضَّل وجود عمود باسم الطالب للمطابقة، وهو اختياري.</div>
+<div id="bulk-nid-summary" class="mini-note bulk-nid-summary" hidden></div>
+</div>
+<div class="action-grid two-actions">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-bulk-nid-start" type="button" aria-disabled="true" data-reason="ارفع ملفًا يحتوي أرقامًا قومية صحيحة (14 رقمًا) أولًا."><i data-icon="play"></i><span class="n-btn__label">بدء البحث الجماعي</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-bulk-nid-stop" type="button" hidden><i data-icon="stop"></i><span class="n-btn__label">إيقاف البحث</span></button>
+</div>
+<div id="bulk-nid-progress-wrap" class="bulk-nid-progress-wrap" hidden>
+<div class="bulk-nid-progress-track"><div id="bulk-nid-progress-bar" class="bulk-nid-progress-bar"></div></div>
+<div id="bulk-nid-progress-text" class="bulk-nid-progress-text">0 / 0</div>
+</div>
+<div id="bulk-nid-result-box" class="nationwide-student-result" hidden></div>
+<div class="single-action-row"><button class="n-btn n-btn--secondary n-btn--block" id="btn-bulk-nid-download" type="button" hidden><i data-icon="download"></i><span class="n-btn__label">تنزيل النتائج Excel</span></button></div>
+</div>
+</section>
+
+<section class="n-section name-fixer-card" data-section="name-fixer" aria-labelledby="sec-name-fixer-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="edit"></i></span><div class="n-section__copy"><h2 id="sec-name-fixer-title">منقّي أسماء الطلاب</h2><p>تنقية أسماء الطلاب وحفظها تلقائيًا في موقع الوزارة</p></div></header>
+<div class="n-section__body" id="section-body-name-fixer">
+<div class="mini-note">يفتح لوحة المنقّي داخل صفحة قائمة الطلاب: يزيل المسافات الزائدة ويوحّد الهمزات والتاء المربوطة والألف المقصورة ثم يحفظ التعديل مباشرة. لا يجمع ولا يُرسل أي بيانات.</div>
+<div id="name-fixer-status" class="mini-note name-fixer-status" role="status" hidden></div>
+<div class="single-action-row"><button class="n-btn n-btn--primary n-btn--block" id="btn-open-name-fixer" type="button"><i data-icon="edit"></i><span class="n-btn__label">فتح منقّي الأسماء</span></button></div>
+</div>
+</section>
+
+<section class="n-section student-records-card" data-section="student-records" aria-labelledby="sec-student-records-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="file-text"></i></span><div class="n-section__copy"><h2 id="sec-student-records-title">سجلات شؤون الطلاب والكنترول</h2><p>كشف 41 مستجدين، سجلات القيد، المنازل، ومعالجة الأخطاء</p></div></header>
+<div class="n-section__body" id="section-body-student-records">
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-records-newcomers-41" type="button" title="سجل 41 مستجدين المعتمد لشؤون الطلاب"><i data-icon="sheet"></i><span class="n-btn__label">سجل 41 مستجدين</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-call-list" type="button" title="كشوف المناداة وتوزيع لجان الامتحانات وأرقام الجلوس"><i data-icon="users"></i><span class="n-btn__label">كشوف لجان المناداة</span></button>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-orphans" type="button" title="سجل الأيتام وبحث التكافل والكرامة والإعفاءات"><i data-icon="heart"></i><span class="n-btn__label">الأيتام وتكافل وكرامة</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-merge" type="button" title="كشف طلاب الدمج التعليمي والتربية الخاصة"><i data-icon="award"></i><span class="n-btn__label">طلاب الدمج والتربية الخاصة</span></button>
+</div>
+<div class="action-grid two-actions">
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-enrollment" type="button" title="سجل القيد الشامل لجميع طلاب المدرسة"><i data-icon="folder"></i><span class="n-btn__label">سجل القيد الشامل</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-manazel" type="button" title="حصر وتصدير كشوف طلاب المنازل بشكل منفصل"><i data-icon="users"></i><span class="n-btn__label">كشوف طلاب المنازل</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section student-cards-studio-card" data-section="student-cards-studio" id="sec-student-cards-studio" aria-labelledby="sec-student-cards-title">
+<header class="n-section__head">
+  <span class="n-section__icon"><i data-icon="file-text"></i></span>
+  <div class="n-section__copy">
+    <h2 id="sec-student-cards-title">استوديو بطاقات وكارنيهات الطلاب</h2>
+    <p>تصميم وطباعة كارنيهات الطلاب بالباركود وشعار المدرسة وتصدير PDF فوري</p>
+  </div>
+</header>
+<div class="n-section__body" id="section-body-student-cards">
+  <div class="mini-note" style="margin-bottom:8px;line-height:1.6;">
+    استوديو احترافي لطباعة بطاقات وكارنيهات الدخول <b>لمنصة التدريب</b>، يدعم إدراج اسم الطالب، كود الطالب، اسم المستخدم، كلمة المرور، وشعار المدرسة مع تصدير PDF فوري.
+  </div>
+  <div class="single-action-row" style="margin-bottom:6px;">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-open-student-cards-with-data" type="button" style="font-weight:700;" title="الانتقال للوحة الوزارة وتحميل كشف بيانات الدخول لمنصة التدريب تلقائياً وفتح استوديو الكارنيهات"><i data-icon="download"></i><span class="n-btn__label">⚡ سحب كشف منصة التدريب من الموقع وتوليد البطاقات</span></button>
+  </div>
+  <div class="action-grid two-actions" style="margin-bottom:4px;">
+    <button class="n-btn n-btn--secondary n-btn--block" id="btn-open-student-cards-studio" type="button" title="فتح استوديو تصميم البطاقات مباشرة"><i data-icon="external"></i><span class="n-btn__label">فتح استوديو البطاقات</span></button>
+    <button class="n-btn n-btn--ghost n-btn--block" id="btn-open-training-dashboard" type="button" style="font-size:11px;" title="فتح لوحة بيانات التلميذ بالوزارة (student.emis.gov.eg/dashboard)">
+      <i data-icon="external"></i> فتح لوحة الوزارة (dashboard)
+    </button>
+  </div>
+</div>
+</section>
+
+<section class="n-section records-nid-card" data-section="records-nid" aria-labelledby="sec-records-nid-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="search"></i></span><div class="n-section__copy"><h2 id="sec-records-nid-title">فاحص الرقم القومي والسن في 1 أكتوبر</h2><p>تحليل فوري: تاريخ الميلاد، المحافظة، النوع، وحساب السن بدقة</p></div></header>
+<div class="n-section__body" id="section-body-records-nid">
+<div class="compact-field field-block">
+<label for="input-records-nid">الرقم القومي (14 رقم)</label>
+<div style="display:flex;gap:6px;align-items:center;">
+<input class="n-input" id="input-records-nid" maxlength="14" placeholder="أدخل 14 رقمًا..." type="text" dir="ltr" style="font-family:monospace;letter-spacing:1px;font-size:14px;text-align:center;">
+<button class="n-btn n-btn--primary n-btn--sm" id="btn-records-nid-check" type="button"><i data-icon="search"></i><span class="n-btn__label">فحص</span></button>
+</div>
+</div>
+<div id="records-nid-result" class="mini-note" hidden style="margin-top:8px;background:var(--n-bg-alt,#f8fafc);border:1px solid var(--n-border,#e2e8f0);padding:8px 12px;border-radius:6px;line-height:1.7;"></div>
+</div>
+</section>
+
+<section class="n-section add-student-card" data-section="add-student" aria-labelledby="sec-add-student-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="user"></i></span><div class="n-section__copy"><h2 id="sec-add-student-title">إضافة الطلاب الجدد بالرقم القومي</h2><p>تسجيل الطلاب الجدد في موقع الوزارة من ملف Excel أو برقم قومي مفرد</p></div></header>
+<div class="n-section__body" id="section-body-add-student">
+<div class="single-action-row" style="margin-bottom:8px;">
+  <button class="n-btn n-btn--ghost n-btn--block" id="btn-open-add-student-page" type="button" title="فتح صفحة إضافة التلميذ بموقع الوزارة"><i data-icon="external"></i><span class="n-btn__label">فتح صفحة إضافة الطلاب (student/add)</span></button>
+</div>
+<div class="field-block">
+<label for="add-student-file-input">ملف بيانات الطلاب الجدد (Excel)</label>
+<div class="bulk-nid-file-row">
+<label class="bulk-nid-file-btn" for="add-student-file-input"><i data-icon="folder"></i>اختيار ملف</label>
+<input class="n-input" id="add-student-file-input" type="file" accept=".xlsx,.xls,.csv">
+<span id="add-student-file-name" class="bulk-nid-file-name">لم يتم اختيار ملف</span>
+</div>
+<div class="mini-note">يُشتق تاريخ الميلاد، النوع، ومحافظة الميلاد تلقائيًا من الرقم القومي (14 رقمًا).</div>
+<div id="add-student-summary" class="mini-note bulk-nid-summary" hidden></div>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-add-student-start" type="button" aria-disabled="true" data-reason="ارفع ملف طلاب يحتوي على أرقام قومية صحيحة أولًا."><i data-icon="play"></i><span class="n-btn__label">بدء التسجيل الجماعي</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-add-student-template" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل نموذج Excel</span></button>
+</div>
+<div class="field-block compact-field" style="border-top:1px dashed var(--n-border,#e2e8f0);padding-top:8px;">
+<label for="input-quick-add-nid">تسجيل سريع برقم قومي مفرد</label>
+<div style="display:flex;gap:6px;align-items:center;">
+<input class="n-input" id="input-quick-add-nid" maxlength="14" placeholder="الرقم القومي (14 رقمًا)..." type="text" dir="ltr" style="font-family:monospace;letter-spacing:1px;font-size:13px;text-align:center;">
+<button class="n-btn n-btn--secondary n-btn--sm" id="btn-quick-add-nid-start" type="button"><i data-icon="check"></i><span class="n-btn__label">تسجيل في الموقع</span></button>
+</div>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-add-student-confirm-current" type="button" style="margin-top:6px;" title="الضغط على زر الحفظ وتأكيد نافذة الحفظ للتلميذ الحالي بالصفحة"><i data-icon="check"></i><span class="n-btn__label">حفظ وتأكيد استمارة الطالب الحالي</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section accept-card" data-section="accept" aria-labelledby="sec-accept-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="external"></i></span><div class="n-section__copy"><h2 id="sec-accept-title">قبول ملفات الطلاب الجدد</h2><p>فتح صفحة القبول وتشغيل استيراد Excel واستلام الأوراق (للمرحلة الثانوية والفنية)</p></div></header>
+<div class="n-section__body" id="section-body-accept">
+<div class="single-action-row">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-open-accept-list" type="button"><i data-icon="external"></i><span class="n-btn__label">فتح صفحة قبول الملفات (accept/list)</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section tablet-card" data-section="tablet" aria-labelledby="sec-tablet-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="sheet"></i></span><div class="n-section__copy"><h2 id="sec-tablet-title">أجهزة التابلت المدرسي</h2><p>تسجيل الأرقام المسلسلة وتصدير كشوف استلام التابلت بالـ IMEI</p></div></header>
+<div class="n-section__body" id="section-body-tablet">
+<div class="single-action-row" style="margin-bottom:8px;">
+  <button class="n-btn n-btn--ghost n-btn--block" id="btn-open-tablet-page" type="button" title="فتح صفحة تسليم أجهزة التابلت بموقع الوزارة"><i data-icon="external"></i><span class="n-btn__label">فتح صفحة تسليم التابلت (student/tablet)</span></button>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-tablet-export-current" type="button"><i data-icon="download"></i><span class="n-btn__label">تصدير جدول التابلت Excel</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-tablet-template" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تنزيل نموذج التسجيل</span></button>
+</div>
+<div class="field-block">
+<label for="tablet-file-input">ملف تسليم التابلت (Excel)</label>
+<div class="bulk-nid-file-row">
+<label class="bulk-nid-file-btn" for="tablet-file-input"><i data-icon="folder"></i>اختيار ملف</label>
+<input class="n-input" id="tablet-file-input" type="file" accept=".xlsx,.xls,.csv">
+<span id="tablet-file-name" class="bulk-nid-file-name">لم يتم اختيار ملف</span>
+</div>
+<div id="tablet-summary" class="mini-note bulk-nid-summary" hidden></div>
+</div>
+<div class="single-action-row">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-tablet-start" type="button" aria-disabled="true" data-reason="ارفع ملف تسليم التابلت أولًا."><i data-icon="play"></i><span class="n-btn__label">بدء تسجيل التابلت في الموقع</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section quick-edits-card" data-section="quick-edits" aria-labelledby="sec-quick-edits-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="edit"></i></span><div class="n-section__copy"><h2 id="sec-quick-edits-title">تعديل التخصص واللغات</h2><p>تعديل اللغة الأولى، اللغة الثانية، والشعبة والتخصص لصفوف الثانوي والفني</p></div></header>
+<div class="n-section__body" id="section-body-quick-edits">
+<div class="mini-note">تعديل اللغات والتخصص لطلاب الفصل أو الصف كاملًا مع الحفظ والتأكيد التلقائي في منظومة الوزارة.</div>
+<div class="field-block" style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
+  <span style="font-size:12px;font-weight:700;">طريقة التعديل:</span>
+  <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+    <input type="radio" name="quick-edits-mode" id="quick-edits-mode-direct" value="direct" checked> تطبيق مباشر
+  </label>
+  <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+    <input type="radio" name="quick-edits-mode" id="quick-edits-mode-excel" value="excel"> عبر ملف Excel
+  </label>
+</div>
+<div class="field-block" style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
+  <span style="font-size:12px;font-weight:700;">نطاق العمل:</span>
+  <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+    <input type="radio" name="quick-edits-scope" id="quick-edits-scope-grade" value="grade" checked> الصف كامل
+  </label>
+  <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+    <input type="radio" name="quick-edits-scope" id="quick-edits-scope-class" value="class"> فصل محدد
+  </label>
+</div>
+<div class="panel-grid two-col" style="margin-bottom:8px;">
+  <div class="field-block">
+    <label for="quick-edits-grade-select">الصف الدراسي</label>
+    <select class="n-input" id="quick-edits-grade-select">
+      <option value="1" selected>الصف الأول</option>
+      <option value="2">الصف الثاني</option>
+      <option value="3">الصف الثالث</option>
+    </select>
+  </div>
+  <div class="field-block" id="quick-edits-class-wrap" style="display:none;">
+    <label for="quick-edits-class-select">الفصل</label>
+    <select class="n-input" id="quick-edits-class-select">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+      <option value="10">10</option>
+    </select>
+  </div>
+</div>
+<div class="panel-grid two-col" id="quick-edits-direct-wrap" style="margin-bottom:8px;">
+  <div class="field-block">
+    <label for="quick-edits-type-select">نوع التعديل</label>
+    <select class="n-input" id="quick-edits-type-select">
+      <option value="1" selected>اللغة الثانية</option>
+      <option value="0">اللغة الأولى</option>
+      <option value="2">التخصص / الشعبة</option>
+    </select>
+  </div>
+  <div class="field-block" id="quick-edits-value-wrap">
+    <label for="quick-edits-value-select">اللغة / التخصص المراد تطبيقه</label>
+    <select class="n-input" id="quick-edits-value-select">
+      <option value="2" selected>لغة فرنسية</option>
+      <option value="3">لغة المانية</option>
+      <option value="4">لغة ايطالية</option>
+      <option value="5">لغة اسبانية</option>
+      <option value="1">لغة انجليزية</option>
+      <option value="7">معفي</option>
+      <option value="6">لغة صينية</option>
+      <option value="8">لغة روسية</option>
+      <option value="9">لغة يابانية</option>
+    </select>
+  </div>
+</div>
+<div id="quick-edits-excel-wrap" style="display:none;">
+  <div class="field-block">
+    <label for="quick-edits-file-input">ملف بيانات التعديل (Excel)</label>
+    <div class="bulk-nid-file-row">
+      <label class="bulk-nid-file-btn" for="quick-edits-file-input"><i data-icon="folder"></i>اختيار ملف</label>
+      <input class="n-input" id="quick-edits-file-input" type="file" accept=".xlsx,.xls,.csv">
+      <span id="quick-edits-file-name" class="bulk-nid-file-name">لم يتم اختيار ملف</span>
+    </div>
+    <div id="quick-edits-summary" class="mini-note bulk-nid-summary" hidden></div>
+  </div>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+  <button class="n-btn n-btn--primary n-btn--block" id="btn-quick-edits-start" type="button"><i data-icon="play"></i><span class="n-btn__label">بدء تطبيق التعديلات</span></button>
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-quick-edits-template" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل نموذج Excel</span></button>
+</div>
+<div class="single-action-row" id="quick-edits-stop-row" hidden style="margin-bottom:8px;">
+  <button class="n-btn n-btn--danger n-btn--block" id="btn-quick-edits-stop" type="button"><i data-icon="stop"></i><span class="n-btn__label">إيقاف التعديلات</span></button>
+</div>
+<div id="quick-edits-progress-wrap" class="bulk-nid-progress-wrap" hidden>
+  <div class="bulk-nid-progress-track"><div id="quick-edits-progress-bar" class="bulk-nid-progress-bar"></div></div>
+  <div id="quick-edits-progress-text" class="bulk-nid-progress-text">0 / 0</div>
+</div>
+<div id="quick-edits-status" class="mini-note" hidden style="margin-top:8px;"></div>
+<div class="single-action-row" style="margin-top:6px;">
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-quick-edits-download-results" type="button" hidden><i data-icon="sheet"></i><span class="n-btn__label">تنزيل كشف نتائج التعديل Excel</span></button>
+</div>
+</div>
+</section>
+
+</div>
+<div class="n-group" role="tabpanel" id="group-reports" aria-labelledby="tab-reports" tabindex="0" data-group="reports">
+<section class="n-section stats-card" data-section="stats" aria-labelledby="sec-stats-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="chart"></i></span><div class="n-section__copy"><h2 id="sec-stats-title">إحصاء المدرسة</h2><p>أعداد الطلاب والفصول والنوع والحالات بدقة وسرعة</p></div></header>
+<div class="n-section__body" id="section-body-stats">
+<div class="school-stats-actions">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-school-stats-refresh" type="button"><i data-icon="refresh"></i><span class="n-btn__label">تحديث إحصاء المدرسة</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-school-stats-export" type="button" aria-disabled="true" data-reason="لا توجد بيانات للتصدير. حدّث إحصاء المدرسة أولًا."><i data-icon="sheet"></i><span class="n-btn__label">تصدير Excel</span></button>
+</div>
+<button class="n-btn n-btn--ghost n-btn--block" id="btn-school-deep-stats-refresh" type="button" style="margin-top:6px;" title="تنزيل وتحديث البيانات الشاملة لجميع صفوف المدرسة (الديانة، اللغات، الشعب، الأمهات) لتغذية كافة التقارير والإحصائيات"><i data-icon="download"></i><span class="n-btn__label">تنزيل وتحديث البيانات الشاملة للمدرسة</span></button>
+<div id="school-stats-empty" class="school-stats-empty">آخر إحصاء محفوظ يظل داخل الأداة ولا يتغير إلا عند الضغط على «تحديث إحصاء المدرسة».</div>
+<div id="school-stats-content" hidden>
+<div class="school-stats-meta" id="school-stats-meta"></div>
+<div class="school-stats-cards">
+<div class="stat-mini"><b id="stat-school-total">0</b><span>إجمالي الطلاب</span></div>
+<div class="stat-mini"><b id="stat-school-boys">0</b><span>بنين</span></div>
+<div class="stat-mini"><b id="stat-school-girls">0</b><span>بنات</span></div>
+<div class="stat-mini"><b id="stat-school-classes">0</b><span>الفصول</span></div>
+<div class="stat-mini"><b id="stat-school-homes">0</b><span>طلاب المنازل</span></div>
+<div class="stat-mini"><b id="stat-school-integrated">0</b><span>طلاب الدمج</span></div>
+</div>
+<div class="school-stats-subtitle">حالات الطلاب</div>
+<div id="school-stats-statuses" class="school-stats-statuses"></div>
+
+<div class="school-stats-subtitle">رسوم بيانية</div>
+<div id="school-stats-charts" class="viz-grid-wrap"></div>
+
+<div class="school-stats-subtitle">إحصاء الصفوف بالتفصيل</div>
+<div class="school-stats-table-wrap">
+<table class="school-stats-table">
+<thead><tr id="school-stats-grade-head"></tr></thead>
+<tbody id="school-stats-grade-body"></tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+
+<section class="n-section expenses-card" data-section="expenses" aria-labelledby="sec-expenses-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="list"></i></span><div class="n-section__copy"><h2 id="sec-expenses-title">المصروفات والإعفاءات</h2><p>تحليل المسددين وغير المسددين والإعفاءات في ملف واحد</p></div></header>
+<div class="n-section__body" id="section-body-expenses">
+  <div class="school-stats-actions">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-expenses-refresh" type="button"><i data-icon="refresh"></i><span class="n-btn__label">تحليل المصروفات والإعفاءات</span></button>
+    <button class="n-btn n-btn--secondary n-btn--block" id="btn-expenses-export" type="button" disabled><i data-icon="sheet"></i><span class="n-btn__label">تصدير Excel شامل</span></button>
+  </div>
+  <div id="expenses-empty" class="school-stats-empty">آخر تحليل محفوظ يظل داخل الأداة ولا يتغير إلا عند الضغط على «تحليل المصروفات والإعفاءات».</div>
+  <div id="expenses-content" hidden>
+    <div class="school-stats-meta" id="expenses-meta"></div>
+    <div class="school-stats-cards expenses-stats-cards">
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="all"><b id="expense-total">0</b><span>إجمالي الطلاب</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="homes"><b id="expense-homes">0</b><span>منازل</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="paid"><b id="expense-paid">0</b><span>المسددون</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="reportOnly"><b id="expense-report-only">0</b><span>مسددون بالتقرير وغير موجودين حاليًا</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="unpaid"><b id="expense-unpaid">0</b><span>غير المسددين</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="allExemptions"><b id="expense-all-exemptions">0</b><span>كل الإعفاءات</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="fullExempt"><b id="expense-full">0</b><span>إعفاء وفق القرار</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="partialExempt"><b id="expense-partial">0</b><span>تخفيض 50%</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="due"><b id="expense-due">0</b><span>مطلوب السداد</span></button>
+      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="review"><b id="expense-review">0</b><span>يحتاج مراجعة</span></button>
+    </div>
+    <div class="school-stats-empty expenses-note">طلاب «منازل» يظهرون في كارت مستقل ولا يدخلون ضمن غير المسددين أو المطلوب منهم السداد. «مطلوب السداد» يستبعد المعفيين وفق القرار، ويشمل أصحاب التخفيض 50% بالقيمة المخفضة.</div>
+  </div>
+</div>
+</section>
+
+<section class="n-section exemption-removal-card" data-section="exemption-removal" aria-labelledby="sec-exemption-removal-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="trash"></i></span><div class="n-section__copy"><h2 id="sec-exemption-removal-title">حذف إعفاءات الطلاب</h2><p>أتمتة حذف الإعفاءات من كشف Excel مع تحديد نوع الإعفاء أو الحذف الشامل</p></div></header>
+<div class="n-section__body" id="section-body-exemption-removal">
+<div class="mini-note">ارفع كشف Excel يحتوي على أكواد الطلاب. يمكنك حذف كل الإعفاءات المسجلة أو تحديد نوع إعفاء معين لحذفه واستثناء غيره.</div>
+<div class="field-block" style="margin-bottom:8px;">
+  <label for="exemption-type-select">نوع الإعفاء المراد حذفه</label>
+  <select class="n-input" id="exemption-type-select">
+    <option value="all" selected>جميع أنواع الإعفاءات المسجلة (حذف شامل للكل)</option>
+    <option value="5">تكافل وكرامة / مشروطية التعليم (كود 5)</option>
+    <option value="1">أبناء العاملين بالتربية والتعليم</option>
+    <option value="2">أبناء الشهداء ومصابي العمليات</option>
+    <option value="3">يتامى الأب</option>
+    <option value="4">أبناء المرأة المعيلة والمطلقة ومهجورة العائل</option>
+    <option value="6">بحث اجتماعي / حالات الضمان الاجتماعي</option>
+    <option value="custom">تحديد كود أو نص إعفاء مخصص...</option>
+  </select>
+</div>
+<div class="field-block" id="exemption-custom-wrap" style="display:none;margin-bottom:8px;">
+  <label for="exemption-custom-input">الكود أو النص المخصص للإعفاء</label>
+  <input class="n-input" id="exemption-custom-input" type="text" placeholder="مثال: 5 أو تكافل أو أبناء شهداء">
+</div>
+<div class="field-block">
+  <label for="exemption-file-input">ملف كشف الطلاب (Excel)</label>
+  <div class="bulk-nid-file-row">
+    <label class="bulk-nid-file-btn" for="exemption-file-input"><i data-icon="folder"></i>اختيار ملف</label>
+    <input class="n-input" id="exemption-file-input" type="file" accept=".xlsx,.xls,.csv">
+    <span id="exemption-file-name" class="bulk-nid-file-name">لم يتم اختيار ملف</span>
+  </div>
+  <div id="exemption-summary" class="mini-note bulk-nid-summary" hidden></div>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+  <button class="n-btn n-btn--danger n-btn--block" id="btn-exemption-start" type="button" aria-disabled="true" data-reason="ارفع ملف إكسيل يحتوي على أكواد الطلاب أولًا."><i data-icon="trash"></i><span class="n-btn__label">بدء حذف الإعفاءات</span></button>
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-exemption-template" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل نموذج Excel</span></button>
+</div>
+<div class="single-action-row" id="exemption-stop-row" hidden style="margin-bottom:8px;">
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-exemption-stop" type="button"><i data-icon="stop"></i><span class="n-btn__label">إيقاف الحذف</span></button>
+</div>
+<div id="exemption-progress-wrap" class="bulk-nid-progress-wrap" hidden>
+  <div class="bulk-nid-progress-track"><div id="exemption-progress-bar" class="bulk-nid-progress-bar"></div></div>
+  <div id="exemption-progress-text" class="bulk-nid-progress-text">0 / 0</div>
+</div>
+<div id="exemption-status" class="mini-note" hidden style="margin-top:8px;"></div>
+<div class="single-action-row" style="margin-top:6px;">
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-exemption-download-results" type="button" hidden><i data-icon="sheet"></i><span class="n-btn__label">تنزيل كشف نتائج الحذف Excel</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section school-health-card" data-section="school-health" aria-labelledby="sec-school-health-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="chart"></i></span><div class="n-section__copy"><h2 id="sec-school-health-title">الصحة المدرسية وسجلات التقييم</h2><p>مبادرة 100 مليون صحة، سجل 5 سلوك، وسجلات الفصول والتقييمات</p></div></header>
+<div class="n-section__body" id="section-body-school-health">
+<div class="mini-note">كشوف وسجلات رسمية جاهزة للطباعة مع الترويسة الوزارية المعتمدة وتذييل الإدارة المدرسية.</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-records-anemia" type="button" title="كشف مسح مبادرة 100 مليون صحة للكشف عن الأنيميا والتقزم والسمنة (15 عموداً، 50 طالباً بالصفحة)"><i data-icon="chart"></i><span class="n-btn__label">كشف مسح 100 مليون صحة</span></button>
+<button class="n-btn n-btn--primary n-btn--block" id="btn-records-health-followup" type="button" title="سجل متابعة حالات الأنيميا والتقزم والسمنة (العيادة وتوقيع ولي الأمر - 11 عموداً)"><i data-icon="users"></i><span class="n-btn__label">سجل متابعة العيادة وتوقيع ولي الأمر</span></button>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-monthly-absence" type="button" title="سجل الغياب والمواظبة الشهري (30 يوماً بالتاريخ والجمعة والسبت - 35 عموداً)"><i data-icon="calendar"></i><span class="n-btn__label">سجل الغياب الشهري (30 يوماً)</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-school-budget" type="button" title="بيان عام - احصاء ميزانية المدرسة والكثافة للعام الدراسي 2026-2027م (26 عموداً)"><i data-icon="sheet"></i><span class="n-btn__label">بيان ميزانية المدرسة والكثافة</span></button>
+</div>
+<div class="action-grid three-actions" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;">
+<button class="n-btn n-btn--secondary n-btn--sm" id="btn-records-behavior-5" type="button" title="سجل 5 درجات شهرياً للسلوك والمواظبة"><i data-icon="check"></i><span class="n-btn__label">سجل 5 سلوك ومواظبة</span></button>
+<button class="n-btn n-btn--secondary n-btn--sm" id="btn-records-class-grades" type="button" title="سجل درجات وتقييمات الطلاب الأسبوعية"><i data-icon="sheet"></i><span class="n-btn__label">سجل الدرجات الأسبوعي</span></button>
+<button class="n-btn n-btn--secondary n-btn--sm" id="btn-records-class-summary" type="button" title="سجل أعمال السنة والتقييم الشهري المجمع"><i data-icon="file-text"></i><span class="n-btn__label">سجل أعمال السنة المجمع</span></button>
+</div>
+
+<div class="records-tpl-card-wrap" style="margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px;">
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-toggle-popup-tpl" type="button" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:700;">
+    <i data-icon="settings"></i><span>🎨 تصميم وتخصيص قوالب السجلات (Excel Templates)</span>
+  </button>
+  <div id="popup-tpl-container" style="display:none;margin-top:8px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px;flex-direction:column;gap:8px;">
+    <div style="font-size:11px;color:#1e40af;background:#eff6ff;padding:6px 8px;border-radius:6px;line-height:1.4;">
+      💡 نزّل النموذج الخام لأي سجل (.xlsx) وصممه بحرية على Microsoft Excel (ألوان، خطوط، شعار)، ثم ارفعه ليعتمده نبراس دائماً!
+    </div>
+    <div id="popup-tpl-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+</div>
+</div>
+</section>
+
+<section class="n-section smart-analytics-card" data-section="smart-analytics" aria-labelledby="sec-smart-analytics-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="chart"></i></span><div class="n-section__copy"><h2 id="sec-smart-analytics-title">مراجعة وتدقيق البيانات والتحليلات المتقدمة</h2><p>تدقيق الأرقام القومية والهواتف، إحصائية الأشقاء، وتحليلات السن والديانة والكثافة</p></div></header>
+<div class="n-section__body" id="section-body-smart-analytics">
+<div class="mini-note">يحلل بيانات المدرسة ليكتشف الأخطاء الإملائية وتكرار الهواتف، ويستخرج الأسر والأشقاء بدقة ليفنشتاين، مع تقارير السن والديانة وكثافة الفصول.</div>
+<div id="smart-analytics-cache-status" class="mini-note" style="margin-bottom:8px;font-weight:600;border:1px solid #e2e8f0;background:#f8fafc;padding:6px 10px;border-radius:6px;">
+  <span style="color:#d97706;font-weight:700;">●</span> لا توجد بيانات طلاب محفوظة حاليًا. اضغط «تحديث بيانات المدرسة من الموقع» أدناه.
+</div>
+<div class="single-action-row" style="margin-bottom:8px;display:flex;gap:6px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-analytics-deep-refresh" type="button" title="تنزيل وتحديث البيانات الشاملة للمدرسة بالملفات الكاملة لتغذية التحليلات والإحصاء"><i data-icon="download"></i><span class="n-btn__label">تحديث البيانات الشاملة للمدرسة</span></button>
+<button class="n-btn n-btn--secondary" id="btn-analytics-refresh" type="button" title="تحديث سريع للأعداد والفصول فقط" style="white-space:nowrap;"><i data-icon="refresh"></i><span>تحديث سريع</span></button>
+</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-analytics-dataguard" type="button"><i data-icon="check"></i><span class="n-btn__label">مراجعة وتدقيق البيانات</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-analytics-siblings" type="button"><i data-icon="users"></i><span class="n-btn__label">إحصائية الأشقاء والإخوة</span></button>
+</div>
+<div class="single-action-row">
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-analytics-export-all" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تصدير كتاب التحليلات الشاملة Excel</span></button>
+</div>
+<div id="smart-analytics-result" class="mini-note" hidden style="margin-top:8px;background:var(--n-bg-alt,#f8fafc);border:1px solid var(--n-border,#e2e8f0);padding:8px 12px;border-radius:6px;line-height:1.7;"></div>
+</div>
+</section>
+
+<section class="n-section stats-center-card" data-section="stats-center" aria-labelledby="sec-stats-center-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="chart"></i></span><div class="n-section__copy"><h2 id="sec-stats-center-title">المركز الإحصائي والتقارير المدرسية الشاملة</h2><p>15 تقريراً إحصائياً معتمداً ومصنفاً وفق النماذج الوزارية جاهزة للتصدير المباشر</p></div></header>
+<div class="n-section__body" id="section-body-stats-center">
+  <div id="stats-center-data-status" class="mini-note" style="margin-bottom:8px;font-weight:600;border:1px solid #e2e8f0;background:#f8fafc;padding:8px 12px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+    <span id="stats-center-status-text"><span style="color:#16a34a;font-weight:700;">●</span> جاري فحص بيانات المدرسة المتاحة...</span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="n-btn n-btn--primary n-btn--sm" id="btn-stats-center-fetch-deep" type="button" title="تنزيل وتحديث البيانات الشاملة لجميع صفوف المدرسة من الموقع مباشرة (الديانة، اللغات، الشعب، الأمهات)" style="padding:4px 10px;font-size:11px;background:#0f766e;border-color:#0f766e;">
+        <i data-icon="download"></i> تحديث البيانات الشاملة
+      </button>
+      <button class="n-btn n-btn--ghost n-btn--sm" id="btn-stats-center-refresh" type="button" title="فحص وتحديث العرض من الذاكرة" style="padding:4px 8px;font-size:11px;">
+        <i data-icon="refresh"></i> تحديث
+      </button>
+      <label class="n-btn n-btn--ghost n-btn--sm" title="تحليل ملف إكسيل خارجي" style="padding:4px 8px;font-size:11px;cursor:pointer;margin:0;">
+        <i data-icon="sheet"></i> ملف خارجي
+        <input type="file" id="stats-center-file-input" accept=".xlsx, .xls" style="display:none;">
+      </label>
+    </div>
+  </div>
+
+  <details class="stats-center-meta-details" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:10px;">
+    <summary style="font-size:11px;font-weight:700;color:#0f766e;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px;">
+      <span>⚙️ بيانات الترويسة المدرسية الرسمية (تُحفظ تلقائياً وتُطبّق على الكشوف)</span>
+    </summary>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+      <div><label style="font-size:10px;color:#64748b;">العام الدراسي:</label><input type="text" id="sc-meta-year" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" value="2026-2027"></div>
+      <div><label style="font-size:10px;color:#64748b;">المدرسة:</label><input type="text" id="sc-meta-school" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" value="المدرسة"></div>
+      <div><label style="font-size:10px;color:#64748b;">المديرية:</label><input type="text" id="sc-meta-dir" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="مديرية التربية والتعليم"></div>
+      <div><label style="font-size:10px;color:#64748b;">الإدارة:</label><input type="text" id="sc-meta-admin" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="الإدارة التعليمية"></div>
+      <div><label style="font-size:10px;color:#64748b;">مسئول شئون الطلاب:</label><input type="text" id="sc-meta-affairs" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="مثال: أ/ محمد"></div>
+      <div><label style="font-size:10px;color:#64748b;">مدير المدرسة:</label><input type="text" id="sc-meta-principal" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="مثال: أ/ أحمد"></div>
+    </div>
+  </details>
+
+  <div style="margin-bottom:10px;">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-sc-export-master" type="button" style="background:#0f766e;border-color:#0f766e;font-weight:700;font-size:12px;box-shadow:0 2px 6px rgba(15,118,110,0.25);">
+      <i data-icon="sheet"></i><span class="n-btn__label">تصدير المصنف الإحصائي الشامل (15 تقريراً في ملف Excel واحد)</span>
+    </button>
+  </div>
+
+  <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:4px;">
+    <span>📊</span><span>تقارير الإحصاء السكاني والتنظيمي المباشرة:</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-gender" type="button"><i data-icon="users"></i><span class="n-btn__label">إحصائية النوع</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-enrollment" type="button"><i data-icon="chart"></i><span class="n-btn__label">إحصائية حالات القيد</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-age" type="button"><i data-icon="calendar"></i><span class="n-btn__label">إحصائية الفئات العمرية</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-religion" type="button"><i data-icon="check"></i><span class="n-btn__label">إحصائية الديانة</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-integration" type="button"><i data-icon="users"></i><span class="n-btn__label">حصر وكشوف الدمج</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-density" type="button"><i data-icon="school"></i><span class="n-btn__label">كثافة الفصول والأعداد</span></button>
+  </div>
+
+  <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:4px;">
+    <span>🔍</span><span>تقارير التدقيق والمطابقة وتنسيق القبول:</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-dataguard" type="button"><i data-icon="check"></i><span class="n-btn__label">مراجعة وتدقيق البيانات</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-birthmonths" type="button"><i data-icon="calendar"></i><span class="n-btn__label">ترتيب القبول (مواليد الشهور)</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-siblings" type="button"><i data-icon="users"></i><span class="n-btn__label">إحصائية الأشقاء</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-mothernames" type="button"><i data-icon="file-text"></i><span class="n-btn__label">تحليل أسماء الأمهات</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-demographics" type="button"><i data-icon="external"></i><span class="n-btn__label">التوزيع الجغرافي للمحافظات</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-languages" type="button"><i data-icon="list"></i><span class="n-btn__label">إحصائية اللغات والشعب</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-anomalies" type="button"><i data-icon="check"></i><span class="n-btn__label">مطابقة السن القانوني</span></button>
+    <button class="n-btn n-btn--secondary n-btn--sm" id="btn-sc-quality" type="button"><i data-icon="check"></i><span class="n-btn__label">جودة واكتمال البيانات</span></button>
+  </div>
+  <button class="n-btn n-btn--secondary n-btn--block" id="btn-sc-manager-sheet" type="button" style="margin-top:4px;">
+    <i data-icon="sheet"></i><span class="n-btn__label">اللوحة الإحصائية التجميعية الشاملة لمدير المدرسة</span>
+  </button>
+</div>
+</section>
+
+</div>
+<div class="n-group" role="tabpanel" id="group-classes" aria-labelledby="tab-classes" tabindex="0" data-group="classes">
+<section class="n-section assign-card" data-section="assign" aria-labelledby="sec-assign-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="school"></i></span><div class="n-section__copy"><h2 id="sec-assign-title">التسكين والتوزيع الآلي للفصول</h2><p>نقل الطلاب بين فصول الصف من Excel بمعاينة قبل التنفيذ وتحقق بعده</p></div></header>
+<div class="n-section__body" id="section-body-assign">
+<div style="display:flex;flex-direction:column;gap:10px;">
+<div style="font-size:12px;color:#475569;line-height:1.5;">
+تسكين الطلاب من ملف Excel: تُعاين الخطة أولًا دون أي تغيير في الموقع، ثم يُنفَّذ النقل ويُتحقق منه بقراءة الفصول من جديد، ويُنزَّل تقرير بنتيجة كل طالب. ويمكن أيضًا تنزيل قوائم فصول المدرسة (عمودان).
+</div>
+<div class="action-grid two-actions">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-launch-auto-assign" type="button"><i data-icon="play"></i><span class="n-btn__label">تشغيل شريط التسكين</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-export-classes-excel" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تنزيل قوائم المدرسة Excel</span></button>
+</div>
+<a class="n-btn n-btn--ghost n-btn--sm n-link-row" id="link-open-student-portal" href="https://student.emis.gov.eg/" target="_blank" rel="noreferrer noopener"><i data-icon="external"></i><span class="n-btn__label">فتح موقع بيانات الطلاب</span></a>
+</div>
+</div>
+</section>
+
+<section class="n-section report-card" data-section="reports" aria-labelledby="sec-reports-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="file-text"></i></span><div class="n-section__copy"><h2 id="sec-reports-title">التقارير وقوائم الفصول</h2><p>تنزيل قوائم الفصول PDF مدمجة أو تصديرها Excel</p></div></header>
+<div class="n-section__body" id="section-body-reports">
+<div class="panel-grid two-col">
+<div class="field-block">
+<label for="class-report-grade-select">الصف المطلوب</label>
+<select class="n-input" id="class-report-grade-select">
+<option disabled="" selected="" value="">اختر الصف المطلوب...</option>
+</select>
+</div>
+<div class="action-grid align-end" style="display:flex;flex-direction:column;gap:6px;">
+<button class="n-btn n-btn--primary n-btn--block" id="btn-class-report" type="button"><i data-icon="file-text"></i><span class="n-btn__label">تنزيل ودمج قوائم الفصول PDF</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-class-report-excel" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تنزيل قوائم الفصول Excel (كود • اسم • حالة القيد)</span></button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="n-section class-org-card" data-section="class-org" aria-labelledby="sec-class-org-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="users"></i></span><div class="n-section__copy"><h2 id="sec-class-org-title">قوائم الفصول</h2><p>قوائم العمودين الموفرة للورق</p></div></header>
+<div class="n-section__body" id="section-body-class-org">
+<div class="mini-note">طباعة مكثفة واقتصادية للورق: أكثر من 60 طالبًا في الصفحة الواحدة.</div>
+<div class="action-grid">
+<div class="field-block" style="margin-bottom: 8px; width: 100%;">
+  <label for="two-col-sort-mode" style="font-weight: 600; margin-bottom: 4px; display: block;">ترتيب قوائم الفصول:</label>
+  <select class="n-input" id="two-col-sort-mode">
+    <option value="gender_boys" selected>ترتيب حسب النوع (بنين أولاً أبجديًا ثم بنات أبجديًا)</option>
+    <option value="gender_girls">ترتيب حسب النوع (بنات أولاً أبجديًا ثم بنين أبجديًا)</option>
+    <option value="alpha">ترتيب أبجدي عام</option>
+    <option value="site">ترتيب الموقع (كما ورد في موقع الوزارة)</option>
+  </select>
+</div>
+<button class="n-btn n-btn--primary n-btn--block" id="btn-records-two-col" type="button" title="طباعة 60+ طالب بالصفحة الواحدة بنظام عمودين متوازيين"><i data-icon="sheet"></i><span class="n-btn__label">قوائم الفصول (نظام العمودين المزدوج)</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section class-books-card" data-section="class-books" aria-labelledby="sec-class-books-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="sheet"></i></span><div class="n-section__copy"><h2 id="sec-class-books-title">دفاتر الفصول</h2><p>ملف Excel جاهز لكل فصل: الأسماء وبيانات المدرسة تُملأ تلقائيًا</p></div></header>
+<div class="n-section__body" id="section-body-class-books">
+<div class="mini-note">يقرأ طلاب المرحلة المختارة من الموقع وينشئ ملفًا لكل فصل من القوالب المرفقة (دفتر الفصل، كشف الفنية، دفتر 5 سلوك). تُحفظ الملفات في التنزيلات داخل مجلد Nepras، وتُفتح بـ Excel ليعمل الماكرو.</div>
+<div class="cb-jobs" id="cb-jobs" role="group" aria-label="أنواع الدفاتر">
+<div class="cb-job" data-job="primary" data-stages="PRIMARY"><label class="cb-check"><input type="checkbox" checked><span>دفاتر المرحلة الابتدائية</span></label><input class="n-input cb-grades" type="text" inputmode="numeric" maxlength="12" placeholder="كل الصفوف" aria-label="الصفوف المطلوبة (أرقام مفصولة بمسافة، فارغ = الكل)"></div>
+<div class="cb-job" data-job="prep" data-stages="PREP"><label class="cb-check"><input type="checkbox" checked><span>دفاتر المرحلة الإعدادية</span></label><input class="n-input cb-grades" type="text" inputmode="numeric" maxlength="12" placeholder="كل الصفوف" aria-label="الصفوف المطلوبة (أرقام مفصولة بمسافة، فارغ = الكل)"></div>
+<div class="cb-job" data-job="sec" data-stages="GENERAL_SECONDARY TECHNICAL_SECONDARY"><label class="cb-check"><input type="checkbox" checked><span>دفاتر الثانوي (قالب بدون مشروع)</span></label><input class="n-input cb-grades" type="text" inputmode="numeric" maxlength="12" placeholder="كل الصفوف" aria-label="الصفوف المطلوبة (أرقام مفصولة بمسافة، فارغ = الكل)"></div>
+<div class="cb-job" data-job="sec_project" data-stages="GENERAL_SECONDARY TECHNICAL_SECONDARY"><label class="cb-check"><input type="checkbox"><span>دفاتر الثانوي (قالب بعمود المشروع)</span></label><input class="n-input cb-grades" type="text" inputmode="numeric" maxlength="12" placeholder="كل الصفوف" aria-label="الصفوف المطلوبة (أرقام مفصولة بمسافة، فارغ = الكل)"></div>
+<div class="cb-job" data-job="art" data-stages="PREP"><label class="cb-check"><input type="checkbox" checked><span>التربية الفنية (القرار 137)</span></label><input class="n-input cb-grades" type="text" inputmode="numeric" maxlength="12" placeholder="كل الصفوف" aria-label="الصفوف المطلوبة (أرقام مفصولة بمسافة، فارغ = الكل)"></div>
+<div class="cb-job" data-job="behavior" data-stages="PRIMARY PREP GENERAL_SECONDARY TECHNICAL_SECONDARY"><label class="cb-check"><input type="checkbox" checked><span>دفتر 5 سلوك</span></label><input class="n-input cb-grades" type="text" inputmode="numeric" maxlength="12" placeholder="كل الصفوف" aria-label="الصفوف المطلوبة (أرقام مفصولة بمسافة، فارغ = الكل)"></div>
+</div>
+<div class="cb-grid">
+<div class="field-block"><label for="cb-year">العام الدراسي (اختياري)</label><input class="n-input" id="cb-year" type="text" maxlength="20" placeholder="يؤخذ من الموقع مثل 2026 / 2027"></div>
+<div class="field-block"><label for="cb-deputy">وكيل المدرسة (اختياري)</label><input class="n-input" id="cb-deputy" type="text" maxlength="60" placeholder="يظهر أسفل دفتر السلوك"></div>
+<div class="field-block"><label for="cb-director">مدير المدرسة (اختياري)</label><input class="n-input" id="cb-director" type="text" maxlength="60" placeholder="يظهر أسفل دفتر السلوك"></div>
+</div>
+<div class="field-block cb-sort-block" style="margin: 8px 0 12px 0;">
+  <label for="cb-sort-mode" style="font-weight: 600; margin-bottom: 6px; display: block;">ترتيب الأسماء في الدفاتر والكشوف:</label>
+  <select class="n-input" id="cb-sort-mode">
+    <option value="gender_boys" selected>ترتيب حسب النوع (بنين أولاً أبجديًا ثم بنات أبجديًا)</option>
+    <option value="gender_girls">ترتيب حسب النوع (بنات أولاً أبجديًا ثم بنين أبجديًا)</option>
+    <option value="alpha">ترتيب أبجدي عام (أ - ي بصرف النظر عن النوع)</option>
+    <option value="site">ترتيب الموقع (كما ورد في موقع الوزارة)</option>
+  </select>
+  <input type="checkbox" id="cb-sort" style="display:none;" aria-hidden="true">
+</div>
+<label class="cb-check"><input type="checkbox" id="cb-trial"><span>وضع التجربة: أول فصل من كل نوع فقط</span></label>
+<details class="cb-adv">
+<summary>إعدادات دفتر السلوك والتربية الفنية</summary>
+<div class="cb-grid">
+<div class="field-block"><label for="cb-off1">الإجازة الأسبوعية الأولى</label><select class="n-input cb-weekday" id="cb-off1"></select></div>
+<div class="field-block"><label for="cb-off2">الإجازة الأسبوعية الثانية</label><select class="n-input cb-weekday" id="cb-off2"></select></div>
+<div class="field-block"><label for="cb-alert">حد تنبيه الغياب بدون عذر (أيام)</label><input class="n-input" id="cb-alert" type="number" inputmode="numeric" min="0" max="60" placeholder="كما في القالب"></div>
+<div class="field-block"><label for="cb-art-term">الفصل الدراسي (الفنية)</label><select class="n-input" id="cb-art-term"><option value="">كما في القالب</option><option value="الأول">الأول</option><option value="الثاني">الثاني</option></select></div>
+<div class="field-block"><label for="cb-art-m1">شهور الفنية (ثلاثة)</label><div class="cb-trio"><input class="n-input cb-art-month" id="cb-art-m1" type="text" maxlength="12" placeholder="الأول"><input class="n-input cb-art-month" id="cb-art-m2" type="text" maxlength="12" placeholder="الثاني"><input class="n-input cb-art-month" id="cb-art-m3" type="text" maxlength="12" placeholder="الثالث"></div></div>
+<div class="field-block"><label for="cb-art-e1">شهرا الاختبار (الفنية)</label><div class="cb-trio cb-duo"><input class="n-input cb-art-exam" id="cb-art-e1" type="text" maxlength="12" placeholder="الأول"><input class="n-input cb-art-exam" id="cb-art-e2" type="text" maxlength="12" placeholder="الثاني"></div></div>
+</div>
+</details>
+<details class="cb-adv cb-tpl" id="cb-tpl-box">
+<summary>القوالب: تعديلها أو استبدالها بقوالبك</summary>
+<div class="mini-note">نزّل القالب وعدّله في Excel (الشعار والتنسيق والصيغ)، ثم ارفعه ليحلّ محل المضمّن. لا تغيّر أسماء الأوراق ولا تنقل خلايا الأسماء والترويسة. يُحفظ قالبك في متصفحك فقط ولا يُرسل لأي جهة.</div>
+<div class="cb-tpl-list" id="cb-tpl-list"></div>
+</details>
+<div class="mini-note" id="cb-note" role="status" hidden></div>
+<div class="single-action-row"><button class="n-btn n-btn--primary n-btn--block" id="btn-class-books" type="button" title="إنشاء ملف Excel لكل فصل من المرحلة المختارة"><i data-icon="download"></i><span class="n-btn__label">إنشاء دفاتر الفصول</span></button></div>
+</div>
+</section>
+
+</div>
+<div class="n-group" role="tabpanel" id="group-staff" aria-labelledby="tab-staff" tabindex="0" data-group="staff">
+<section class="n-section teacher-card" data-section="teachers" aria-labelledby="sec-teachers-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="user"></i></span><div class="n-section__copy"><h2 id="sec-teachers-title">بيانات العاملين</h2><p>بيانات العاملين وصحف الأحوال PDF</p></div></header>
+<div class="n-section__body" id="section-body-teachers">
+<div class="teacher-pull-panel">
+<div class="teacher-pull-head">
+<b>اختر فئة العاملين</b>
+<small>يُحدَّث العدد الحالي من موقع الوزارة في كل مرة</small>
+</div>
+<div class="teacher-pull-grid" role="group" aria-label="فئة العاملين">
+<button class="n-btn n-btn--secondary n-btn--block n-btn--tile" data-teacher-task="FETCH_CORE_STAFF_DATA" type="button"><i data-icon="users"></i><span class="n-btn__text"><b class="n-btn__label">الأساسي</b><small>القوة الأساسية فقط</small></span></button>
+<button class="n-btn n-btn--secondary n-btn--block n-btn--tile" data-teacher-task="FETCH_NADB_STAFF_DATA" type="button"><i data-icon="user"></i><span class="n-btn__text"><b class="n-btn__label">المنتدب</b><small>المنتدبون فقط</small></span></button>
+<button class="n-btn n-btn--secondary n-btn--block n-btn--tile" data-teacher-task="FETCH_PARTTIME_STAFF_DATA" type="button"><i data-icon="clock"></i><span class="n-btn__text"><b class="n-btn__label">معلم بالحصة</b><small>معلمو الحصة فقط</small></span></button>
+<button class="n-btn n-btn--primary n-btn--block n-btn--tile" data-teacher-task="FETCH_ALL_STAFF_DATA" type="button"><i data-icon="list"></i><span class="n-btn__text"><b class="n-btn__label">جميع العاملين</b><small>الأساسي + المنتدب + الحصة</small></span></button>
+</div>
+<div class="att-modes" role="radiogroup" aria-label="طريقة تنزيل صحف الأحوال" id="status-sheets-mode-group">
+<label class="att-choice"><input type="radio" name="status-sheets-mode" value="merged" checked><span>ملف واحد مجمّع</span></label>
+<label class="att-choice"><input type="radio" name="status-sheets-mode" value="individual"><span>ملف مضغوط بصحيفة فردية لكل معلم</span></label>
+</div>
+<button class="n-btn n-btn--secondary n-btn--block n-btn--tile" data-teacher-task="FETCH_STATUS_SHEETS_PDF" type="button"><i data-icon="file-text"></i><span class="n-btn__text"><b class="n-btn__label">صحف الأحوال PDF</b><small>الأساسي + المنتدب</small></span></button>
+<div class="field-block" id="single-sheet-box">
+<label for="single-sheet-input">صحيفة أحوال فردية — كود المعلم أو الرقم القومي</label>
+<input class="n-input" id="single-sheet-input" type="text" inputmode="numeric" autocomplete="off" maxlength="24" dir="ltr" placeholder="كود المعلم، أو الرقم القومي 14 رقمًا">
+<small class="mini-note">يبحث في عاملي المدرسة الحالية (الأساسي + المنتدب) وينزّل صحيفة PDF واحدة.</small>
+<div class="single-action-row"><button class="n-btn n-btn--primary n-btn--block" id="btn-single-status-sheet" data-teacher-task="FETCH_SINGLE_STATUS_SHEET" type="button"><i data-icon="file-text"></i><span class="n-btn__label">تنزيل الصحيفة الفردية</span></button></div>
+</div>
+
+<!-- ======================================================== -->
+<!-- 📊 إحصائيات العاملين وسجل التخصصات المستقلة -->
+<!-- ======================================================== -->
+<div class="staff-stats-panel" style="margin-top:14px;border-top:1.5px dashed var(--n-border,#cbd5e1);padding-top:12px;">
+  <div style="font-size:13px;font-weight:700;color:#0f766e;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+    <span style="display:flex;align-items:center;gap:6px;"><i data-icon="chart"></i><span>إحصائيات وسجل العاملين وكشوف التخصصات</span></span>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <button class="n-btn n-btn--ghost n-btn--sm" id="btn-staff-refresh-ui" type="button" title="تحديث قراءة البيانات المحفوظة" style="padding:2px 8px;font-size:11px;">
+        <i data-icon="refresh"></i> تحديث
+      </button>
+      <label class="n-btn n-btn--ghost n-btn--sm" title="استيراد وتحليل ملف Excel خارجي للعاملين" style="padding:2px 8px;font-size:11px;cursor:pointer;margin:0;">
+        <i data-icon="sheet"></i> استيراد ملف
+        <input type="file" id="staff-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
+      </label>
+    </div>
+  </div>
+
+  <!-- زر التنزيل الشامل لبيانات العاملين ومعالجتها مباشرة من داخل الأداة -->
+  <div style="margin-bottom:8px;">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-staff-fetch-all-comprehensive" type="button" style="background:#0f766e;border-color:#0f766e;font-weight:700;padding:8px 10px;font-size:12px;box-shadow:0 2px 6px rgba(15,118,110,0.25);" title="تنزيل بيانات جميع العاملين (أساسي + منتدب + حصة) مباشرة ومعالجتها إحصائياً وتجهيز كشوف التخصصات">
+      <i data-icon="download"></i> ⚡ تنزيل وتحديث بيانات العاملين الشاملة من الموقع
+    </button>
+  </div>
+  
+  <div id="staff-stats-status" class="mini-note" style="margin-bottom:8px;font-size:11px;background:#f8fafc;border:1px solid #e2e8f0;padding:6px 10px;border-radius:6px;">
+    <span style="color:#d97706;font-weight:700;">●</span> جاري فحص بيانات العاملين المحفوظة بالمدرسة...
+  </div>
+
+  <div class="school-stats-cards" id="staff-mini-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:6px;margin-bottom:10px;">
+    <div class="stat-mini"><b id="stat-staff-total" style="color:#0f766e;">0</b><span style="font-size:10px;">إجمالي القوة</span></div>
+    <div class="stat-mini"><b id="stat-staff-core" style="color:#0369a1;">0</b><span style="font-size:10px;">أساسي</span></div>
+    <div class="stat-mini"><b id="stat-staff-nadb" style="color:#4f46e5;">0</b><span style="font-size:10px;">منتدب</span></div>
+    <div class="stat-mini"><b id="stat-staff-parttime" style="color:#d97706;">0</b><span style="font-size:10px;">حصة</span></div>
+    <div class="stat-mini"><b id="stat-staff-active" style="color:#16a34a;">0</b><span style="font-size:10px;">على رأس العمل</span></div>
+    <div class="stat-mini"><b id="stat-staff-leave" style="color:#dc2626;">0</b><span style="font-size:10px;">إجازات</span></div>
+    <div class="stat-mini"><b id="stat-staff-male" style="color:#2563eb;">0</b><span style="font-size:10px;">ذكور</span></div>
+    <div class="stat-mini"><b id="stat-staff-female" style="color:#db2777;">0</b><span style="font-size:10px;">إناث</span></div>
+  </div>
+
+  <div class="single-action-row" style="margin-bottom:8px;">
+    <button class="n-btn n-btn--secondary n-btn--block" id="btn-staff-export-master" type="button" style="font-weight:700;">
+      <i data-icon="sheet"></i><span class="n-btn__label">تصدير سجل العاملين الشامل مقسماً بالتخصصات (Excel)</span>
+    </button>
+  </div>
+
+  <div class="field-block" style="background:#f8fafc;border:1px solid #e2e8f0;padding:8px 10px;border-radius:8px;">
+    <label for="select-staff-subject" style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;display:block;">كشف تخصص / مادة تدريس مستقلة:</label>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <select class="n-input" id="select-staff-subject" style="font-size:11px;padding:4px 8px;flex:1;">
+        <option value="">(اختر مادة التدريس / التخصص...)</option>
+      </select>
+      <button class="n-btn n-btn--secondary n-btn--sm" id="btn-staff-export-single-subject" type="button" style="white-space:nowrap;padding:4px 10px;font-size:11px;">
+        <i data-icon="download"></i> تصدير الكشف
+      </button>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+<div class="n-group" role="tabpanel" id="group-attendance" aria-labelledby="tab-attendance" tabindex="0" data-group="attendance">
+<section class="n-section attendance-card" data-section="attendance" aria-labelledby="sec-attendance-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="calendar"></i></span><div class="n-section__copy"><h2 id="sec-attendance-title">تسجيل الغياب</h2><p>تسجيل الغياب بأيام ثابتة أو بمدى عشوائي لكل طالب</p></div></header>
+<div class="n-section__body" id="section-body-attendance">
+<fieldset class="att-spec">
+<legend>عدد أيام الغياب</legend>
+<div class="att-modes" role="radiogroup" aria-label="طريقة تحديد أيام الغياب">
+<label class="att-choice"><input type="radio" name="att-mode" value="fixed" checked><span>أيام ثابتة للجميع</span></label>
+<label class="att-choice"><input type="radio" name="att-mode" value="range"><span>مدى عشوائي لكل طالب</span></label>
+</div>
+<div class="att-fields">
+<div class="att-field" id="att-fixed-field"><label for="att-days">عدد الأيام</label><input class="n-input" id="att-days" type="number" inputmode="numeric" min="0" max="5" value="0"></div>
+<div class="att-field" id="att-range-field" hidden><label for="att-min">من</label><input class="n-input" id="att-min" type="number" inputmode="numeric" min="0" max="5" value="0"><label for="att-max">إلى</label><input class="n-input" id="att-max" type="number" inputmode="numeric" min="0" max="5" value="3"></div>
+</div>
+<p class="att-hint" id="att-hint" aria-live="polite"></p>
+</fieldset>
+<div class="att-group">
+<h3>على جدول الطلاب المعروض الآن</h3>
+<div class="att-row"><button class="n-btn n-btn--primary n-btn--block" id="btn-att-fill" type="button"><i data-icon="check"></i><span class="n-btn__label">تسجيل بالقيمة المحددة</span></button><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-zero" type="button"><i data-icon="refresh"></i><span class="n-btn__label">تصفير الغياب للجميع</span></button></div>
+</div>
+<div class="att-group">
+<h3>تسجيل تلقائي بالقيمة المحددة</h3>
+<div class="att-row"><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-class" type="button"><i data-icon="users"></i><span class="n-btn__label">تسجيل كل فصول الصف</span></button><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-full" type="button"><i data-icon="school"></i><span class="n-btn__label">تسجيل كل المدرسة — أسبوع</span></button><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-range" type="button"><i data-icon="calendar"></i><span class="n-btn__label">تسجيل كل المدرسة — نطاق أسابيع</span></button></div>
+</div>
+<div class="att-group">
+<h3>توزيع غائبين عشوائيًا</h3>
+<div class="att-row"><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-random" type="button"><i data-icon="list"></i><span class="n-btn__label">توزيع طلاب غائبين على صف</span></button></div>
+</div>
+<div class="att-group">
+<h3>شيت الغياب</h3>
+<div class="att-row"><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-template" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل شيت الغياب</span></button></div>
+<div class="att-upload"><label for="att-file">ملف الشيت المعبّأ (Excel أو CSV)</label><input class="n-input" id="att-file" type="file" accept=".xlsx,.xls,.csv,.txt"><div class="att-row"><button class="n-btn n-btn--secondary n-btn--block" id="btn-att-upload" type="button"><i data-icon="upload"></i><span class="n-btn__label">رفع شيت الغياب الذكي</span></button></div></div>
+</div>
+<div class="att-group att-open"><button class="n-btn n-btn--ghost n-btn--block" id="btn-quick-attendance" type="button"><i data-icon="external"></i><span class="n-btn__label">فتح صفحة تسجيل الغياب</span></button></div>
+</div>
+</section>
+
+<section class="n-section absence-warnings-card" data-section="absence-warnings" aria-labelledby="sec-absence-warnings-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="file-text"></i></span><div class="n-section__copy"><h2 id="sec-absence-warnings-title">إنذارات الغياب الرسمية</h2><p>تجهيز وطباعة إخطارات الغياب الرسمية للطلاب مع بطاقة التعهد والاستلام</p></div></header>
+<div class="n-section__body" id="section-body-absence-warnings">
+
+  <!-- شريط ملخص إحصاء الغياب والمستحقين -->
+  <div id="warnings-stat-bar" class="mini-note" style="margin-bottom:8px;background:#f8fafc;border:1px solid #e2e8f0;padding:8px 10px;border-radius:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-weight:700;font-size:12px;color:#1e3a8a;"><i data-icon="chart"></i> موقف غياب طلاب المدرسة:</span>
+      <span id="warnings-total-cached" style="font-size:11px;color:#64748b;font-weight:600;">الطلاب: 0</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:4px;text-align:center;margin-bottom:6px;">
+      <div style="background:#fef3c7;border:1px solid #fde68a;padding:4px 2px;border-radius:6px;">
+        <div style="font-size:10px;color:#92400e;font-weight:600;">إنذار أول (5-9)</div>
+        <div id="warnings-count-first" style="font-size:13px;font-weight:700;color:#b45309;">0</div>
+      </div>
+      <div style="background:#ffedd5;border:1px solid #fed7aa;padding:4px 2px;border-radius:6px;">
+        <div style="font-size:10px;color:#9a3412;font-weight:600;">إنذار ثانٍ (10-14)</div>
+        <div id="warnings-count-second" style="font-size:13px;font-weight:700;color:#c2410c;">0</div>
+      </div>
+      <div style="background:#fee2e2;border:1px solid #fecaca;padding:4px 2px;border-radius:6px;">
+        <div style="font-size:10px;color:#991b1b;font-weight:600;">إنذار فصل (15+)</div>
+        <div id="warnings-count-final" style="font-size:13px;font-weight:700;color:#dc2626;">0</div>
+      </div>
+    </div>
+    <div id="warnings-status-note" style="font-size:11px;line-height:1.5;color:#475569;">
+      جاري فحص أيام الغياب المسجلة...
+    </div>
+  </div>
+
+  <!-- الزر الرئيسي: سحب وتحليل تقرير الغياب الرسمي تلقائياً من صفحة تقارير الغياب بالوزارة -->
+  <div style="margin-bottom:8px;">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-warnings-auto-fetch-pdf" type="button" style="font-weight:700;" title="الانتقال تلقائياً إلى صفحة تقارير الغياب بالوزارة (absence/report) وتنزيل وتحليل تقرير رصد الغياب بأسماء الطلاب حسب الفصل فوراً">
+      <i data-icon="download"></i><span class="n-btn__label">⚡ سحب وتحليل تقرير غياب الوزارة تلقائيًا (PDF)</span>
+    </button>
+  </div>
+
+  <!-- رفع ملف PDF محمّل مسبقاً أو فتح صفحة تقارير الغياب -->
+  <div class="action-grid two-actions" style="margin-bottom:8px;">
+    <label class="n-btn n-btn--secondary n-btn--block" style="cursor:pointer;margin:0;display:flex;align-items:center;justify-content:center;font-weight:700;" title="اختيار ملف PDF لتقرير رصد الغياب بأسماء الطلاب حسب الفصل تم تنزيله مسبقاً على جهازك">
+      <i data-icon="file-text"></i><span class="n-btn__label">رفع ملف غياب PDF محمّل</span>
+      <input type="file" id="warnings-pdf-file-input" accept=".pdf" multiple style="display:none;">
+    </label>
+    <button class="n-btn n-btn--ghost n-btn--block" id="btn-open-absence-report-page" type="button" style="font-size:11px;" title="فتح صفحة تقارير الغياب بموقع الوزارة (student.emis.gov.eg/absence/report)">
+      <i data-icon="external"></i> فتح صفحة تقارير الغياب
+    </button>
+  </div>
+
+  <!-- أزرار المعاينة وإعادة الضبط -->
+  <div style="margin-bottom:8px;display:flex;gap:6px;">
+    <button class="n-btn n-btn--secondary" id="btn-warnings-preview" type="button" style="flex:1;font-weight:700;" title="معاينة كشف أيام الغياب لجميع الطلاب وتصديره">
+      <i data-icon="search"></i><span class="n-btn__label">معاينة كشف الغياب والمستحقين</span>
+    </button>
+    <button class="n-btn n-btn--secondary" id="btn-warnings-clear-cache" type="button" style="font-size:11px;padding:4px 10px;white-space:nowrap;" title="مسح كاش الغياب والبدء من جديد">
+      <i data-icon="trash"></i> إعادة ضبط
+    </button>
+  </div>
+
+  <!-- أزرار الطباعة وتنزيل الوورد -->
+  <div class="action-grid two-actions" style="margin-bottom:4px;">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-warnings-print" type="button"><i data-icon="printer"></i><span class="n-btn__label">طباعة إنذارات الغياب</span></button>
+    <button class="n-btn n-btn--secondary n-btn--block" id="btn-warnings-doc" type="button"><i data-icon="file-text"></i><span class="n-btn__label">تنزيل مستند Word (.doc)</span></button>
+  </div>
+</div>
+</section>
+
+</div>
+<div class="n-group" role="tabpanel" id="group-files" aria-labelledby="tab-files" tabindex="0" data-group="files">
+<section class="n-section quick-login-card" data-section="quick-login" id="sec-quick-login" aria-labelledby="sec-quick-login-title">
+<header class="n-section__head">
+  <span class="n-section__icon"><i data-icon="key"></i></span>
+  <div class="n-section__copy">
+    <h2 id="sec-quick-login-title">خزنة الدخول السريع والتعبئة التلقائية لحساب الوزارة</h2>
+    <p>حفظ كود المدرسة / البريد الإلكتروني الموحد وكلمة السر محلياً لتسجيل الدخول بضغطة زر</p>
+  </div>
+</header>
+<div class="n-section__body" id="section-body-quick-login">
+  <div class="mini-note" style="margin-bottom:8px;background:#f0fdf4;border-color:#bbf7d0;color:#166534;">
+    🛡️ <b>أمان وخصوصية تامة:</b> تُحفظ بيانات الدخول محلياً على جهازك فقط (داخل ذاكرة المتصفح الآمنة)، ولا يتم إرسالها إلى أي خادم خارجي نهائياً.
+  </div>
+  <div class="field-block" style="margin-bottom:8px;">
+    <label for="nepras-login-user" style="font-size:12px;font-weight:700;display:block;margin-bottom:3px;">البريد الموحد أو كود المستخدم / المسلسل:</label>
+    <input class="n-input" id="nepras-login-user" type="text" placeholder="مثال: 3201548@emis.gov.eg أو كود المدرسة" dir="ltr" style="text-align:left;font-family:monospace;font-size:12px;">
+  </div>
+  <div class="field-block" style="margin-bottom:10px;">
+    <label for="nepras-login-pass" style="font-size:12px;font-weight:700;display:block;margin-bottom:3px;">كلمة المرور الخاصة بموقع الوزارة:</label>
+    <div style="position:relative;display:flex;align-items:center;">
+      <input class="n-input" id="nepras-login-pass" type="password" placeholder="••••••••" dir="ltr" style="text-align:left;font-family:monospace;font-size:12px;padding-left:36px;width:100%;">
+      <button class="n-btn n-btn--ghost n-btn--sm" id="btn-toggle-login-pass-visibility" type="button" title="إظهار/إخفاء كلمة المرور" style="position:absolute;left:4px;padding:4px 6px;">
+        👁️
+      </button>
+    </div>
+  </div>
+  <div class="action-grid two-actions" style="margin-bottom:8px;">
+    <button class="n-btn n-btn--primary n-btn--block" id="btn-save-quick-login" type="button">
+      <i data-icon="check"></i><span class="n-btn__label">حفظ بيانات الدخول</span>
+    </button>
+    <button class="n-btn n-btn--secondary n-btn--block" id="btn-autofill-quick-login" type="button" style="font-weight:700;">
+      <i data-icon="send"></i><span class="n-btn__label">⚡ تعبئة في التبويب المفتوح</span>
+    </button>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-clear-quick-login" type="button" style="color:#ef4444;font-size:11px;">
+      <i data-icon="trash"></i> مسح البيانات المحفوظة
+    </button>
+    <span id="quick-login-status-msg" style="font-size:11px;font-weight:700;color:#15803d;display:none;"></span>
+  </div>
+</div>
+</section>
+
+<section class="n-section download-any-table-card" data-section="download-any-table" aria-labelledby="sec-download-any-table-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="sheet"></i></span><div class="n-section__copy"><h2 id="sec-download-any-table-title">تنزيل أي جدول معروض</h2><p>تنزيل أي جدول يظهر في صفحة الوزارة المفتوحة كملف Excel فوراً</p></div></header>
+<div class="n-section__body" id="section-body-download-any-table">
+<div class="mini-note">يقوم بالتقاط الجدول المعروض حالياً في تبويب الوزارة المفتوح وتنسيقه بالترويسة المعتمدة وتنزيله كملف Excel بلمسة واحدة.</div>
+<button class="n-btn n-btn--primary n-btn--block" id="btn-records-download-any-table" type="button"><i data-icon="download"></i><span class="n-btn__label">تنزيل الجدول المعروض كملف Excel</span></button>
+</div>
+</section>
+
+<section class="n-section pdf-studio-card" data-section="pdf-studio" aria-labelledby="sec-pdf-studio-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="file-text"></i></span><div class="n-section__copy"><h2 id="sec-pdf-studio-title">أدوات المستندات والـ PDF</h2><p>دمج ملفات PDF متعددة أو حفظ صفحات محددة محليًا وبأمان تام</p></div></header>
+<div class="n-section__body" id="section-body-pdf-studio">
+<div class="mini-note">تتم جميع عمليات الدمج والتقسيم داخل المتصفح دون الحاجة للاتصال بأي خوادم خارجية.</div>
+<div class="action-grid two-actions" style="margin-bottom:8px;">
+<label class="n-btn n-btn--primary n-btn--block" for="pdf-merge-input" style="cursor:pointer;"><i data-icon="folder"></i><span class="n-btn__label">دمج ملفات PDF</span></label>
+<input id="pdf-merge-input" type="file" accept=".pdf" multiple hidden>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-pdf-extract-open" type="button"><i data-icon="file-text"></i><span class="n-btn__label">حفظ صفحات من PDF</span></button>
+</div>
+<div id="pdf-extract-box" class="field-block compact-field" hidden style="border-top:1px dashed var(--n-border,#e2e8f0);padding-top:8px;">
+<label for="pdf-extract-file-input">اختر ملف PDF</label>
+<input class="n-input" id="pdf-extract-file-input" type="file" accept=".pdf">
+<label for="pdf-extract-range" style="margin-top:6px;">أرقام الصفحات المطلوبة (مثال: 1, 3, 5-8)</label>
+<div style="display:flex;gap:6px;align-items:center;">
+<input class="n-input" id="pdf-extract-range" type="text" placeholder="1, 3, 5-8" dir="ltr">
+<button class="n-btn n-btn--primary n-btn--sm" id="btn-pdf-extract-start" type="button"><i data-icon="check"></i><span class="n-btn__label">حفظ الصفحات</span></button>
+</div>
+</div>
+</div>
+</section>
+
+<section class="n-section recent-exports-card" data-section="recent-exports" aria-labelledby="sec-recent-exports-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="folder"></i></span><div class="n-section__copy"><h2 id="sec-recent-exports-title">آخر الملفات المُصدّرة</h2><p>سجل بآخر ملفات Excel/PDF التي أنشأتها الأداة</p></div></header>
+<div class="n-section__body" id="section-body-recent-exports">
+<div id="nepras-recent-exports-list" class="recent-exports-list"></div>
+<div class="single-action-row">
+<button class="n-btn n-btn--danger n-btn--sm" id="btn-clear-recent-exports" type="button"><i data-icon="trash"></i><span class="n-btn__label">مسح سجل الملفات</span></button>
+</div>
+</div>
+</section>
+
+<section class="n-section support-card" data-section="support" aria-labelledby="sec-support-title">
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="settings"></i></span><div class="n-section__copy"><h2 id="sec-support-title">الإعدادات والدعم</h2><p>معلومات الإصدار والتواصل</p></div></header>
+<div class="n-section__body" id="section-body-support">
+<div class="support-grid">
+<div class="info-strip">
+<span>الإصدار <b id="nepras-version" dir="ltr">—</b></span>
+<span>التنقل الذكي: <b>إعادة استخدام التبويبات المفتوحة</b></span>
+</div>
+<div class="settings-actions" style="margin-bottom: 8px;">
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-settings-keep-open" type="button"><i data-icon="check"></i><span class="n-btn__label" id="lbl-settings-keep-open">حالة إبقاء الأداة نشطة: مفعلة</span></button>
+</div>
+<div class="settings-actions">
+<a class="n-btn n-btn--secondary n-btn--block" href="https://wa.me/201118209309" rel="noopener noreferrer" target="_blank"><i data-icon="whatsapp"></i><span class="n-btn__label">مراسلة الدعم على واتساب</span></a>
+<a class="n-btn n-btn--secondary n-btn--block" href="https://unified-school-tools-website.vercel.app/" rel="noopener noreferrer" target="_blank"><i data-icon="globe"></i><span class="n-btn__label">فتح موقع نبراس</span></a>
+<a class="n-btn n-btn--secondary n-btn--block" href="https://www.facebook.com/profile.php?id=61593183145085" rel="noopener noreferrer" target="_blank"><i data-icon="facebook"></i><span class="n-btn__label">فتح صفحة فيسبوك</span></a>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</main>
+</div>
+<footer class="n-support" aria-label="روابط التواصل والدعم">
+<div class="n-support__links">
+<a class="n-btn n-btn--secondary n-btn--tile n-support__link n-support__link--wa" href="https://wa.me/201118209309" id="nepras-whatsapp-link" target="_blank" rel="noopener noreferrer"><span class="n-support__icon"><i data-icon="whatsapp" data-size="20"></i></span><span class="n-btn__text"><b class="n-btn__label">واتساب الدعم الفني</b><small class="is-ltr">01118209309</small></span></a>
+<a class="n-btn n-btn--secondary n-btn--tile n-support__link n-support__link--web" href="https://unified-school-tools-website.vercel.app/" target="_blank" rel="noopener noreferrer"><span class="n-support__icon"><i data-icon="globe" data-size="20"></i></span><span class="n-btn__text"><b class="n-btn__label">الموقع الرسمي</b><small>أدوات المدرسة الموحّدة</small></span></a>
+<a class="n-btn n-btn--secondary n-btn--tile n-support__link n-support__link--fb" href="https://www.facebook.com/profile.php?id=61593183145085" target="_blank" rel="noopener noreferrer"><span class="n-support__icon"><i data-icon="facebook" data-size="20"></i></span><span class="n-btn__text"><b class="n-btn__label">صفحة فيسبوك</b><small>تابع التحديثات والجديد</small></span></a>
+</div>
+</footer>
+</div>
+</div>
+<section aria-labelledby="nepras-help-title" aria-modal="true" class="help-modal" hidden="" id="nepras-help-modal" role="dialog">
+<div class="help-card">
+<div class="help-head">
+<div>
+<b id="nepras-help-title">دليل استخدام أدوات نبراس</b>
+<small>دليل سريع موجه لإدارات المدارس</small>
+</div>
+<button class="n-btn n-btn--ghost n-btn--sm n-btn--icon" id="btn-close-help" type="button" aria-label="إغلاق الشرح"><i data-icon="close"></i></button>
+</div>
+<div class="help-body">
+<article><b>1) اختر المرحلة التعليمية</b><p>ابدأ دائمًا من الشريط العلوي وحدد المرحلة. سيتم تطبيق الاختيار على وظائف الطلاب وقوائم الفصول.</p></article>
+<article><b>2) افتح القسم المطلوب</b><p>اضغط السهم بجوار اسم القسم لعرض أدواته. يتم إغلاق أي قسم آخر تلقائيًا لتبقى الواجهة مرتبة.</p></article>
+<article><b>3) الطلاب والتقارير</b><p>اختر الصف ثم شغّل التنزيل أو قوائم الفصول. الأداة تعيد استخدام تبويب موقع الطلاب المفتوح بدل إنشاء تبويبات زائدة.</p></article>
+<article><b>4) بيانات العاملين</b><p>اختر مباشرة: الأساسي أو المنتدب أو معلم بالحصه أو جميع العاملين. صحف الأحوال للأساسي والمنتدب فقط.</p></article>
+<article><b>5) قبول الملفات</b><p>افتح صفحة القبول ثم استخدم شريط أدوات نبراس داخل الصفحة لاستيراد Excel وتنفيذ الاستلام.</p></article>
+<article><b>6) إيقاف العمل</b><p>زر «إيقاف» أعلى الأداة يرسل أمر إيقاف موحد للعمليات الجارية، ومنها تنزيل قوائم الفصول.</p></article>
+<article><b>معلومة</b><p>ظهور Service Worker على أنه Inactive في صفحة الإضافات أمر طبيعي؛ Chrome يشغله عند الحاجة ثم يوقفه لتوفير الموارد.</p></article>
+</div>
+</div>
+</section>
+
+<script src="ui/brand.js"></script>
+<script src="ui/escape.js"></script>
+<script src="ui/charts.js"></script>
+<script src="modules/egypt_ids.js"></script>
+<script src="modules/school_manager.js"></script>
+<script src="ui/icons.js"></script>
+<script src="ui/messages.ar.js"></script>
+<script src="ui/terms.ar.js"></script>
+<script src="ui/_styles.js"></script>
+<script src="ui/nepras-ui.js"></script>
+<script src="ui/legacy.js"></script>
+<script src="ui/buttons.js"></script>
+<script src="ui/menu.js"></script>
+<script src="nepras-dialogs.js"></script>
+<script src="ui-button-state.js"></script>
+<script src="ui-focus-trap.js"></script>
+<script src="xlsx.full.min.js"></script>
+<script src="modules/xlsx_writer.js"></script>
+<script src="modules/class_books.js"></script>
+<script src="modules/class_books_store.js"></script>
+<script src="modules/run_report.js"></script>
+<script src="modules/bulk_nid.js"></script>
+<script src="pdf-lib.min.js"></script>
+<script src="modules/pdf_tools.js"></script>
+<script src="modules/smart_analytics.js"></script>
+<script src="modules/tablet.js"></script>
+<script src="modules/add_student.js"></script>
+<script src="modules/report_header.js"></script>
+<script src="pdf.min.js"></script>
+<script src="modules/absence_pdf_parser.js"></script>
+<script src="modules/absence_warnings.js"></script>
+<script src="modules/stats_dashboard.js"></script>
+<script src="modules/exemption_removal.js"></script>
+<script src="modules/quick_edits.js"></script>
+<script src="modules/student_dossier.js"></script>
+<script src="modules/staff_stats.js"></script>
+<script src="modules/quick_login.js"></script>
+<script src="modules/nepras_security_guard.js"></script>
+<script src="popup.js"></script>
+
+<section id="student-dossier-modal" class="school-stats-detail-modal" hidden>
+  <div class="school-stats-detail-card" style="width:min(920px, calc(100vw - 20px)); max-height:92vh; border-radius:14px; overflow:hidden;">
+    <div class="school-stats-detail-head">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;">🎓</span>
+        <div>
+          <b id="dossier-modal-name">اسم التلميذ</b>
+          <small id="dossier-modal-sub">الصف الأول | الفصل: 1/1 | كود: 123456</small>
+        </div>
+      </div>
+      <button class="n-btn n-btn--ghost n-btn--sm n-btn--icon" id="dossier-modal-close" type="button" aria-label="إغلاق الملف" style="color:#fff;background:rgba(255,255,255,0.15);"><i data-icon="close"></i></button>
+    </div>
+
+    <div style="padding:14px 18px;overflow-y:auto;max-height:calc(92vh - 120px);display:flex;flex-direction:column;gap:12px;background:#f8fafc;">
+      
+      <!-- 1. البيانات الشخصية -->
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+        <div style="font-size:12px;font-weight:700;color:#0f766e;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <span>👤</span><span>البيانات الشخصية والأساسية:</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:8px;font-size:12px;">
+          <div><span style="color:#64748b;">الرقم القومي: </span><b id="dossier-nid" style="font-family:monospace;letter-spacing:0.5px;">-</b></div>
+          <div><span style="color:#64748b;">النوع: </span><b id="dossier-gender">-</b></div>
+          <div><span style="color:#64748b;">الديانة: </span><b id="dossier-religion">-</b></div>
+          <div><span style="color:#64748b;">تاريخ الميلاد: </span><b id="dossier-dob">-</b></div>
+          <div><span style="color:#64748b;">السن في 1 أكتوبر: </span><b id="dossier-age">-</b></div>
+          <div><span style="color:#64748b;">محافظة الميلاد: </span><b id="dossier-gov">-</b></div>
+          <div><span style="color:#64748b;">اسم الأب: </span><b id="dossier-father">-</b></div>
+          <div><span style="color:#64748b;">اسم الأم: </span><b id="dossier-mother">-</b></div>
+          <div><span style="color:#64748b;">هاتف ولي الأمر: </span><b id="dossier-phone" style="font-family:monospace;direction:ltr;display:inline-block;">-</b></div>
+          <div style="grid-column:1 / -1;"><span style="color:#64748b;">العنوان ومحل الإقامة: </span><b id="dossier-address">-</b></div>
+        </div>
+      </div>
+
+      <!-- 2. الموقف الدراسي -->
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+        <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <span>🏫</span><span>الموقف الدراسي والتعليمي:</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;font-size:12px;">
+          <div><span style="color:#64748b;">الصف الدراسي: </span><b id="dossier-grade">-</b></div>
+          <div><span style="color:#64748b;">الفصل: </span><b id="dossier-class">-</b></div>
+          <div><span style="color:#64748b;">نظام القيد: </span><b id="dossier-mode">-</b></div>
+          <div><span style="color:#64748b;">حالة القيد: </span><b id="dossier-status">-</b></div>
+          <div><span style="color:#64748b;">اللغة الأولى: </span><b id="dossier-lang1">-</b></div>
+          <div><span style="color:#64748b;">اللغة الثانية: </span><b id="dossier-lang2">-</b></div>
+          <div><span style="color:#64748b;">الشعبة والتخصص: </span><b id="dossier-section">-</b></div>
+          <div><span style="color:#64748b;">الموقف من الدمج: </span><b id="dossier-damg">-</b></div>
+        </div>
+      </div>
+
+      <!-- شبكة ثلاثية: المصروفات والتابلت والغياب -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:10px;">
+        
+        <!-- 3. المصروفات -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+          <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="display:flex;align-items:center;gap:6px;"><span>💰</span><span>المصروفات المدرسية:</span></span>
+            <span id="dossier-exp-badge" style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;background:#fef3c7;color:#92400e;">-</span>
+          </div>
+          <div style="font-size:11px;color:#475569;display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+            <div id="dossier-exp-detail">-</div>
+          </div>
+        </div>
+
+        <!-- 4. التابلت -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+          <div style="font-size:12px;font-weight:700;color:#6b21a8;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="display:flex;align-items:center;gap:6px;"><span>📱</span><span>أجهزة التابلت المدرسي:</span></span>
+            <span id="dossier-tab-badge" style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;background:#f3e8ff;color:#6b21a8;">-</span>
+          </div>
+          <div style="font-size:11px;color:#475569;display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+            <div id="dossier-tab-detail">-</div>
+          </div>
+        </div>
+
+        <!-- 5. الغياب والإنذارات -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;grid-column:1 / -1;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+          <div style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="display:flex;align-items:center;gap:6px;"><span>📅</span><span>الغياب والمواظبة والإنذارات:</span></span>
+            <span id="dossier-abs-badge" style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;background:#fee2e2;color:#991b1b;">-</span>
+          </div>
+          <div style="font-size:11px;color:#475569;display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+            <div id="dossier-abs-detail">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. الأشقاء بالمدرسة -->
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+        <div style="font-size:12px;font-weight:700;color:#4338ca;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+          <span>👨‍👩‍👧‍👦</span><span>الأشقاء والإخوة المقيدون بالمدرسة:</span>
+          <span id="dossier-siblings-count" style="font-size:11px;font-weight:600;color:#6366f1;">(0)</span>
+        </div>
+        <div id="dossier-siblings-list" style="display:flex;flex-direction:column;gap:6px;font-size:12px;margin-top:6px;"></div>
+      </div>
+
+    </div>
+
+    <!-- تذييل الإجراءات -->
+    <div style="padding:10px 18px;background:#f1f5f9;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;gap:6px;">
+        <button class="n-btn n-btn--primary n-btn--sm" id="btn-dossier-print" type="button" style="background:#0f766e;border-color:#0f766e;">
+          <i data-icon="sheet"></i> طباعة بطاقة الطالب الرسمية
+        </button>
+        <button class="n-btn n-btn--secondary n-btn--sm" id="btn-dossier-copy" type="button">
+          <i data-icon="copy"></i> نسخ ملخص الطالب
+        </button>
+      </div>
+      <button class="n-btn n-btn--ghost n-btn--sm" id="btn-dossier-close-btm" type="button">
+        إغلاق
+      </button>
+    </div>
+  </div>
+</section>
+
+
+<section id="expenses-detail-modal" class="school-stats-detail-modal" hidden>
+  <div class="school-stats-detail-card">
+    <div class="school-stats-detail-head">
+      <div><b id="expenses-detail-title">تفاصيل المصروفات</b><small id="expenses-detail-count">0 طالب</small></div>
+      <button class="n-btn n-btn--ghost n-btn--sm n-btn--icon" id="expenses-detail-close" type="button" aria-label="إغلاق التفاصيل"><i data-icon="close"></i></button>
+    </div>
+    <div class="school-stats-detail-tools">
+      <input class="n-input" id="expenses-detail-search" type="search" placeholder="بحث بالاسم أو الكود أو الرقم القومي...">
+      <button class="n-btn n-btn--secondary n-btn--sm" id="expenses-detail-export" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تصدير القائمة Excel</span></button>
+    </div>
+    <div class="school-stats-detail-table-wrap">
+      <table class="school-stats-detail-table">
+        <thead><tr>
+          <th>م</th><th>اسم التلميذ</th><th>كود التلميذ</th><th>الرقم القومي</th><th>الصف</th><th>الفصل</th><th>مسدد</th><th>نوع الإعفاء</th><th>النسبة</th><th>الحالة المالية</th>
+        </tr></thead>
+        <tbody id="expenses-detail-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="school-stats-detail-modal" class="school-stats-detail-modal" hidden>
+  <div class="school-stats-detail-card">
+    <div class="school-stats-detail-head">
+      <div>
+        <b id="school-stats-detail-title">تفاصيل الإحصاء</b>
+        <small id="school-stats-detail-count">0 طالب</small>
+      </div>
+      <button class="n-btn n-btn--ghost n-btn--sm n-btn--icon" id="school-stats-detail-close" type="button" aria-label="إغلاق التفاصيل"><i data-icon="close"></i></button>
+    </div>
+
+    <div class="school-stats-detail-tools">
+      <input class="n-input" id="school-stats-detail-search" type="search" placeholder="بحث بالاسم أو الكود أو الرقم القومي...">
+      <button class="n-btn n-btn--secondary n-btn--sm" id="school-stats-detail-export" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تصدير القائمة Excel</span></button>
+    </div>
+
+    <div class="school-stats-detail-table-wrap">
+      <table class="school-stats-detail-table">
+        <thead>
+          <tr>
+            <th>م</th>
+            <th>اسم التلميذ</th>
+            <th>كود التلميذ</th>
+            <th>الرقم القومي</th>
+            <th>الصف</th>
+            <th>الفصل</th>
+            <th>النوع</th>
+            <th>نوع التعليم</th>
+            <th>الدمج</th>
+            <th>نوع الدمج</th>
+            <th>حالة القيد</th>
+          </tr>
+        </thead>
+        <tbody id="school-stats-detail-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+<section id="absence-detail-modal" class="school-stats-detail-modal" hidden>
+  <div class="school-stats-detail-card">
+    <div class="school-stats-detail-head">
+      <div>
+        <b id="absence-detail-title">كشف موقف غياب طلاب المدرسة والإنذارات</b>
+        <small id="absence-detail-count">0 طالب</small>
+      </div>
+      <button class="n-btn n-btn--ghost n-btn--sm n-btn--icon" id="absence-detail-close" type="button" aria-label="إغلاق التفاصيل"><i data-icon="close"></i></button>
+    </div>
+
+    <div class="school-stats-detail-tools">
+      <input class="n-input" id="absence-detail-search" type="search" placeholder="بحث باسم التلميذ، الكود، الصف، أو الفصل...">
+      <button class="n-btn n-btn--secondary n-btn--sm" id="absence-detail-export" type="button"><i data-icon="sheet"></i><span class="n-btn__label">تصدير كشف الغياب Excel</span></button>
+    </div>
+
+    <div class="school-stats-detail-table-wrap">
+      <table class="school-stats-detail-table">
+        <thead>
+          <tr>
+            <th>م</th>
+            <th>كود التلميذ</th>
+            <th>اسم التلميذ</th>
+            <th>الصف</th>
+            <th>الفصل</th>
+            <th>أيام الغياب</th>
+            <th>الموقف من الإنذار</th>
+          </tr>
+        </thead>
+        <tbody id="absence-detail-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+</body>
+</html>

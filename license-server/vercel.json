@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/v1/check-school", "destination": "/api/license?action=check-school" },
+    { "source": "/api/v1/activate-key", "destination": "/api/license?action=activate-key" },
+    { "source": "/api/v1/health", "destination": "/api/license?action=health" },
+    { "source": "/api/v1/admin/:op", "destination": "/api/admin?op=:op" },
+    { "source": "/api/v1/admin", "destination": "/api/admin" },
+    { "source": "/", "destination": "/public/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Admin-Secret" },
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+      ]
+    }
+  ]
+}

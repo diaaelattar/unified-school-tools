@@ -1,0 +1,13 @@
+{
+  "name": "nepras-apps",
+  "version": "1.3.2",
+  "private": true,
+  "description": "Nepras desktop (Electron) and mobile (Capacitor) apps built from the Nepras_v1.3.1_patched extension",
+  "scripts": {
+    "build:desktop": "node scripts/build.js desktop",
+    "build:desktop:legacy": "node scripts/build.js desktop && node desktop/build_legacy.js",
+    "build:mobile": "node scripts/build.js mobile && npm --prefix mobile run cap:sync",
+    "dev:desktop": "npm run build:desktop && electron desktop",
+    "test": "node tests/run.js && node tests/audit_fixes_test.js && node extension/tests/run.js"
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">نبراس</string>
+    <string name="title_activity_main">نبراس</string>
+    <string name="package_name">eg.gov.nepras.app</string>
+    <string name="custom_url_scheme">eg.gov.nepras.app</string>
+</resources>

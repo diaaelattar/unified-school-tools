@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نبراس لإدارة بيانات التلميذ والمعلم</title>
+<link rel="stylesheet" href="ext/ui/fonts.css">
+<link rel="stylesheet" href="host.css">
+</head>
+<body class="plat-unknown drawer-closed mode-overlay">
+  <!-- Hidden background page for extension service worker replacement -->
+  <iframe id="bg-frame" class="hidden-frame" title="background"></iframe>
+
+  <div id="app-root">
+    <!-- Top Modern Application Header & Navigation Bar -->
+    <header id="top-navbar">
+      <!-- Right Section: Branding -->
+      <div class="nav-brand">
+        <img class="brand-logo" src="ext/assets/logo.png" alt="نبراس" width="28" height="28" onerror="this.src='ext/icons/nepras32.png'">
+        <div class="brand-info">
+          <span class="brand-title">نِبـراس</span>
+          <span class="brand-badge">بيانات التلميذ والمعلم</span>
+        </div>
+      </div>
+
+      <!-- Navigation & Controls -->
+      <div class="nav-controls">
+        <button id="btn-back" class="nav-btn icon-btn" title="رجوع للصفحة السابقة">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <button id="btn-fwd" class="nav-btn icon-btn" title="التقدم للأمام">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button id="btn-reload" class="nav-btn icon-btn" title="إعادة تحميل الصفحة">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <button id="btn-home" class="nav-btn icon-btn" title="الصفحة الرئيسية (شئون الطلاب)">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Center: Smart Address & Security Display -->
+      <div class="nav-address-bar">
+        <div class="security-badge" title="اتصال مشفر وآمن">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <span id="current-url-display" class="url-text">جاري الاتصال بصفحة المدرسة...</span>
+        <div id="loading-spinner" class="spinner hidden"></div>
+      </div>
+
+      <!-- Quick Ministry Portals Switcher -->
+      <div class="portal-pills">
+        <button class="portal-pill active" data-url="https://student.emis.gov.eg/" title="بوابة شئون الطلاب والمدارس">
+          <span class="pill-icon">🎓</span>
+          <span class="pill-label">شئون الطلاب</span>
+        </button>
+        <button class="portal-pill" data-url="https://teacher.emis.gov.eg/" title="بوابة المعلمين والإداريين">
+          <span class="pill-icon">👨‍🏫</span>
+          <span class="pill-label">المعلمين</span>
+        </button>
+        <button class="portal-pill" data-url="https://tansik-adtik.emis.gov.eg/" title="بوابة تنسيق المدارس والتقديم الإلكتروني">
+          <span class="pill-icon">📑</span>
+          <span class="pill-label">التنسيق</span>
+        </button>
+      </div>
+
+      <!-- Left Section: Nepras Tools Trigger & Utility Buttons -->
+      <div class="nav-actions">
+        <!-- Desktop-Only Annual Subscription Status Badge -->
+        <button id="btn-desktop-sub-badge" class="sub-badge-btn hidden" title="حالة الاشتراك لتطبيق سطح المكتب (مربوط بكود المدرسة)">
+          <span id="sub-badge-dot" class="sub-dot"></span>
+          <span id="sub-badge-text">فحص الاشتراك...</span>
+        </button>
+
+        <!-- Nepras Smart Tools Button -->
+        <button id="btn-toggle-tools" class="tools-trigger-btn" title="فتح لوحة أدوات ومهام نبراس">
+          <div class="btn-shine"></div>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="tools-icon">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span class="tools-text">أدوات نبراس</span>
+          <span id="tools-status-dot" class="status-dot waiting" title="في انتظار صفحة المدرسة"></span>
+        </button>
+
+        <!-- Downloads Folder Button -->
+        <button id="btn-open-downloads" class="nav-btn icon-btn" title="فتح مجلد التنزيلات والملفات المصدرة">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+
+        <!-- DevTools Button -->
+        <button id="btn-devtools" class="nav-btn icon-btn" title="فتح وضع المطور (DevTools) [F12]">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </button>
+
+        <!-- Fullscreen Toggle Button -->
+        <button id="btn-fullscreen" class="nav-btn icon-btn" title="ملء الشاشة">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sleek Tab Strip -->
+    <div id="tabstrip-container">
+      <div id="tabstrip"></div>
+      <button id="btn-newtab" class="newtab-btn" title="فتح تبويب جديد">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Main Workspace Layout (Full Browser + Side Drawer) -->
+    <main id="workspace">
+      <!-- Full Ministry Browser View (Takes 100% width) -->
+      <section id="browser-view">
+        <div id="tab-host"></div>
+        <div id="empty-hint" class="hidden">
+          <div class="empty-card">
+            <img src="ext/assets/logo.png" alt="نبراس" width="64" height="64" onerror="this.src='ext/icons/nepras128.png'">
+            <h2>مرحباً بك في منظومة نبراس</h2>
+            <p>اختر إحدى بوابات وزارة التربية والتعليم من الأعلى لبدء العمل المباشر</p>
+            <div class="empty-actions">
+              <button class="portal-pill" data-url="https://student.emis.gov.eg/">بوابة شئون الطلاب</button>
+              <button class="portal-pill" data-url="https://teacher.emis.gov.eg/">بوابة المعلمين</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Backdrop overlay for floating drawer mode on smaller screens / click-outside -->
+      <div id="drawer-backdrop" class="drawer-backdrop"></div>
+
+      <!-- Nepras Sliding Side Drawer (لوحة أدوات نبراس الجانبية المنزلقة) -->
+      <aside id="panel-drawer" class="panel-drawer">
+        <!-- Drag Resizer Handle on the edge -->
+        <div id="drawer-resizer" class="drawer-resizer" title="اسحب بالماوس لتكبير أو تصغير عرض اللوحة"></div>
+
+        <!-- Drawer Header -->
+        <div class="drawer-header">
+          <div class="drawer-title">
+            <img src="ext/assets/logo.png" alt="نبراس" width="22" height="22" onerror="this.src='ext/icons/nepras32.png'">
+            <span>لوحة أدوات نبراس</span>
+            <span class="drawer-version">v1.3.2</span>
+          </div>
+          <div class="drawer-controls">
+            <!-- Pin / Dock Toggle Button -->
+            <button id="btn-pin-drawer" class="drawer-btn" title="تبديل التثبيت: تثبيت بجانب الصفحة أو طفو فوقها">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="17" x2="12" y2="22"></line>
+                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A4 4 0 0 1 14 9V5a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v4a4 4 0 0 1-2.11 3.56l-1.78.89A2 2 0 0 0 5 15.24z"></path>
+              </svg>
+            </button>
+            <!-- Close Drawer Button -->
+            <button id="btn-close-drawer" class="drawer-btn close" title="إخفاء لوحة الأدوات (العودة لصفحة بيانات المدرسة كاملة)">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Extension Popup Iframe Container -->
+        <div class="drawer-body">
+          <iframe id="panel-frame" title="أدوات نبراس"></iframe>
+
+          <!-- Desktop-Only Annual Subscription Gate (Shown over panel-frame when school is not subscribed) -->
+          <div id="desktop-license-gate" class="desktop-license-gate hidden">
+            <div class="lic-card">
+              <div class="lic-header">
+                <img src="ext/assets/logo.png" alt="نبراس" width="48" height="48" onerror="this.src='ext/icons/nepras128.png'">
+                <div>
+                  <h3 id="lic-title">تفعيل اشتراك المدرسة — نبراس</h3>
+                  <p id="lic-subtitle">يرتبط الاشتراك بكود المدرسة ليعمل تلقائياً على أي جهاز كمبيوتر داخل مدرستك</p>
+                </div>
+              </div>
+
+              <div id="lic-status-banner" class="lic-banner lic-banner-warn">
+                سجّل الدخول بحساب مدرستك على صفحة بيانات التلميذ والمعلم لالتقاط كود المدرسة تلقائياً، أو أدخل كود المدرسة بالأسفل.
+              </div>
+
+              <div class="lic-section">
+                <label class="lic-label">🏫 كود المدرسة:</label>
+                <div class="lic-row">
+                  <input type="text" id="lic-school-code-input" class="lic-input" placeholder="يُلتقط تلقائياً بعد تسجيل الدخول أو اكتبه هنا (مثال: 1204567)" dir="ltr" />
+                  <button id="btn-lic-check-school" class="lic-btn lic-btn-primary" title="فحص حالة الاشتراك أو بدء المهلة التجريبية المجانية">
+                    🔄 فحص التفعيل التلقائي
+                  </button>
+                </div>
+              </div>
+
+              <div class="lic-divider"><span>أو التفعيل بمفتاح اشتراك سنوي (30 جنيهاً)</span></div>
+
+              <div class="lic-section">
+                <label class="lic-label">🔑 مفتاح التفعيل السنوي (`NEPRAS-XXXX-XXXX` أو تذكرة التفعيل):</label>
+                <div class="lic-row">
+                  <input type="text" id="lic-key-input" class="lic-input" placeholder="NEPRAS-2027-XXXX-XXXX" dir="ltr" />
+                  <button id="btn-lic-activate-key" class="lic-btn lic-btn-green">
+                    ✅ تفعيل الاشتراك السنوي
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Floating Action Button (FAB) shown when drawer is closed -->
+    <button id="fab-tools" class="fab-tools" title="فتح أدوات نبراس ⚡">
+      <div class="fab-pulse"></div>
+      <img src="ext/assets/logo.png" alt="نبراس" width="28" height="28" onerror="this.src='ext/icons/nepras32.png'">
+      <span class="fab-label">أدوات نبراس</span>
+    </button>
+
+    <!-- Full-screen overlay layer for sub-extension pages (e.g. reports / export windows) -->
+    <div id="panel-layer" class="hidden"></div>
+  </div>
+
+  <!-- Mobile Bottom Navigation (Visible on Android Only) -->
+  <nav id="bottom-nav">
+    <button id="nav-student" class="nav-tab">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+        <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+      </svg>
+      <span>بيانات التلميذ</span>
+    </button>
+    <button id="nav-teacher" class="nav-tab">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+      <span>بيانات المعلم</span>
+    </button>
+    <button id="nav-panel" class="nav-tab active">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+      <span>أدوات نبراس</span>
+    </button>
+  </nav>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="hidden"></div>
+
+  <!-- Scripts -->
+  <script src="host-core.js"></script>
+  <script src="platform-backend.js"></script>
+  <script src="host-ui.js"></script>
+</body>
+</html>

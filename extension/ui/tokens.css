@@ -1,0 +1,85 @@
+/* ==========================================================================
+   tokens.css — مصدر واحد للألوان والمسافات والخطوط لكل واجهات نبراس.
+   قواعد: ألوان دلالية (نجاح/تحذير/خطأ/معلومة) — مسافات على شبكة 4px —
+   6 أحجام خط — 4 أنصاف أقطار. كل أزواج النص/الخلفية هنا ≥ 4.5:1 (dev/tools/contrast.js).
+   الوضع الداكن: .theme-dark (النافذة المنبثقة) أو [data-theme="dark"] (مضيف الرسائل).
+   ========================================================================== */
+:root, :host {
+  /* العلامة */
+  --n-primary: #1d4ed8;
+  --n-primary-hover: #1e40af;
+  --n-primary-soft: #eaf0ff;
+  --n-on-primary: #ffffff;
+  --n-focus: #2563eb;
+
+  /* الدلالات — كل لون له: قوي (نص/أيقونة) · ناعم (خلفية) · حدّ */
+  --n-success: #15803d;  --n-success-soft: #ecfdf3;  --n-success-line: #a7dfbc;
+  --n-warning: #b45309;  --n-warning-soft: #fffbeb;  --n-warning-line: #f1d08a;
+  --n-error:   #b91c1c;  --n-error-soft:   #fef2f2;  --n-error-line:   #f2b8b8;  --n-on-error: #ffffff;
+  --n-info:    #0369a1;  --n-info-soft:    #f0f9ff;  --n-info-line:    #a8d5ee;
+
+  /* الأسطح والنص */
+  --n-bg: #f1f5f9;
+  --n-surface: #ffffff;
+  --n-surface-2: #f8fafc;
+  --n-line: #d3dce6;
+  --n-text: #0f172a;
+  --n-text-2: #334155;
+  --n-text-muted: #526074;
+  --n-scrim: rgba(8, 16, 30, .55);
+
+  /* مسافات (شبكة 4px) */
+  --n-s1: 4px; --n-s2: 8px; --n-s3: 12px; --n-s4: 16px; --n-s5: 20px; --n-s6: 24px; --n-s8: 32px;
+
+  /* الخط: 6 أحجام فقط */
+  --n-fs-xs: 12px; --n-fs-sm: 13px; --n-fs-md: 15px; --n-fs-lg: 17px; --n-fs-xl: 20px; --n-fs-2xl: 24px;
+  --n-fw-regular: 500; --n-fw-bold: 700; --n-fw-black: 800;
+  --n-font: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+
+  /* أنصاف الأقطار: 4 فقط */
+  --n-r-sm: 6px; --n-r-md: 10px; --n-r-lg: 16px; --n-r-pill: 999px;
+
+  /* ظلال */
+  --n-shadow-1: 0 1px 2px rgba(15, 23, 42, .08);
+  --n-shadow-2: 0 8px 24px rgba(15, 23, 42, .16);
+  --n-shadow-3: 0 24px 64px rgba(15, 23, 42, .32);
+
+  /* لمس وحركة */
+  --n-touch: 40px;
+  --n-ease: cubic-bezier(.2, .7, .2, 1);
+
+  /* مقاس النافذة المنبثقة (مصدر واحد) */
+  --popup-w: 680px;
+  --popup-h: 600px;
+}
+
+.theme-dark, :host([data-theme="dark"]) {
+  --n-primary: #7aa2ff;
+  --n-primary-hover: #a3bfff;
+  --n-primary-soft: #1b2a4a;
+  --n-on-primary: #0b1220;
+  --n-focus: #8fb0ff;
+
+  --n-success: #4ade80;  --n-success-soft: #0f2a1c;  --n-success-line: #1f5a38;
+  --n-warning: #fbbf24;  --n-warning-soft: #2b2110;  --n-warning-line: #6b5216;
+  --n-error:   #f87171;  --n-error-soft:   #2d1416;  --n-error-line:   #7a2a2f;  --n-on-error: #1a0808;
+  --n-info:    #56b8ec;  --n-info-soft:    #0e2433;  --n-info-line:    #24506e;
+
+  --n-bg: #0d1520;
+  --n-surface: #152131;
+  --n-surface-2: #1b293b;
+  --n-line: #2c3e55;
+  --n-text: #eef4fb;
+  --n-text-2: #cbd7e5;
+  --n-text-muted: #9fb1c6;
+  --n-scrim: rgba(0, 0, 0, .66);
+
+  --n-shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --n-shadow-2: 0 8px 24px rgba(0, 0, 0, .5);
+  --n-shadow-3: 0 24px 64px rgba(0, 0, 0, .7);
+}
+
+@media (pointer: coarse) { :root, :host { --n-touch: 44px; } }
+
+/* الأجهزة المحمولة (يحدّدها mobile-ui.js): أهداف لمس 44px حتى لو لم يُعرَّف المؤشر coarse */
+html.nepras-mobile { --n-touch: 44px; }

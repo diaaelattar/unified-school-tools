@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة إدارة الاشتراكات السنوية — نبراس سطح المكتب</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: 'Cairo', Tahoma, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #0369a1 100%);
+      color: #fff;
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+    }
+    header h1 { margin: 0; font-size: 20px; font-weight: 800; }
+    header p { margin: 2px 0 0; font-size: 13px; opacity: 0.85; }
+    .badge-db {
+      background: rgba(255,255,255,0.15);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .container { max-width: 1280px; margin: 24px auto; padding: 0 16px; }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(15,23,42,0.04);
+    }
+    .card h2 { margin: 0 0 14px; font-size: 17px; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-box .num { font-size: 28px; font-weight: 800; color: var(--primary-dark); }
+    .stat-box .lbl { font-size: 13px; color: var(--muted); font-weight: 600; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+    label { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 5px; }
+    input, select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 13.5px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(2,132,199,0.15); }
+    button {
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-amber { background: var(--amber); color: #fff; }
+    .btn-red { background: var(--red); color: #fff; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: right; }
+    th { background: #f8fafc; color: #334155; font-weight: 800; }
+    tr:hover td { background: #f8fafc; }
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .pill-active { background: #dcfce7; color: #166534; }
+    .pill-warn { background: #fef3c7; color: #92400e; }
+    .pill-expired { background: #fee2e2; color: #991b1b; }
+    .pill-suspended { background: #e2e8f0; color: #475569; }
+    #login-view { max-width: 420px; margin: 80px auto; }
+    .hidden { display: none !important; }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 25px;
+      font-size: 13.5px;
+      font-weight: 700;
+      z-index: 999;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+    }
+    code.key-code {
+      background: #f1f5f9;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: Consolas, monospace;
+      font-weight: 700;
+      color: #0369a1;
+      direction: ltr;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🛡️ منظومة نبراس — إدارة الاشتراكات السنوية (سطح المكتب)</h1>
+      <p>ربط التراخيص السنوية بكود المدرسة على بوابة الحكومة الإلكترونية ليعمل على أي جهاز</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="db-badge" class="badge-db">قاعدة البيانات: جاري الفحص...</span>
+      <button id="btn-logout" class="btn-sm btn-red hidden" onclick="logout()">تسجيل خروج</button>
+    </div>
+  </header>
+
+  <!-- شاشة تسجيل دخول المدير -->
+  <div id="login-view" class="card">
+    <h2>🔐 دخول لوحة التحكم</h2>
+    <p style="font-size:13px;color:var(--muted);margin-top:0;">أدخل كلمة مرور الإدارة (`ADMIN_SECRET`) لإدارة اشتراكات المدارس ومفاتيح التفعيل السنوية.</p>
+    <div style="margin-bottom:14px;">
+      <label>كلمة مرور الإدارة</label>
+      <input type="password" id="admin-secret-input" placeholder="أدخل كلمة المرور..." onkeydown="if(event.key==='Enter') login()" />
+    </div>
+    <button class="btn-primary" style="width:100%;" onclick="login()">دخول لوحة الإدارة</button>
+  </div>
+
+  <!-- لوحة التحكم الرئيسية -->
+  <div id="dashboard-view" class="container hidden">
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="num" id="st-total">0</div>
+        <div class="lbl">إجمالي المدارس المسجلة</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="st-active" style="color:var(--green);">0</div>
+        <div class="lbl">مدارس باشتراك سنوي نشط</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="st-expiring" style="color:var(--amber);">0</div>
+        <div class="lbl">تنتهي خلال 10 أيام</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="st-keys">0</div>
+        <div class="lbl">مفاتيح تفعيل غير مستخدمة</div>
+      </div>
+    </div>
+
+    <!-- 1. تفعيل مباشر بكود المدرسة -->
+    <div class="card">
+      <h2>🏫 تفعيل / إضافة اشتراك مدرسة مباشرة بكود المدرسة (يعمل تلقائياً على أي جهاز)</h2>
+      <div class="form-grid">
+        <div>
+          <label>كود المدرسة بالوزارة *</label>
+          <input type="text" id="in-school-code" placeholder="مثال: 1204567" />
+        </div>
+        <div>
+          <label>اسم المدرسة</label>
+          <input type="text" id="in-school-name" placeholder="مثال: مدرسة النور الرسمية" />
+        </div>
+        <div>
+          <label>المديرية / الإدارة</label>
+          <input type="text" id="in-school-dir" placeholder="اختياري" />
+        </div>
+        <div>
+          <label>رقم هاتف المسؤول (واتساب)</label>
+          <input type="text" id="in-school-phone" placeholder="010xxxxxxxx" />
+        </div>
+        <div>
+          <label>مدة الاشتراك (بالأيام)</label>
+          <select id="in-plan-days">
+            <option value="365" selected>اشتراك سنوي كامل (365 يوم)</option>
+            <option value="180">نصف سنوي / ترم (180 يوم)</option>
+            <option value="30">شهري (30 يوم)</option>
+            <option value="7">تجريبي (7 أيام)</option>
+            <option value="730">سنتان (730 يوم)</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn-primary" style="width:100%;" onclick="addOrUpdateSchool()">➕ تفعيل كود المدرسة الآن</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. توليد مفاتيح تفعيل سنوية -->
+    <div class="card">
+      <h2>🔑 توليد مفاتيح تفعيل سنوية (`NEPRAS-XXXX-XXXX`)</h2>
+      <div class="form-grid">
+        <div>
+          <label>عدد المفاتيح المطلوب توليدها</label>
+          <input type="number" id="key-count" value="1" min="1" max="50" />
+        </div>
+        <div>
+          <label>مدة الصلاحية عند التفعيل</label>
+          <select id="key-days">
+            <option value="365" selected>سنة كاملة (365 يوم)</option>
+            <option value="180">6 أشهر (180 يوم)</option>
+            <option value="30">شهر واحد (30 يوم)</option>
+          </select>
+        </div>
+        <div>
+          <label>ربط مسبق بكود مدرسة محدد (اختياري)</label>
+          <input type="text" id="key-bound-school" placeholder="اتركه فارغاً ليعمل لأي مدرسة أول مرة" />
+        </div>
+        <div>
+          <label>ملاحظة / اسم المدرسة</label>
+          <input type="text" id="key-note" placeholder="مثال: دفعة مدارس إدارة غرب" />
+        </div>
+        <div>
+          <button class="btn-green" style="width:100%;" onclick="generateKeys()">⚡ توليد مفاتيح تفعيل</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. جدول المدارس المشتركة -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;">📋 سجل المدارس المشتركة وحالة الاشتراكات السنوية</h2>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="search-schools" placeholder="بحث بكود المدرسة أو الاسم..." oninput="renderTables()" style="width:240px;" />
+          <button class="btn-primary btn-sm" onclick="loadDashboard()">🔄 تحديث البيانات</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>كود المدرسة</th>
+              <th>اسم المدرسة</th>
+              <th>الحالة</th>
+              <th>تاريخ الانتهاء</th>
+              <th>المتبقي</th>
+              <th>مفتاح التفعيل</th>
+              <th>مرات الفحص / آخر ظهور</th>
+              <th>إجراءات سريعة</th>
+            </tr>
+          </thead>
+          <tbody id="schools-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 4. جدول مفاتيح التفعيل -->
+    <div class="card">
+      <h2>🎟️ مفاتيح التفعيل السنوية المُصدَرة</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>مفتاح التفعيل</th>
+              <th>الحالة</th>
+              <th>المدة</th>
+              <th>كود المدرسة المرتبط</th>
+              <th>ملاحظات</th>
+              <th>تاريخ الإنشاء</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="keys-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    let adminSecret = localStorage.getItem("nepras_admin_secret") || "";
+    let schoolsList = [];
+    let keysList = [];
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.remove("hidden");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => t.classList.add("hidden"), 3200);
+    }
+
+    async function apiAdmin(op, payload = {}) {
+      const res = await fetch(`/api/v1/admin?op=${encodeURIComponent(op)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Secret": adminSecret
+        },
+        body: JSON.stringify({ op, ...payload })
+      });
+      const data = await res.json();
+      if (res.status === 401) {
+        logout();
+        throw new Error(data.message || "غير مصرح");
+      }
+      if (!res.ok || !data.ok) {
+        throw new Error(data.message || "تعذر تنفيذ العملية");
+      }
+      return data;
+    }
+
+    async function login() {
+      const val = document.getElementById("admin-secret-input").value.trim();
+      if (!val) return showToast("يرجى إدخال كلمة مرور الإدارة");
+      adminSecret = val;
+      try {
+        await loadDashboard();
+        localStorage.setItem("nepras_admin_secret", adminSecret);
+        document.getElementById("login-view").classList.add("hidden");
+        document.getElementById("dashboard-view").classList.remove("hidden");
+        document.getElementById("btn-logout").classList.remove("hidden");
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+
+    function logout() {
+      adminSecret = "";
+      localStorage.removeItem("nepras_admin_secret");
+      document.getElementById("login-view").classList.remove("hidden");
+      document.getElementById("dashboard-view").classList.add("hidden");
+      document.getElementById("btn-logout").classList.add("hidden");
+    }
+
+    async function loadDashboard() {
+      const data = await apiAdmin("dashboard");
+      schoolsList = data.schools || [];
+      keysList = data.keys || [];
+      document.getElementById("db-badge").textContent = `قاعدة البيانات: ${data.backend}`;
+      renderTables();
+    }
+
+    function renderTables() {
+      const q = (document.getElementById("search-schools").value || "").trim().toLowerCase();
+      const filteredSchools = schoolsList.filter(s =>
+        !q ||
+        String(s.schoolCode).toLowerCase().includes(q) ||
+        String(s.schoolName).toLowerCase().includes(q) ||
+        String(s.licenseKey).toLowerCase().includes(q)
+      );
+
+      document.getElementById("st-total").textContent = schoolsList.length;
+      document.getElementById("st-active").textContent = schoolsList.filter(s => s.status === "active" && s.daysRemaining > 0).length;
+      document.getElementById("st-expiring").textContent = schoolsList.filter(s => s.status === "active" && s.daysRemaining > 0 && s.daysRemaining <= 10).length;
+      document.getElementById("st-keys").textContent = keysList.filter(k => k.status === "unused").length;
+
+      const sBody = document.getElementById("schools-tbody");
+      if (!filteredSchools.length) {
+        sBody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">لا توجد مدارس مسجلة حالياً</td></tr>`;
+      } else {
+        sBody.innerHTML = filteredSchools.map(s => {
+          let pillClass = "pill-active", pillText = "نشط";
+          if (s.status === "suspended") { pillClass = "pill-suspended"; pillText = "موقوف"; }
+          else if (s.status === "expired" || s.daysRemaining <= 0) { pillClass = "pill-expired"; pillText = "منتهي"; }
+          else if (s.daysRemaining <= 10) { pillClass = "pill-warn"; pillText = "ينتهي قريباً"; }
+
+          const expDate = s.expiresAt ? new Date(s.expiresAt).toLocaleDateString("ar-EG") : "-";
+          const lastSeen = s.lastCheckAt ? new Date(s.lastCheckAt).toLocaleString("ar-EG") : "لم يتصل بعد";
+
+          return `
+            <tr>
+              <td><strong style="font-size:14px;color:var(--primary-dark);">${s.schoolCode}</strong></td>
+              <td>${s.schoolName || "-"}<div style="font-size:11px;color:var(--muted);">${s.directorate || ""} ${s.phone ? "• " + s.phone : ""}</div></td>
+              <td><span class="pill ${pillClass}">${pillText}</span></td>
+              <td>${expDate}</td>
+              <td><strong>${s.daysRemaining}</strong> يوم</td>
+              <td><code class="key-code">${s.licenseKey || "-"}</code></td>
+              <td>${s.checkCount || 0} مرة<div style="font-size:11px;color:var(--muted);">${lastSeen}</div></td>
+              <td style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn-green btn-sm" onclick="renewSchool('${s.schoolCode}', 365)" title="إضافة 365 يوماً">+ سنة</button>
+                <button class="btn-amber btn-sm" onclick="toggleSchool('${s.schoolCode}')">${s.status === "suspended" ? "تفعيل" : "إيقاف"}</button>
+                <button class="btn-primary btn-sm" onclick="copyWhatsAppSchool('${s.schoolCode}', '${(s.schoolName || "").replace(/'/g, "")}', '${s.licenseKey || ""}', '${expDate}')">نسخ رسالة</button>
+                <button class="btn-primary btn-sm" style="background:#0f172a;" onclick="navigator.clipboard.writeText('${s.signedToken || ""}');showToast('تم نسخ تذكرة التفعيل المشفرة للمدرسة!')">نسخ تذكرة مشفرة</button>
+                <button class="btn-red btn-sm" onclick="removeSchool('${s.schoolCode}')">حذف</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      const kBody = document.getElementById("keys-tbody");
+      if (!keysList.length) {
+        kBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;">لا توجد مفاتيح مصدرة</td></tr>`;
+      } else {
+        kBody.innerHTML = keysList.map(k => `
+          <tr>
+            <td><code class="key-code">${k.licenseKey}</code></td>
+            <td><span class="pill ${k.status === 'unused' ? 'pill-active' : 'pill-suspended'}">${k.status === 'unused' ? 'متاح للتفعيل' : 'مُستخدم'}</span></td>
+            <td>${k.planDays} يوم</td>
+            <td>${k.boundSchoolCode || "أي مدرسة (عند أول تفعيل)"}</td>
+            <td>${k.notes || k.schoolNameHint || "-"}</td>
+            <td>${new Date(k.createdAt).toLocaleDateString("ar-EG")}</td>
+            <td>
+              <button class="btn-primary btn-sm" onclick="navigator.clipboard.writeText('${k.licenseKey}');showToast('تم نسخ المفتاح!')">نسخ</button>
+              <button class="btn-red btn-sm" onclick="removeKey('${k.licenseKey}')">حذف</button>
+            </td>
+          </tr>
+        `).join("");
+      }
+    }
+
+    async function addOrUpdateSchool() {
+      const schoolCode = document.getElementById("in-school-code").value.trim();
+      const schoolName = document.getElementById("in-school-name").value.trim();
+      const directorate = document.getElementById("in-school-dir").value.trim();
+      const phone = document.getElementById("in-school-phone").value.trim();
+      const planDays = Number(document.getElementById("in-plan-days").value || 365);
+      if (!schoolCode) return showToast("يرجى إدخال كود المدرسة المسلسل بالوزارة");
+      try {
+        const res = await apiAdmin("upsert-school", { schoolCode, schoolName, directorate, phone, planDays });
+        showToast(res.message);
+        document.getElementById("in-school-code").value = "";
+        document.getElementById("in-school-name").value = "";
+        await loadDashboard();
+      } catch (e) { showToast(e.message); }
+    }
+
+    async function renewSchool(schoolCode, days) {
+      try {
+        const res = await apiAdmin("renew-school", { schoolCode, days });
+        showToast(res.message);
+        await loadDashboard();
+      } catch (e) { showToast(e.message); }
+    }
+
+    async function toggleSchool(schoolCode) {
+      try {
+        const res = await apiAdmin("toggle-status", { schoolCode });
+        showToast(res.message);
+        await loadDashboard();
+      } catch (e) { showToast(e.message); }
+    }
+
+    async function removeSchool(schoolCode) {
+      if (!confirm(`هل أنت متأكد من حذف اشتراك المدرسة (${schoolCode})؟`)) return;
+      try {
+        const res = await apiAdmin("delete-school", { schoolCode });
+        showToast(res.message);
+        await loadDashboard();
+      } catch (e) { showToast(e.message); }
+    }
+
+    async function generateKeys() {
+      const count = Number(document.getElementById("key-count").value || 1);
+      const planDays = Number(document.getElementById("key-days").value || 365);
+      const boundSchoolCode = document.getElementById("key-bound-school").value.trim();
+      const notes = document.getElementById("key-note").value.trim();
+      try {
+        const res = await apiAdmin("generate-keys", { count, planDays, boundSchoolCode, notes });
+        showToast(res.message);
+        await loadDashboard();
+      } catch (e) { showToast(e.message); }
+    }
+
+    async function removeKey(licenseKey) {
+      try {
+        await apiAdmin("delete-key", { licenseKey });
+        showToast("تم حذف المفتاح");
+        await loadDashboard();
+      } catch (e) { showToast(e.message); }
+    }
+
+    function copyWhatsAppSchool(code, name, key, expDate) {
+      const msg = `✅ *تفعيل اشتراك منظومة نبراس لسطح المكتب*\n` +
+        `• *المدرسة:* ${name || code}\n` +
+        `• *كود المدرسة بالوزارة:* ${code}\n` +
+        `• *مفتاح التفعيل السنوي:* ${key}\n` +
+        `• *صالح حتى:* ${expDate}\n` +
+        `💡 يعمل البرنامج تلقائياً على أي جهاز كمبيوتر بمجرد تسجيل الدخول بحساب المدرسة على بوابة الوزارة.`;
+      navigator.clipboard.writeText(msg);
+      showToast("تم نسخ رسالة التفعيل الجاهزة للواتساب!");
+    }
+
+    if (adminSecret) {
+      document.getElementById("admin-secret-input").value = adminSecret;
+      login();
+    }
+  </script>
+</body>
+</html>

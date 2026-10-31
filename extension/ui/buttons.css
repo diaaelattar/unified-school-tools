@@ -1,0 +1,87 @@
+/* ==========================================================================
+   buttons.css — نظام الأزرار والحقول (المرحلة 3). للنافذة المنبثقة، والألوان من tokens.css.
+   أربعة أنواع فقط:   .n-btn--primary  (الإجراء الرئيسي — واحد لكل بطاقة)
+                      .n-btn--secondary (إجراء ثانوي)
+                      .n-btn--ghost     (شفاف: إغلاق، أدوات مساعدة)
+                      .n-btn--danger    (مدمّر فقط: مسح/حذف — الأحمر لا يُستخدم لغيره)
+   ثلاثة أحجام:       .n-btn--sm | (افتراضي md) | .n-btn--lg
+   أهداف اللمس ≥ 40px (44px على الموبايل) عبر --n-touch. كل الحالات معرّفة:
+   hover · focus-visible · active · disabled (مع سببه) · loading.
+   ========================================================================== */
+.n-btn {
+  --h: calc(var(--n-touch) + 4px);
+  appearance: none; -webkit-appearance: none;
+  position: relative; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--n-s2);
+  min-height: var(--h); padding: 0 var(--n-s4);
+  border: 1.5px solid transparent; border-radius: var(--n-r-md);
+  font: inherit; font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); line-height: 1.35;
+  text-align: center; text-decoration: none; white-space: normal;
+  cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .1s;
+}
+.n-btn[hidden] { display: none; }
+.n-btn .n-icon { flex: none; }
+.n-btn__label { min-width: 0; }
+
+/* الأنواع */
+.n-btn--primary { background: var(--n-primary); color: var(--n-on-primary); box-shadow: var(--n-shadow-1); }
+.n-btn--primary:hover { background: var(--n-primary-hover); }
+.n-btn--secondary { background: var(--n-surface); color: var(--n-primary); border-color: var(--n-line); }
+.n-btn--secondary:hover { background: var(--n-primary-soft); border-color: var(--n-primary); }
+.n-btn--ghost { background: transparent; color: var(--n-text-2); }
+.n-btn--ghost:hover { background: var(--n-surface-2); color: var(--n-text); }
+.n-btn--danger { background: var(--n-error); color: var(--n-on-error); box-shadow: var(--n-shadow-1); }
+.n-btn--danger:hover { filter: brightness(.92); }
+
+/* الأحجام */
+.n-btn--sm { --h: var(--n-touch); padding: 0 var(--n-s3); font-size: var(--n-fs-xs); }
+.n-btn--lg { --h: calc(var(--n-touch) + 12px); padding: 0 var(--n-s5); font-size: var(--n-fs-md); }
+
+/* التخطيط */
+.n-btn--block { width: 100%; }
+.n-btn--icon { width: var(--h); min-width: var(--h); padding: 0; }
+.n-btn--tile { justify-content: flex-start; text-align: right; gap: var(--n-s3); padding: var(--n-s2) var(--n-s3); min-height: calc(var(--n-touch) + 24px); }
+.n-btn__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.n-btn__text b { font-size: var(--n-fs-sm); font-weight: var(--n-fw-black); }
+.n-btn__text small { font-size: var(--n-fs-xs); font-weight: var(--n-fw-regular); opacity: .85; line-height: 1.4; }
+
+/* الحالات */
+.n-btn:active:not(:disabled):not([aria-disabled="true"]) { transform: translateY(1px); }
+.n-btn:focus-visible, .n-input:focus-visible { outline: 3px solid var(--n-focus); outline-offset: 2px; }
+.n-btn:disabled, .n-btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; box-shadow: none; transform: none; }
+.n-btn[aria-disabled="true"][data-reason] { cursor: help; }   /* سبب التعطيل يظهر عند الضغط وفي التلميح */
+.n-btn.is-loading { pointer-events: none; }
+.n-btn.is-loading .n-icon { animation: n-spin .9s linear infinite; }
+@keyframes n-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .n-btn { transition: none; } .n-btn.is-loading .n-icon { animation: none; } }
+
+/* ==========================================================================
+   الحقول: .n-input (input / select / textarea)
+   ========================================================================== */
+.n-input {
+  box-sizing: border-box; width: 100%; min-height: var(--n-touch); padding: 0 var(--n-s3);
+  font: inherit; font-size: var(--n-fs-sm); font-weight: var(--n-fw-bold); text-align: right;
+  color: var(--n-text); background-color: var(--n-surface);
+  border: 1.5px solid var(--n-line); border-radius: var(--n-r-md);
+  transition: border-color .15s, box-shadow .15s;
+}
+.n-input::placeholder { color: var(--n-text-muted); font-weight: var(--n-fw-regular); }
+.n-input:hover:not(:disabled) { border-color: var(--n-primary); }
+.n-input:focus { border-color: var(--n-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--n-focus) 22%, transparent); outline: none; }
+.n-input:focus-visible { outline: none; }
+.n-input[aria-invalid="true"] { border-color: var(--n-error); }
+.n-input:disabled { opacity: .6; cursor: not-allowed; background-color: var(--n-surface-2); }
+select.n-input {
+  appearance: none; -webkit-appearance: none; padding-inline-end: var(--n-s8); cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23526074' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: left var(--n-s3) center;
+}
+.theme-dark select.n-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239fb1c6' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E"); }
+input.n-input[type="file"] { padding: var(--n-s1) var(--n-s2); line-height: calc(var(--n-touch) - 12px); cursor: pointer; }
+input.n-input[type="file"]::file-selector-button {
+  margin-inline-end: var(--n-s3); min-height: calc(var(--n-touch) - 12px); padding: 0 var(--n-s3);
+  font: inherit; font-size: var(--n-fs-xs); font-weight: var(--n-fw-black);
+  color: var(--n-primary); background: var(--n-surface); border: 1.5px solid var(--n-line); border-radius: var(--n-r-sm); cursor: pointer;
+}
+input.n-input[type="file"]::file-selector-button:hover { background: var(--n-primary-soft); border-color: var(--n-primary); }

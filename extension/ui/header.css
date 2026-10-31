@@ -1,0 +1,62 @@
+/* ==========================================================================
+   header.css — الهيدر الموحّد (48px) وقائمة «⋯» وشارة اتصال موقع الوزارة (المرحلة 4).
+   ========================================================================== */
+.n-header {
+  position: relative; z-index: 5; box-sizing: border-box;
+  display: flex; align-items: center; gap: var(--n-s2);
+  flex: none; height: 48px; padding: 0 var(--n-s3);
+  background: var(--n-surface); border: 1px solid var(--n-line); border-radius: var(--n-r-lg);
+  box-shadow: var(--n-shadow-1);
+}
+.n-header__logo { flex: none; width: 32px; height: 32px; border-radius: var(--n-r-sm); object-fit: contain; }
+.n-header__title { min-width: 0; flex: 0 1 auto; }
+.n-header__title b { display: block; font-size: var(--n-fs-md); font-weight: var(--n-fw-black); color: var(--n-text); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n-header__spacer { flex: 1 1 0; min-width: 0; }
+.n-header .n-btn--icon { --h: var(--n-touch); }
+.n-header__close { display: none; }
+html.nepras-mobile-full .n-header__close { display: inline-flex; }
+
+/* شارة الاتصال: نقطة + نص قصير، اللون من الحالة (لا يُعتمد على اللون وحده: النص يذكر الحالة) */
+.n-status {
+  flex: none; display: inline-flex; align-items: center; gap: var(--n-s2);
+  height: 28px; padding: 0 var(--n-s3); border-radius: var(--n-r-pill);
+  font-size: var(--n-fs-xs); font-weight: var(--n-fw-black); white-space: nowrap;
+  color: var(--n-text-2); background: var(--n-surface-2); border: 1px solid var(--n-line);
+}
+.n-status__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--n-text-muted); flex: none; }
+.n-status.site-ready { color: var(--n-success); background: var(--n-success-soft); border-color: var(--n-success-line); }
+.n-status.site-ready .n-status__dot { background: var(--n-success); }
+.n-status.site-waiting { color: var(--n-warning); background: var(--n-warning-soft); border-color: var(--n-warning-line); }
+.n-status.site-waiting .n-status__dot { background: var(--n-warning); }
+.n-status.site-closed { color: var(--n-error); background: var(--n-error-soft); border-color: var(--n-error-line); }
+.n-status.site-closed .n-status__dot { background: var(--n-error); }
+
+/* القائمة */
+.n-menu { position: relative; flex: none; }
+.n-menu__list {
+  position: absolute; top: calc(100% + var(--n-s1)); inset-inline-end: 0; z-index: 20;
+  width: 260px; max-width: calc(100vw - 16px); padding: var(--n-s2);
+  background: var(--n-surface); color: var(--n-text);
+  border: 1px solid var(--n-line); border-radius: var(--n-r-lg); box-shadow: var(--n-shadow-2);
+}
+.n-menu__list[hidden] { display: none; }
+.n-menu__item { justify-content: flex-start; text-align: right; }
+.n-menu__item:focus-visible { outline-offset: -2px; }
+.n-menu__sep { height: 1px; margin: var(--n-s2) var(--n-s1); background: var(--n-line); }
+.n-menu__meta { display: flex; justify-content: space-between; padding: var(--n-s2) var(--n-s3) var(--n-s1); font-size: var(--n-fs-xs); color: var(--n-text-muted); font-weight: var(--n-fw-bold); }
+.n-menu__meta b { color: var(--n-text-2); direction: ltr; }
+
+@media (max-width: 430px) {
+  .n-header { gap: var(--n-s1); padding: 0 var(--n-s2); }
+  .n-status { padding: 0 var(--n-s2); }
+  .n-header__title b { font-size: var(--n-fs-sm); }
+}
+
+/* شريط الأوامر (البحث) — أسفل الهيدر مباشرة، ثابت العرض داخل تدفق الصفحة (بلا تموضع مطلق) */
+.n-command-bar { flex: none; }
+.n-command-bar[hidden] { display: none; }
+.n-command-bar__box { position: relative; }
+.n-command-bar__box .n-search__icon { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); color: var(--n-text-muted); pointer-events: none; display: grid; place-items: center; }
+.n-command-bar__box .n-input { padding-inline-start: 38px; padding-inline-end: 44px; }
+.n-command-bar__box .n-btn { position: absolute; inset-inline-end: 2px; top: 50%; transform: translateY(-50%); }
+.n-command-bar__box .n-btn:active:not(:disabled) { transform: translateY(-50%); }

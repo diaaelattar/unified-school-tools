@@ -1,0 +1,14 @@
+{
+  "appId": "eg.gov.nepras.app",
+  "appName": "نبراس",
+  "webDir": "../dist/mobile",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

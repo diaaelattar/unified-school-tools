@@ -1,0 +1,66 @@
+/* ==========================================================================
+   panel.css — لوحة موحّدة (NeprasPanel) للأدوات التي تُحقن داخل صفحات الوزارة
+   وتحتاج نافذة عائمة قابلة للسحب (التسكين حاليًا؛ القبول لاحقًا). تُبنى على
+   tokens.css و buttons.css (محقونتان بالفعل)، فتُطابق ألوان الأداة ونظام الأزرار.
+   ========================================================================== */
+.n-panel {
+  position: fixed; top: 70px; inset-inline-end: 24px; z-index: 2147483647;
+  width: 560px; max-width: calc(100vw - 32px); max-height: calc(100vh - 100px);
+  display: flex; flex-direction: column;
+  background: var(--n-surface); color: var(--n-text);
+  border: 1.5px solid var(--n-line); border-radius: var(--n-r-lg); box-shadow: var(--n-shadow-3);
+  font-family: var(--n-font); font-size: var(--n-fs-md); direction: rtl; text-align: right;
+}
+.n-panel * { box-sizing: border-box; }
+.n-panel[hidden] { display: none; }
+.n-panel.is-dragged { inset-inline-end: auto; inset-inline-start: auto; right: auto; }
+
+.n-panel__header {
+  flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--n-s3);
+  padding: var(--n-s3) var(--n-s4); border-bottom: 1px solid var(--n-line); cursor: grab; user-select: none;
+  border-radius: var(--n-r-lg) var(--n-r-lg) 0 0; background: var(--n-surface-2);
+}
+.n-panel__header:active { cursor: grabbing; }
+.n-panel__titles { min-width: 0; display: flex; align-items: center; gap: var(--n-s2); }
+.n-panel__icon { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--n-r-md); background: var(--n-primary-soft); color: var(--n-primary); }
+.n-panel__titles h2 { margin: 0; font-size: var(--n-fs-md); font-weight: var(--n-fw-black); line-height: 1.4; }
+.n-panel__titles p { margin: 2px 0 0; font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-muted); }
+.n-panel__actions { flex: none; display: flex; align-items: center; gap: var(--n-s1); }
+.n-panel__actions .n-btn--icon { --h: 32px; }
+
+.n-panel__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--n-s3) var(--n-s4) var(--n-s4); display: flex; flex-direction: column; gap: var(--n-s3); }
+.n-panel.is-minimized .n-panel__body { display: none; }
+
+/* لبنات المحتوى المشتركة داخل اللوحة */
+.n-panel__row { display: flex; align-items: center; gap: var(--n-s2); flex-wrap: wrap; }
+.n-panel__grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--n-s2); }
+.n-panel__field label { display: block; margin-bottom: var(--n-s1); font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-2); }
+.n-panel__hint { font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-muted); line-height: 1.6; }
+.n-panel__hint:empty { display: none; }
+.n-panel__box { display: flex; flex-direction: column; gap: var(--n-s2); padding: var(--n-s3); background: var(--n-surface-2); border: 1px solid var(--n-line); border-radius: var(--n-r-md); }
+.n-panel__check { display: flex; align-items: center; gap: var(--n-s2); font-size: var(--n-fs-sm); font-weight: var(--n-fw-bold); color: var(--n-text-2); cursor: pointer; }
+.n-panel__check input { width: 18px; height: 18px; accent-color: var(--n-primary); flex: none; }
+
+.n-panel__progress-head { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--n-fs-xs); font-weight: var(--n-fw-bold); color: var(--n-text-muted); }
+.n-panel__progress-head b { color: var(--n-primary); font-size: var(--n-fs-sm); direction: ltr; }
+.n-panel__bar { width: 100%; height: 8px; border-radius: var(--n-r-pill); background: var(--n-surface-2); border: 1px solid var(--n-line); overflow: hidden; }
+.n-panel__bar > i { display: block; height: 100%; width: 0; background: var(--n-primary); border-radius: inherit; transition: width .25s ease; }
+
+.n-panel__stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--n-s2); padding: var(--n-s2); background: var(--n-surface-2); border: 1px solid var(--n-line); border-radius: var(--n-r-md); text-align: center; }
+.n-panel__stats div { font-size: var(--n-fs-xs); color: var(--n-text-muted); font-weight: var(--n-fw-bold); }
+.n-panel__stats b { display: block; margin-top: 2px; font-size: var(--n-fs-lg); font-weight: var(--n-fw-black); }
+.n-panel__stats .total b { color: var(--n-text); } .n-panel__stats .processed b { color: var(--n-primary); }
+.n-panel__stats .success b { color: var(--n-success); } .n-panel__stats .error b { color: var(--n-error); }
+
+.n-panel__log { max-height: 220px; overflow-y: auto; padding: var(--n-s2); background: var(--n-surface-2); border: 1px solid var(--n-line); border-radius: var(--n-r-md); }
+.n-panel__log-head { display: flex; justify-content: space-between; margin-bottom: var(--n-s1); font-size: var(--n-fs-xs); font-weight: var(--n-fw-black); color: var(--n-text); }
+.n-panel__log-head span:last-child { font-weight: var(--n-fw-regular); color: var(--n-text-muted); }
+.nepras-aa-log-line { padding: 6px 9px; border-bottom: 1px dashed var(--n-line); font-size: 12.5px; word-break: break-word; line-height: 1.5; }
+.nepras-aa-log-line:last-child { border-bottom: 0; }
+.nepras-aa-log-line.info { background: var(--n-surface); color: var(--n-text); border-radius: var(--n-r-sm); }
+.nepras-aa-log-line.success { background: var(--n-success-soft); color: var(--n-success); border-radius: var(--n-r-sm); font-weight: var(--n-fw-black); }
+.nepras-aa-log-line.warn { background: var(--n-warning-soft); color: var(--n-warning); border-radius: var(--n-r-sm); }
+.nepras-aa-log-line.error { background: var(--n-error-soft); color: var(--n-error); border-radius: var(--n-r-sm); font-weight: var(--n-fw-black); }
+
+@media (max-width: 600px) { .n-panel { inset-inline: 8px; top: 56px; width: auto; } .n-panel__grid3 { grid-template-columns: 1fr; } .n-panel__stats { grid-template-columns: repeat(2, 1fr); } }
+.nepras-aa-log-time { color: var(--n-text-muted); margin-inline-end: 6px; font-weight: var(--n-fw-regular); }

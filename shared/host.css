@@ -1,0 +1,993 @@
+:root {
+  --brand-primary: #0284c7;
+  --brand-dark: #0369a1;
+  --brand-light: #e0f2fe;
+  --brand-accent: #0ea5e9;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --nav-height: 52px;
+  --tab-height: 38px;
+  --drawer-width: 720px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-drawer: -4px 0 24px rgba(15, 23, 42, 0.12);
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg-app);
+  font-family: "Cairo", "Segoe UI", -apple-system, BlinkMacSystemFont, Tahoma, sans-serif;
+  color: var(--text-main);
+  overflow: hidden;
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+.hidden-frame { position: absolute; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; left: -20px; top: -20px; }
+
+#app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* =========================================================================
+   Top Modern Header & Navigation Bar
+   ========================================================================= */
+#top-navbar {
+  height: var(--nav-height);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  gap: 10px;
+  z-index: 40;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Brand Section */
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline-end: 8px;
+  border-inline-end: 1px solid var(--border-subtle);
+}
+.brand-logo {
+  border-radius: 6px;
+  object-fit: contain;
+}
+.brand-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.brand-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--brand-dark);
+  letter-spacing: -0.3px;
+}
+.brand-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Controls */
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.icon-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+}
+.icon-btn:active {
+  background: #e2e8f0;
+  transform: scale(0.96);
+}
+
+/* Address & Security Bar */
+.nav-address-bar {
+  flex: 1;
+  max-width: 480px;
+  height: 34px;
+  background: #f1f5f9;
+  border: 1px solid var(--border-subtle);
+  border-radius: 17px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: border-color 0.2s, background 0.2s;
+}
+.nav-address-bar:hover {
+  background: #edf2f7;
+  border-color: var(--border-strong);
+}
+.security-badge {
+  display: flex;
+  align-items: center;
+  color: #10b981;
+}
+.url-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+  text-align: right;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: #334155;
+  font-weight: 500;
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Ministry Portals Switcher */
+.portal-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.portal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.portal-pill:hover {
+  background: var(--brand-light);
+  border-color: #bae6fd;
+  color: var(--brand-dark);
+}
+.portal-pill.active {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+.pill-icon { font-size: 14px; }
+
+/* Left Nav Actions */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Desktop Annual Subscription Badge */
+.sub-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 11px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sub-badge-btn:hover {
+  background: #f1f5f9;
+  border-color: var(--border-strong);
+}
+.sub-badge-btn.sub-active {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.sub-badge-btn.sub-warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+.sub-badge-btn.sub-locked {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.sub-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.sub-badge-btn.sub-active .sub-dot { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.7); }
+.sub-badge-btn.sub-warn .sub-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.7); }
+.sub-badge-btn.sub-locked .sub-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.7); }
+
+/* Desktop License Gate Overlay inside Drawer */
+.desktop-license-gate {
+  position: absolute;
+  inset: 0;
+  background: rgba(248, 250, 252, 0.97);
+  backdrop-filter: blur(6px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+.lic-card {
+  width: 100%;
+  max-width: 560px;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.1);
+}
+.lic-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.lic-header h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--brand-dark);
+}
+.lic-header p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.lic-banner {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.lic-banner-warn {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+.lic-banner-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+.lic-banner-ok {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+.lic-section {
+  margin-bottom: 14px;
+}
+.lic-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.lic-row {
+  display: flex;
+  gap: 8px;
+}
+.lic-input {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-family: "Cairo", Consolas, monospace;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+}
+.lic-input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+.lic-btn {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.lic-btn-primary {
+  background: var(--brand-primary);
+  color: #ffffff;
+}
+.lic-btn-primary:hover { background: var(--brand-dark); }
+.lic-btn-green {
+  background: #10b981;
+  color: #ffffff;
+}
+.lic-btn-green:hover { background: #059669; }
+.lic-btn-secondary {
+  background: #e2e8f0;
+  color: #334155;
+}
+.lic-divider {
+  text-align: center;
+  margin: 16px 0;
+  position: relative;
+}
+.lic-divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-subtle);
+}
+.lic-divider span {
+  position: relative;
+  background: #ffffff;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.lic-server-details {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lic-server-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+/* Nepras Smart Tools Trigger Button */
+.tools-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+  transition: all 0.2s ease;
+}
+.tools-trigger-btn:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.45);
+  transform: translateY(-1px);
+}
+.tools-trigger-btn:active {
+  transform: translateY(0);
+}
+.tools-icon {
+  fill: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  transition: background 0.3s;
+}
+.status-dot.waiting {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.7);
+}
+.status-dot.ready {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+}
+
+/* =========================================================================
+   Tab Strip
+   ========================================================================= */
+#tabstrip-container {
+  height: var(--tab-height);
+  background: #e9eef3;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  gap: 4px;
+}
+#tabstrip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.tabchip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 30px;
+  max-width: 240px;
+  background: #d8e2eb;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.tabchip:hover {
+  background: #edf2f7;
+  color: var(--text-main);
+}
+.tabchip.active {
+  background: #ffffff;
+  color: var(--brand-dark);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.tabchip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+}
+.tabchip b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: normal;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.tabchip b:hover {
+  background: #fecaca;
+  color: #dc2626;
+}
+.newtab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.newtab-btn:hover {
+  background: #d8e2eb;
+  color: var(--text-main);
+}
+
+/* =========================================================================
+   Workspace & Browser View
+   ========================================================================= */
+#workspace {
+  flex: 1;
+  display: flex;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#browser-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  background: #ffffff;
+  transition: margin-inline-end 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* When in docked mode and drawer is open: smooth margin */
+body.mode-docked.drawer-open #browser-view {
+  margin-inline-end: var(--drawer-width);
+}
+
+#tab-host {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  background: #ffffff;
+}
+#tab-host > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+#tab-host > .inactive {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Empty hint */
+#empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  z-index: 10;
+}
+.empty-card {
+  text-align: center;
+  max-width: 440px;
+  padding: 32px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-md);
+}
+.empty-card h2 {
+  margin: 16px 0 8px;
+  font-size: 20px;
+  color: var(--brand-dark);
+}
+.empty-card p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* =========================================================================
+   Nepras Sliding Side Drawer
+   ========================================================================= */
+.panel-drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--drawer-width);
+  min-width: 500px;
+  max-width: 95vw;
+  background: #ffffff;
+  border-inline-start: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-drawer);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  transform: translateX(0);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
+}
+
+/* Resizer handle on the left edge */
+.drawer-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 7px;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 60;
+  transition: background 0.15s ease;
+}
+.drawer-resizer:hover, .drawer-resizer.active {
+  background: var(--brand-primary);
+  box-shadow: 0 0 8px rgba(2, 132, 199, 0.5);
+}
+
+body.drawer-closed .panel-drawer {
+  transform: translateX(100%);
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* Drawer Header */
+.drawer-header {
+  height: 48px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+.drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+.drawer-version {
+  font-size: 11px;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+.drawer-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.drawer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.drawer-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+}
+.drawer-btn.close:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+.drawer-btn.pinned {
+  color: var(--brand-primary);
+  background: var(--brand-light);
+  border-color: #bae6fd;
+}
+
+/* Drawer Body (Iframe) */
+.drawer-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+}
+#panel-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* Backdrop */
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(2px);
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+body.mode-overlay.drawer-open .drawer-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =========================================================================
+   Floating Action Button (FAB)
+   ========================================================================= */
+.fab-tools {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  height: 46px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 0;
+  border-radius: 23px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.4);
+  cursor: pointer;
+  z-index: 35;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fab-tools:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 22px rgba(2, 132, 199, 0.5);
+}
+body.drawer-open .fab-tools {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
+}
+
+/* =========================================================================
+   Full-screen Overlay Layer (For Tab Popups)
+   ========================================================================= */
+#panel-layer {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#panel-layer > div {
+  width: 92%;
+  height: 92%;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+#panel-layer .panel-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #0f172a;
+  color: #f8fafc;
+  direction: rtl;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+  z-index: 10;
+}
+#panel-layer .panel-header-bar .panel-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#panel-layer .panel-header-bar button.close {
+  position: static;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+#panel-layer .panel-header-bar button.close:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+#panel-layer iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #f8fafc;
+}
+#panel-layer button.close:not(.panel-header-bar button) {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 6px 14px;
+  background: #f1f5f9;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* =========================================================================
+   Toast Notification
+   ========================================================================= */
+#toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 30px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+  animation: toastFade 0.25s ease;
+}
+@keyframes toastFade {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* =========================================================================
+   Mobile (Android) Adaptations
+   ========================================================================= */
+#bottom-nav { display: none; }
+
+body.plat-android #top-navbar {
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--nav-height) + env(safe-area-inset-top));
+}
+body.plat-android .portal-pills,
+body.plat-android .nav-actions,
+body.plat-android .fab-tools {
+  display: none;
+}
+body.plat-android #app-root {
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  height: calc(100vh - 56px - env(safe-area-inset-bottom));
+}
+body.plat-android #bottom-nav {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(60px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  z-index: 99;
+}
+body.plat-android #bottom-nav button,
+body.plat-android #bottom-nav .nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: 0;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px 0;
+}
+body.plat-android #bottom-nav button svg,
+body.plat-android #bottom-nav .nav-tab svg {
+  stroke: #64748b;
+  transition: all 0.2s ease;
+}
+body.plat-android #bottom-nav button.active,
+body.plat-android #bottom-nav .nav-tab.active {
+  color: #0284c7;
+  font-weight: 700;
+}
+body.plat-android #bottom-nav button.active svg,
+body.plat-android #bottom-nav .nav-tab.active svg {
+  stroke: #0284c7;
+  transform: scale(1.08);
+}
+body.plat-android .panel-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  z-index: 70 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: #ffffff !important;
+}
+body.plat-android .drawer-header {
+  display: none !important;
+}
+body.plat-android .drawer-resizer {
+  display: none !important;
+}
+body.plat-android.view-panel .panel-drawer {
+  display: flex !important;
+  transform: none !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+}
+body.plat-android.view-panel #browser-view {
+  display: none !important;
+}
+body.plat-android.view-browser .panel-drawer {
+  display: none !important;
+  transform: translateX(100%) !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+body.plat-android.view-browser #browser-view {
+  display: flex !important;
+}
