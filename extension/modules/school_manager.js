@@ -314,6 +314,21 @@
 
     await setStorage(toStore);
 
+    // حفظ تلقائي فوري في قاعدة البيانات المحلية والأرشفة الشهرية الشاملة
+    if (global.NeprasLocalDB?.saveMonthlySnapshot) {
+      try {
+        const meta = await loadSchoolMeta(c);
+        await global.NeprasLocalDB.saveMonthlySnapshot(c, {
+          meta: meta || {},
+          stats: statsResult,
+          students: studentsList,
+          absence: []
+        });
+      } catch (err) {
+        console.warn('[NeprasSchoolManager] failed to save snapshot in NeprasLocalDB:', err);
+      }
+    }
+
     await registerOrUpdateSchool({
       code: c,
       name: statsResult?.schoolName,
@@ -340,12 +355,33 @@
     const studentsKey = scopedKey(c, 'students');
     const data = await getStorage([statsKey, studentsKey, 'neprasSchoolStatsV1', 'neprasCachedStudentsList']);
 
+    let stats = data?.[statsKey];
+    let students = data?.[studentsKey];
+
     const fallbackStats = data?.neprasSchoolStatsV1;
     const fallbackMatches = fallbackStats && (cleanCode(fallbackStats.schoolCode || fallbackStats.schoolKey || fallbackStats.code) === c);
 
+    if (!stats && fallbackMatches) stats = fallbackStats;
+    if ((!students || !students.length) && fallbackMatches && Array.isArray(data?.neprasCachedStudentsList)) {
+      students = data.neprasCachedStudentsList;
+    }
+
+    // استرجاع فوري من لقطات قاعدة البيانات المحلية NeprasLocalDB إن لم تتوافر
+    if ((!stats || !students || !students.length) && global.NeprasLocalDB?.getLatestSnapshot) {
+      try {
+        const snap = await global.NeprasLocalDB.getLatestSnapshot(c);
+        if (snap) {
+          if (!stats && snap.stats) stats = snap.stats;
+          if ((!students || !students.length) && Array.isArray(snap.students) && snap.students.length) {
+            students = snap.students;
+          }
+        }
+      } catch (_) {}
+    }
+
     return {
-      stats: data?.[statsKey] || (fallbackMatches ? fallbackStats : null),
-      students: data?.[studentsKey] || (fallbackMatches && Array.isArray(data?.neprasCachedStudentsList) ? data.neprasCachedStudentsList : [])
+      stats: stats || null,
+      students: students || []
     };
   }
 

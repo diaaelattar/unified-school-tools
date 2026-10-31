@@ -609,9 +609,18 @@
 <section class="n-section stats-center-card" data-section="stats-center" aria-labelledby="sec-stats-center-title">
 <header class="n-section__head"><span class="n-section__icon"><i data-icon="chart"></i></span><div class="n-section__copy"><h2 id="sec-stats-center-title">المركز الإحصائي والتقارير المدرسية الشاملة</h2><p>15 تقريراً إحصائياً معتمداً ومصنفاً وفق النماذج الوزارية جاهزة للتصدير المباشر</p></div></header>
 <div class="n-section__body" id="section-body-stats-center">
-  <div id="stats-center-data-status" class="mini-note" style="margin-bottom:8px;font-weight:600;border:1px solid #e2e8f0;background:#f8fafc;padding:8px 12px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-    <span id="stats-center-status-text"><span style="color:#16a34a;font-weight:700;">●</span> جاري فحص بيانات المدرسة المتاحة...</span>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+  <div id="stats-center-data-status" class="mini-note" style="margin-bottom:8px;font-weight:600;border:1px solid #e2e8f0;background:#f8fafc;padding:8px 12px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px;">
+      <span id="stats-center-status-text"><span style="color:#16a34a;font-weight:700;">●</span> جاري فحص بيانات المدرسة المتاحة...</span>
+      <div id="stats-center-validity-badge" style="font-size:11px;color:#0f766e;display:flex;align-items:center;gap:4px;"></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <div style="display:flex;align-items:center;gap:4px;" title="اختيار وعرض لقطة شهرية تاريخية سابقة من قاعدة البيانات المحلية">
+        <label for="sc-month-select" style="font-size:11px;color:#475569;font-weight:700;">اللقطة الشهرية:</label>
+        <select id="sc-month-select" class="n-select" style="padding:3px 6px;font-size:11px;height:28px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;">
+          <option value="latest">الأحدث (الشهر الحالي)</option>
+        </select>
+      </div>
       <button class="n-btn n-btn--primary n-btn--sm" id="btn-stats-center-fetch-deep" type="button" title="تنزيل وتحديث البيانات الشاملة لجميع صفوف المدرسة من الموقع مباشرة (الديانة، اللغات، الشعب، الأمهات)" style="padding:4px 10px;font-size:11px;background:#0f766e;border-color:#0f766e;">
         <i data-icon="download"></i> تحديث البيانات الشاملة
       </button>
@@ -1113,6 +1122,7 @@
 <script src="ui/charts.js"></script>
 <script src="modules/egypt_ids.js"></script>
 <script src="modules/school_manager.js"></script>
+<script src="modules/local_database.js"></script>
 <script src="ui/icons.js"></script>
 <script src="ui/messages.ar.js"></script>
 <script src="ui/terms.ar.js"></script>

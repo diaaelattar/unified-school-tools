@@ -1981,20 +1981,46 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!activeCode || !statsSchool || statsSchool === activeCode) {
         renderSchoolStats(newStats || null);
         if (newStats?.detailRows?.length || newStats?.rows?.length) {
-          window.neprasCachedStudentsList = newStats.detailRows || newStats.rows;
+          const oldList = window.neprasCachedStudentsList || [];
+          const newList = newStats.detailRows || newStats.rows;
+          window.neprasCachedStudentsList = newList;
+
+          // رصد الفروقات الذكية Smart Delta
+          if (globalThis.NeprasLocalDB?.computeDelta && oldList.length > 0 && newList.length > 0) {
+            const delta = globalThis.NeprasLocalDB.computeDelta(oldList, newList);
+            if (delta.hasChanges) {
+              showNeprasPopupNotice(delta.summaryText, "info", "رصد الفروقات الذكية (Smart Delta)");
+            }
+          }
         }
         if (typeof window.updateSmartAnalyticsStatus === "function") {
           window.updateSmartAnalyticsStatus();
+        }
+        if (typeof window.updateStatsCenterStatus === "function") {
+          window.updateStatsCenterStatus();
         }
       }
     }
 
     if (changes.neprasCachedStudentsList) {
       if (Array.isArray(changes.neprasCachedStudentsList.newValue)) {
-        window.neprasCachedStudentsList = changes.neprasCachedStudentsList.newValue;
+        const oldList = Array.isArray(changes.neprasCachedStudentsList.oldValue) ? changes.neprasCachedStudentsList.oldValue : (window.neprasCachedStudentsList || []);
+        const newList = changes.neprasCachedStudentsList.newValue;
+        window.neprasCachedStudentsList = newList;
+
+        // رصد الفروقات الذكية Smart Delta
+        if (globalThis.NeprasLocalDB?.computeDelta && oldList.length > 0 && newList.length > 0) {
+          const delta = globalThis.NeprasLocalDB.computeDelta(oldList, newList);
+          if (delta.hasChanges) {
+            showNeprasPopupNotice(delta.summaryText, "info", "رصد الفروقات الذكية (Smart Delta)");
+          }
+        }
       }
       if (typeof window.updateSmartAnalyticsStatus === "function") {
         window.updateSmartAnalyticsStatus();
+      }
+      if (typeof window.updateStatsCenterStatus === "function") {
+        window.updateStatsCenterStatus();
       }
     }
 
@@ -4374,11 +4400,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     async function updateStatsCenterStatus() {
       const statusText = document.getElementById("stats-center-status-text");
+      const validityBadge = document.getElementById("stats-center-validity-badge");
+      const monthSelect = document.getElementById("sc-month-select");
       if (!statusText) return;
+
+      const activeCode = globalThis.NeprasSchoolManager ? globalThis.NeprasSchoolManager.cleanCode(await globalThis.NeprasSchoolManager.getActiveCode()) : "";
       const list = await getStatsCenterStudents();
       statusText.textContent = "";
       const dot = document.createElement("span");
       dot.style.fontWeight = "700";
+
       if (list && list.length > 0) {
         dot.style.color = "#0f766e";
         dot.textContent = "● ";
@@ -4388,23 +4419,100 @@ document.addEventListener("DOMContentLoaded", async () => {
       } else {
         dot.style.color = "#d97706";
         dot.textContent = "● ";
-        statusText.append(dot, document.createTextNode("لا توجد بيانات طلاب محفوظة. اضغط «تحديث» أو اختر «ملف خارجي»."));
+        statusText.append(dot, document.createTextNode("لا توجد بيانات طلاب محفوظة. اضغط «تحديث البيانات الشاملة» أو اختر «ملف خارجي»."));
+      }
+
+      // تحديث شارة الصلاحية وقائمة الشهور التاريخية من NeprasLocalDB
+      if (globalThis.NeprasLocalDB) {
+        try {
+          if (validityBadge && activeCode) {
+            const valStatus = await globalThis.NeprasLocalDB.getMonthlyValidityStatus(activeCode);
+            validityBadge.textContent = "";
+            const vDot = document.createElement("span");
+            vDot.style.color = valStatus.statusBadge.color;
+            vDot.style.fontWeight = "900";
+            vDot.textContent = "● ";
+            validityBadge.append(vDot, document.createTextNode(valStatus.statusBadge.text));
+          } else if (validityBadge) {
+            validityBadge.textContent = "";
+          }
+
+          if (monthSelect && activeCode) {
+            const months = await globalThis.NeprasLocalDB.listAvailableMonths(activeCode);
+            const currentVal = monthSelect.value || "latest";
+            monthSelect.innerHTML = '<option value="latest">الأحدث (البيانات النشطة)</option>';
+            months.forEach((m) => {
+              const opt = document.createElement("option");
+              opt.value = m.monthKey;
+              opt.textContent = `${m.monthLabel} (${m.totalStudents || 0} طالب)`;
+              if (m.monthKey === currentVal) opt.selected = true;
+              monthSelect.appendChild(opt);
+            });
+          }
+        } catch (e) {
+          console.warn("[NeprasLocalDB UI]", e);
+        }
       }
     }
     window.updateStatsCenterStatus = updateStatsCenterStatus;
     updateStatsCenterStatus();
 
+    // ربط قائمة الشهور التاريخية لعرض أي شهر بـ Zero Latency
+    const scMonthSelect = document.getElementById("sc-month-select");
+    if (scMonthSelect && !scMonthSelect.dataset.listenerBound) {
+      scMonthSelect.dataset.listenerBound = "true";
+      scMonthSelect.addEventListener("change", async (e) => {
+        const val = e.target.value;
+        const activeCode = globalThis.NeprasSchoolManager ? globalThis.NeprasSchoolManager.cleanCode(await globalThis.NeprasSchoolManager.getActiveCode()) : "";
+        if (!activeCode) return;
+
+        if (val === "latest") {
+          statsCenterCustomStudents = null;
+          const loaded = await globalThis.NeprasSchoolManager.loadSchoolStats(activeCode);
+          if (loaded?.stats) renderSchoolStats(loaded.stats);
+          window.neprasCachedStudentsList = loaded?.students || loaded?.stats?.detailRows || [];
+          await updateStatsCenterStatus();
+          showNeprasPopupNotice("تم الرجوع إلى أحدث لقطة بيانات معتمدة للمدرسة.", "success", "البيانات الحالية");
+        } else if (globalThis.NeprasLocalDB?.getSnapshotByMonth) {
+          const snap = await globalThis.NeprasLocalDB.getSnapshotByMonth(activeCode, val);
+          if (snap) {
+            statsCenterCustomStudents = snap.students || [];
+            window.neprasCachedStudentsList = snap.students || [];
+            if (snap.stats) renderSchoolStats(snap.stats);
+            await updateStatsCenterStatus();
+            showNeprasPopupNotice(`تم استرجاع وعرض لقطة شهر ${snap.monthLabel} بنجاح من قاعدة البيانات المحلية (${snap.students.length} طالباً).`, "success", "الأرشيف الشهري (Zero Latency)");
+          } else {
+            showNeprasPopupNotice("تعذر العثور على لقطة هذا الشهر في قاعدة البيانات المحلية.", "warning", "تنبيه");
+          }
+        }
+      });
+    }
+
     const btnStatsCenterRefresh = document.getElementById("btn-stats-center-refresh");
     if (btnStatsCenterRefresh) {
       btnStatsCenterRefresh.addEventListener("click", async () => {
-        showNeprasPopupNotice("جاري فحص وتحديث بيانات المدرسة من الموقع...", "info", "تحديث البيانات");
-        const list = await getOrLoadStudents();
+        const activeCode = globalThis.NeprasSchoolManager ? globalThis.NeprasSchoolManager.cleanCode(await globalThis.NeprasSchoolManager.getActiveCode()) : "";
         statsCenterCustomStudents = null;
-        updateStatsCenterStatus();
+        if (scMonthSelect) scMonthSelect.value = "latest";
+
+        // فحص قاعدة البيانات المحلية أولاً Zero Latency
+        if (activeCode && globalThis.NeprasLocalDB?.getLatestSnapshot) {
+          const snap = await globalThis.NeprasLocalDB.getLatestSnapshot(activeCode);
+          if (snap) {
+            window.neprasCachedStudentsList = snap.students || [];
+            if (snap.stats) renderSchoolStats(snap.stats);
+            await updateStatsCenterStatus();
+            showNeprasPopupNotice(`تم تحميل بيانات المدرسة فورياً من قاعدة البيانات المحلية: ${snap.students?.length || 0} طالباً (${snap.monthLabel}).`, "success", "قاعدة البيانات المحلية (Zero Latency)");
+            return;
+          }
+        }
+
+        const list = await getOrLoadStudents();
+        await updateStatsCenterStatus();
         if (list && list.length) {
-          showNeprasPopupNotice(`تم تحديث بيانات المدرسة بنجاح: ${list.length} طالباً.`, "success", "اكتمل التحديث");
+          showNeprasPopupNotice(`تم تحديث عرض بيانات المدرسة: ${list.length} طالباً.`, "success", "اكتمل التحديث");
         } else {
-          showNeprasPopupNotice("لم يتم العثور على بيانات في الذاكرة. تأكد من فتح صفحة بيانات التلاميذ بالموقع والضغط على سحب البيانات الشاملة أو تحديث الإحصاء.", "warning", "تنبيه");
+          showNeprasPopupNotice("لا توجد بيانات محفوظة محلياً بعد. اضغط على «تحديث البيانات الشاملة» لجلب بيانات المدرسة من موقع الوزارة.", "warning", "تنبيه");
         }
       });
     }
