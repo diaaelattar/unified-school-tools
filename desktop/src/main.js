@@ -365,7 +365,7 @@ function setupSession(ses) {
             c = c.replace(/;\s*samesite=[^;]*/ig, "");
             if (!/;\s*secure/i.test(c)) c += "; Secure";
             c += "; SameSite=None";
-            // تحويل كوكيز الجلسة المؤقتة (التي بلا تاريخ انتهاء وتُمسح عند إغلاق البرنامج) إلى كوكيز دائمة لمدة 30 يوماً
+            // تحويل كوكيز الجلسة المؤقتة إلى كوكيز دائمة لمدة 30 يوماً لتثبيت جلسة مصادقة مسؤولي المدارس ومنع خروجهم المتكرر
             const isDeletion = /;\s*max-age\s*=\s*0\b/i.test(c) || /^[^=]+=\s*(;|$)/.test(c) || /;\s*expires\s*=\s*Thu,\s*01[-\s]Jan[-\s]1970/i.test(c);
             const hasLifetime = /;\s*(max-age|expires)\s*=/i.test(c);
             if (!isDeletion && !hasLifetime) {
@@ -436,7 +436,7 @@ function setupSession(ses) {
 function createWindow() {
   win = new BrowserWindow({
     width: 1400, height: 900, minWidth: 900, minHeight: 600, title: "نبراس", backgroundColor: "#f3f6f9",
-    webPreferences: { partition: PARTITION, preload: path.join(__dirname, "preload-host.js"), contextIsolation: true, nodeIntegration: false, sandbox: false, webviewTag: true }
+    webPreferences: { partition: PARTITION, preload: path.join(__dirname, "preload-host.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: true }
   });
   win.setMenuBarVisibility(false);
   win.loadURL("nepras://app/host.html");
@@ -445,7 +445,7 @@ function createWindow() {
   win.webContents.on("will-attach-webview", (_e, webPreferences, params) => {
     delete webPreferences.preload;
     webPreferences.preload = path.join(__dirname, "preload-tab.js");
-    webPreferences.nodeIntegration = false; webPreferences.contextIsolation = true; webPreferences.sandbox = false;
+    webPreferences.nodeIntegration = false; webPreferences.contextIsolation = true; webPreferences.sandbox = true;
     params.partition = PARTITION;
     params.allowpopups = false;
     // السماح بصفحات الوزارة وصفحات المصادقة الرسمية لمايكروسوفت (Microsoft Entra ID / SSO)
@@ -550,11 +550,46 @@ ipcMain.on("nep:toggleDevTools", () => {
 ipcMain.on("nep:openDevTools", () => {
   if (win && !win.isDestroyed()) win.webContents.openDevTools({ mode: "detach" });
 });
-ipcMain.on("nep:config", (e) => { e.returnValue = { partition: PARTITION }; });
+ipcMain.on("nep:config", (e) => {
+  e.returnValue = {
+    partition: PARTITION,
+    tabPreloadUrl: pathToFileURL(path.join(__dirname, "preload-tab.js")).href
+  };
+});
+
+const logFile = () => path.join(app.getPath("userData"), "diagnostics.log");
+ipcMain.handle("nep:writeLog", (_e, entry) => {
+  try {
+    const f = logFile();
+    const ts = entry?.timestamp || new Date().toISOString();
+    const lvl = entry?.level || "INFO";
+    const cat = entry?.category || "APP";
+    const msg = entry?.message || "";
+    const det = entry?.details ? " | " + JSON.stringify(entry.details) : "";
+    fs.appendFileSync(f, `[${ts}] [${lvl}] [${cat}] ${msg}${det}\n`, "utf8");
+    if (fs.existsSync(f) && fs.statSync(f).size > 2 * 1024 * 1024) {
+      const bkp = f + ".old";
+      try { if (fs.existsSync(bkp)) fs.unlinkSync(bkp); } catch (_) {}
+      fs.renameSync(f, bkp);
+    }
+  } catch (_) {}
+  return true;
+});
+ipcMain.handle("nep:getDiagnosticsLog", () => {
+  try {
+    const f = logFile();
+    return fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "";
+  } catch (_) {
+    return "";
+  }
+});
 const stateFile = () => path.join(app.getPath("userData"), "nepras-state.json");
 ipcMain.handle("nep:loadState", () => { try { return fs.readFileSync(stateFile(), "utf8"); } catch (_) { return null; } });
 ipcMain.handle("nep:saveState", (_e, s) => { const f = stateFile(), tmp = f + ".tmp"; fs.writeFileSync(tmp, String(s)); fs.renameSync(tmp, f); });
 ipcMain.handle("nep:saveFile", (_e, { filename, base64, conflictAction }) => {
+  if (licenseMgr && licenseMgr.getStatus() && licenseMgr.getStatus().locked) {
+    throw new Error("LOCKED_LICENSE: تم إيقاف حفظ وتصدير الملفات لانتهاء الفترة التجريبية أو الاشتراك.");
+  }
   const rel = String(filename || "download").replace(/\\/g, "/").replace(/^\/+/, "");
   const root = downloadsRoot();
   const full = safeJoin(root, rel);
@@ -616,6 +651,9 @@ ipcMain.handle("nep:getActiveSchool", () => {
 });
 
 ipcMain.handle("nep:getLatestDownloadedPdf", (_e, opts) => {
+  if (licenseMgr && licenseMgr.getStatus() && licenseMgr.getStatus().locked) {
+    return { ok: false, error: "LOCKED_LICENSE", status: "locked" };
+  }
   const sinceTs = Number((opts && opts.sinceTs) || 0);
   if (lastPdfDownload.status === "completed" && lastPdfDownload.path && fs.existsSync(lastPdfDownload.path)) {
     if (!sinceTs || lastPdfDownload.startedAt >= sinceTs || lastPdfDownload.completedAt >= sinceTs) {

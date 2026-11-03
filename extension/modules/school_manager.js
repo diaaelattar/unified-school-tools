@@ -190,6 +190,8 @@
     }
 
     const existingIdx = list.findIndex((s) => s.code === code);
+    const existingLogo = existingIdx >= 0 ? list[existingIdx].logo : null;
+    const incomingLogo = info.logo !== undefined ? info.logo : (info.schoolLogo !== undefined ? info.schoolLogo : existingLogo);
     const profile = {
       code,
       name: name || (existingIdx >= 0 ? list[existingIdx].name : `مدرسة ${code}`),
@@ -198,6 +200,7 @@
       administration: administration || (existingIdx >= 0 ? list[existingIdx].administration : ''),
       affairs: affairs || (existingIdx >= 0 ? list[existingIdx].affairs : ''),
       principal: principal || (existingIdx >= 0 ? list[existingIdx].principal : ''),
+      logo: incomingLogo || null,
       lastActive: Date.now()
     };
 
@@ -248,7 +251,8 @@
       administration: meta.administration || meta.admin,
       affairs: meta.affairs,
       principal: meta.principal,
-      stage: meta.stage
+      stage: meta.stage,
+      logo: meta.logo !== undefined ? meta.logo : (meta.schoolLogo || null)
     });
   }
 
@@ -283,7 +287,8 @@
         principal: profile.principal,
         stage: profile.stage,
         schoolKey: c,
-        schoolCode: c
+        schoolCode: c,
+        logo: profile.logo || null
       };
     }
     return null;
@@ -427,7 +432,63 @@
    * @returns {Promise<{ ok: boolean, schoolCode: string, schoolName: string, studentsCount: number, message: string }>}
    */
   async function importSchoolPackage(pkg) {
-    if (!pkg || typeof pkg !== 'object' || (pkg.format !== 'nepras-school-package' && !pkg.schoolCode && !pkg.students)) {
+    if (!pkg || typeof pkg !== 'object') {
+      throw new Error("ملف البيانات غير صالح أو تالف. يرجى اختيار ملف مصدّر من تطبيق نبراس بصيغة .nepras أو .json.");
+    }
+
+    // 1. دعم استيراد واستعادة قاعدة بيانات / ملف حالة نبراس بالكامل (Full State Backup مثل nepras-state.json)
+    const fullState = pkg.local || (pkg.nepras_schools_registry_v1 ? pkg : null);
+    if (fullState && typeof fullState === 'object') {
+      await setStorage(fullState);
+
+      const registry = Array.isArray(fullState.nepras_schools_registry_v1)
+        ? deduplicateSchoolsByOfficialCode(fullState.nepras_schools_registry_v1)
+        : [];
+
+      const activeCode = cleanCode(fullState.nepras_active_school_code_v1) || (registry[0]?.code ? cleanCode(registry[0].code) : '');
+
+      if (registry.length > 0) {
+        await setStorage({ [REGISTRY_STORAGE_KEY]: registry });
+      }
+
+      if (activeCode) {
+        await setActiveCode(activeCode);
+      }
+
+      // إذا توافرت وحدة قاعدة البيانات المحلية والأرشفة، نحفظ لقطة فورية أيضاً
+      if (activeCode && global.NeprasLocalDB?.saveMonthlySnapshot) {
+        try {
+          const statsKey = scopedKey(activeCode, 'stats');
+          const studentsKey = scopedKey(activeCode, 'students');
+          const metaKey = scopedKey(activeCode, 'meta');
+          const stats = fullState[statsKey] || fullState.neprasSchoolStatsV1 || null;
+          const students = fullState[studentsKey] || fullState.neprasCachedStudentsList || [];
+          const meta = fullState[metaKey] || fullState.nepras_report_header_meta || {};
+          await global.NeprasLocalDB.saveMonthlySnapshot(activeCode, {
+            meta,
+            stats,
+            students,
+            absence: fullState.neprasCachedAbsenceList || []
+          });
+        } catch (_) {}
+      }
+
+      const activeSchool = registry.find((s) => cleanCode(s.code) === activeCode);
+      const schoolName = activeSchool?.name || fullState.nepras_report_header_meta?.schoolName || (activeCode ? `مدرسة ${activeCode}` : 'المدرسة');
+      const studentsList = (activeCode && fullState[scopedKey(activeCode, 'students')]) || fullState.neprasCachedStudentsList || [];
+      const studentsCount = Array.isArray(studentsList) ? studentsList.length : 0;
+
+      return {
+        ok: true,
+        schoolCode: activeCode,
+        schoolName,
+        studentsCount,
+        message: `تم استيراد واستعادة قاعدة بيانات نبراس بالكامل بنجاح! تم تحميل (${registry.length || 1}) مدرسة، و(${studentsCount}) طالباً للمدرسة النشطة.`
+      };
+    }
+
+    // 2. استيراد حزمة ملف مدرسة مفردة (.nepras أو حزمة JSON)
+    if (pkg.format !== 'nepras-school-package' && !pkg.schoolCode && !pkg.students && !pkg.meta?.schoolCode && !pkg.meta?.schoolKey) {
       throw new Error("ملف المدرسة غير صالح أو تالف. يرجى اختيار ملف مصدّر من تطبيق نبراس بصيغة .nepras أو .json.");
     }
 
@@ -448,8 +509,10 @@
       directorate,
       administration,
       schoolCode: c,
-      schoolKey: c
+      schoolKey: c,
+      logo: pkg.logo || null
     };
+    if (pkg.logo && !meta.logo) meta.logo = pkg.logo;
     const absence = Array.isArray(pkg.absence) ? pkg.absence : [];
 
     const statsKey = scopedKey(c, 'stats');
@@ -461,24 +524,39 @@
       [statsKey]: stats,
       [studentsKey]: students,
       [metaKey]: meta,
-      [absenceKey]: absence
+      [absenceKey]: absence,
+      neprasSchoolStatsV1: stats,
+      neprasCachedStudentsList: students
     };
 
+    if (absence.length) {
+      toStore.neprasCachedAbsenceList = absence;
+    }
+
     await setStorage(toStore);
+
+    // حفظ تلقائي في NeprasLocalDB
+    if (global.NeprasLocalDB?.saveMonthlySnapshot) {
+      try {
+        await global.NeprasLocalDB.saveMonthlySnapshot(c, {
+          meta,
+          stats,
+          students,
+          absence
+        });
+      } catch (_) {}
+    }
 
     await registerOrUpdateSchool({
       code: c,
       name: schoolName,
       stage,
       directorate,
-      administration
+      administration,
+      logo: meta.logo || pkg.logo || null
     });
 
     await setActiveCode(c);
-
-    if (absence.length) {
-      await setStorage({ neprasCachedAbsenceList: absence });
-    }
 
     return {
       ok: true,

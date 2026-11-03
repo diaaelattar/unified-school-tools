@@ -255,7 +255,13 @@
       dlEmitCreated(it);
       (async () => {
         try {
-          const { base64, mime } = await toBase64(o.url);
+          let base64 = o.base64Data;
+          let mime = o.mimeType;
+          if (!base64) {
+            const b64 = await toBase64(o.url);
+            base64 = b64.base64;
+            mime = b64.mime;
+          }
           const saved = await backend.saveFile({ filename, base64, mime, conflictAction: o.conflictAction || "uniquify" });
           it.filename = saved.path; it.mime = mime; it.fileSize = it.totalBytes = it.bytesReceived = saved.size;
           dlEmitDone(it);
@@ -388,6 +394,9 @@
       "tabs.remove": async (ctx, [ids]) => { for (const id of [].concat(ids)) await removeTab(id); },
       "tabs.reload": async (ctx, [id]) => { await backend.reloadTab(id == null ? activeTabId : id); },
       "tabs.sendMessage": async (ctx, [tabId, msg]) => {
+        if (ui && typeof ui.isDesktopLocked === "function" && ui.isDesktopLocked()) {
+          return { __error: "🔒 تم إيقاف وظائف البرنامج لانتهاء الفترة التجريبية أو الاشتراك. يرجى تفعيل الاشتراك السنوي للمتابعة." };
+        }
         let target = tabCtx.get(tabId);
         if (!target) {
           await ensureTabShim(tabId);
@@ -416,10 +425,20 @@
         const r = await deliver(target, msg, senderFor(ctx));
         return r.status === "response" ? { value: r.value } : { value: undefined };
       },
-      "scripting.executeScript": (ctx, [inj]) => executeScript(inj),
+      "scripting.executeScript": (ctx, [inj]) => {
+        if (ui && typeof ui.isDesktopLocked === "function" && ui.isDesktopLocked()) {
+          throw new Error("🔒 تم إيقاف تنفيذ الأوامر لانتهاء الفترة التجريبية أو الاشتراك.");
+        }
+        return executeScript(inj);
+      },
       "scripting.insertCSS": (ctx, [inj]) => insertCSS(inj),
 
-      "downloads.download": (ctx, [o]) => download(o),
+      "downloads.download": (ctx, [o]) => {
+        if (ui && typeof ui.isDesktopLocked === "function" && ui.isDesktopLocked()) {
+          throw new Error("🔒 تم إيقاف تنزيل وتصدير الملفات لانتهاء الفترة التجريبية أو الاشتراك.");
+        }
+        return download(o);
+      },
       "downloads.search": (ctx, [q]) => dlSearch(q),
       "downloads.erase": (ctx, [q]) => {
         const ids = dlSearch(q).map((i) => i.id);

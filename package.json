@@ -6,7 +6,8 @@
   "scripts": {
     "build:desktop": "node scripts/build.js desktop",
     "build:desktop:legacy": "node scripts/build.js desktop && node desktop/build_legacy.js",
-    "build:mobile": "node scripts/build.js mobile && npm --prefix mobile run cap:sync",
+    "build:mobile": "node scripts/sync_mobile.js && node scripts/build.js mobile && npm --prefix mobile run cap:sync",
+    "sync:mobile": "node scripts/sync_mobile.js",
     "dev:desktop": "npm run build:desktop && electron desktop",
     "test": "node tests/run.js && node tests/audit_fixes_test.js && node extension/tests/run.js"
   }

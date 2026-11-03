@@ -125,27 +125,43 @@
     return true;
   }
 
+  // أسبقية نظام التعليم الإدارية المعتمدة (النظامي أولاً، يليه المنازل، يليه العمال)
+  function studentStudyPriority(s) {
+    const raw = String(
+      s?.study_type || s?.studyType || s?.["نوعية التعليم"] || s?.["نوع التعليم"] || s?.__neprasApiRaw?.studyTypeName || ""
+    );
+    const n = norm(raw);
+    const status = norm(String(s?.status || s?.["حالة القيد"] || ""));
+    if (s?.is_worker || n.includes("عمال") || n.includes("عمل") || status.includes("عمال")) return 3;
+    if (s?.is_manazel || n.includes("منازل") || n.includes("منزل") || status.includes("منازل")) return 2;
+    return 1; // منتظم / نظامي
+  }
+
   function sortStudentsList(list, sortMode = "alpha") {
     if (!sortMode || sortMode === "site") return list;
-    if (sortMode === "gender" || sortMode === "gender_boys") {
-      return list.sort((a, b) => {
+    return list.sort((a, b) => {
+      // 1. أسبقية فئة التعليم أولاً: النظامي يليه المنازل يليه العمال
+      const pA = studentStudyPriority(a);
+      const pB = studentStudyPriority(b);
+      if (pA !== pB) return pA - pB;
+
+      // 2. نمط الترتيب المعتمد داخل كل فئة
+      if (sortMode === "gender" || sortMode === "gender_boys") {
         const maleA = isStudentMale(a);
         const maleB = isStudentMale(b);
         if (maleA && !maleB) return -1;
         if (!maleA && maleB) return 1;
         return compareNames(a, b);
-      });
-    }
-    if (sortMode === "gender_girls") {
-      return list.sort((a, b) => {
+      }
+      if (sortMode === "gender_girls") {
         const maleA = isStudentMale(a);
         const maleB = isStudentMale(b);
         if (!maleA && maleB) return -1;
         if (maleA && !maleB) return 1;
         return compareNames(a, b);
-      });
-    }
-    return list.sort(compareNames);
+      }
+      return compareNames(a, b);
+    });
   }
 
   /**
@@ -201,7 +217,8 @@
             name,
             gender: clean(row?.["النوع"] || ""),
             national_id: clean(row?.["الرقم القومي"] || ""),
-            status: clean(row?.["حالة القيد"])
+            status: clean(row?.["حالة القيد"]),
+            study_type: clean(row?.["نوعية التعليم"] || row?.["نوع التعليم"] || "")
           }
         });
       });

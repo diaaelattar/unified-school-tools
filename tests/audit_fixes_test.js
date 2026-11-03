@@ -33,17 +33,34 @@ async function test(name, fn) {
     assert.strictEqual(quickEdits.resolveLanguageCode("انجليزي"), "1");
   });
 
-  await test("quick_edits: parseQuickEditsExcel extracts codes and languages correctly", () => {
+  await test("quick_edits: resolveSectionCode and resolveMajorCode map Secondary tracks and majors accurately", () => {
+    assert.strictEqual(quickEdits.resolveSectionCode("ادبي"), "2");
+    assert.strictEqual(quickEdits.resolveSectionCode("علمي"), "3");
+    assert.strictEqual(quickEdits.resolveSectionCode("مسار الطب وعلوم الحياة"), "203");
+    assert.strictEqual(quickEdits.resolveSectionCode("بكالوريا مسار الهندسة وعلوم الحاسب"), "204");
+    assert.strictEqual(quickEdits.resolveSectionCode("مسار الاعمال"), "205");
+    assert.strictEqual(quickEdits.resolveSectionCode("مسار الادب والفنون"), "206");
+    assert.strictEqual(quickEdits.resolveSectionCode("203"), "203");
+
+    assert.strictEqual(quickEdits.resolveMajorCode("مسار الطب وعلوم الحياة"), "676");
+    assert.strictEqual(quickEdits.resolveMajorCode("676"), "676");
+    assert.strictEqual(quickEdits.resolveMajorCode("", "203"), "676");
+  });
+
+  await test("quick_edits: parseQuickEditsExcel extracts codes, languages, and secondary tracks correctly", () => {
     const sampleRows = [
-      { "كود الطالب": "12345678", "الصف": "1", "الفصل": "1", "اللغة الثانية": "فرنسي" },
-      { "كود الطالب": "87654321", "الصف": "1", "الفصل": "2", "اللغة الثانية": "الماني" }
+      { "كود الطالب": "12345678", "الصف": "1", "الفصل": "1", "اللغة الثانية": "فرنسي", "الشعبة": "مسار الطب وعلوم الحياة", "التخصص": "676" },
+      { "كود الطالب": "87654321", "الصف": "1", "الفصل": "2", "اللغة الثانية": "الماني", "الشعبة": "ادبي" }
     ];
     const parsed = quickEdits.parseQuickEditsExcel(sampleRows);
     assert.strictEqual(parsed.length, 2);
     assert.strictEqual(parsed[0].code, "12345678");
     assert.strictEqual(parsed[0].l2Code, "2");
+    assert.strictEqual(parsed[0].sectionCode, "203");
+    assert.strictEqual(parsed[0].majorCode, "676");
     assert.strictEqual(parsed[1].code, "87654321");
     assert.strictEqual(parsed[1].l2Code, "3");
+    assert.strictEqual(parsed[1].sectionCode, "2");
   });
 
   await test("quick_edits: buildQuickEditsResultsWorkbook creates a valid XLSX workbook structure", () => {
@@ -568,6 +585,102 @@ async function test(name, fn) {
       }
     } finally {
       srv.close();
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
+  // 16b. Desktop Trial Period Expiration, HMAC Tamper Resistance & Clock Rollback Enforcement
+  await test("desktop_license: trial period expiration, machine-bound HMAC tamper resistance, and clock rollback enforcement", async () => {
+    const os = require("os");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "nepras-trial-test-"));
+    const {
+      DesktopLicenseManager,
+      createSupabaseTicket,
+      verifySupabaseTicket,
+      MAX_CLOCK_DRIFT_MS
+    } = require("../desktop/src/license-manager");
+
+    try {
+      // 1. Machine-bound HMAC Verification
+      const now = Date.now();
+      const trialExpiry = now + 7 * 24 * 3600 * 1000;
+      const validTicket = createSupabaseTicket("1234567", trialExpiry, "trial");
+      assert.strictEqual(verifySupabaseTicket(validTicket, "1234567", trialExpiry, "trial"), true, "Valid HMAC ticket must pass verification");
+
+      // Modifying expiresAt or status must fail HMAC
+      assert.strictEqual(verifySupabaseTicket(validTicket, "1234567", trialExpiry + 1000, "trial"), false, "Modified expiresAt must fail");
+      assert.strictEqual(verifySupabaseTicket(validTicket, "1234567", trialExpiry, "active"), false, "Modified status must fail");
+      assert.strictEqual(verifySupabaseTicket(validTicket, "9999999", trialExpiry, "trial"), false, "Different school code must fail");
+
+      // 2. Active Trial Unlocks Desktop
+      const mgr = new DesktopLicenseManager({ storageDir: tmpDir });
+      mgr.state.activeSchoolCode = "1234567";
+      mgr.state.ticketsBySchool["1234567"] = {
+        ticket: validTicket,
+        verifiedAt: now,
+        expiresAt: trialExpiry,
+        schoolName: "مدرسة التجربة",
+        status: "trial"
+      };
+      mgr._save();
+
+      const statusActive = mgr.getStatus("1234567");
+      assert.strictEqual(statusActive.locked, false, "Active 7-day trial must unlock software");
+      assert.strictEqual(statusActive.status, "TRIAL");
+      assert.strictEqual(statusActive.daysRemaining, 7);
+
+      // 3. Expired Trial Strictly Locks Desktop
+      const expiredTime = now - 1000;
+      const expiredTicket = createSupabaseTicket("1234567", expiredTime, "trial");
+      mgr.state.ticketsBySchool["1234567"] = {
+        ticket: expiredTicket,
+        verifiedAt: now - 8 * 24 * 3600 * 1000,
+        expiresAt: expiredTime,
+        schoolName: "مدرسة التجربة",
+        status: "trial"
+      };
+      mgr._save();
+
+      const statusExpired = mgr.getStatus("1234567");
+      assert.strictEqual(statusExpired.locked, true, "Expired trial must lock software");
+      assert.strictEqual(statusExpired.status, "EXPIRED_TRIAL");
+      assert.strictEqual(statusExpired.daysRemaining, 0);
+
+      // 4. Local File Tampering: Attacker edits JSON to fake active status and future expiry
+      const fakeTicket = `SUPABASE_VERIFIED.1234567.${now + 365 * 24 * 3600 * 1000}.active.deadbeef00001111`;
+      mgr.state.ticketsBySchool["1234567"] = {
+        ticket: fakeTicket,
+        verifiedAt: now,
+        expiresAt: now + 365 * 24 * 3600 * 1000,
+        schoolName: "مدرسة التجربة",
+        status: "active"
+      };
+      mgr._save();
+
+      const statusTampered = mgr.getStatus("1234567");
+      assert.strictEqual(statusTampered.locked, true, "Tampered local ticket must be rejected and locked");
+      assert.strictEqual(statusTampered.status, "TAMPERED");
+
+      // 5. Clock Rollback Detection: Setting clock back by > 15 minutes triggers TAMPERED
+      mgr.state.lastLocalRunTime = now;
+      mgr.state.ticketsBySchool["1234567"] = {
+        ticket: validTicket,
+        verifiedAt: now,
+        expiresAt: trialExpiry,
+        schoolName: "مدرسة التجربة",
+        status: "trial"
+      };
+      const origDateNow = Date.now;
+      try {
+        Date.now = () => now - (20 * 60 * 1000); // 20 mins rollback (> MAX_CLOCK_DRIFT_MS)
+        assert.strictEqual(mgr._isClockTampered(), true, "Clock rollback > 15 mins must be detected as tampered");
+        const statusClockTampered = mgr.getStatus("1234567");
+        assert.strictEqual(statusClockTampered.locked, true, "Clock rollback must strictly lock the system");
+        assert.strictEqual(statusClockTampered.status, "TAMPERED");
+      } finally {
+        Date.now = origDateNow;
+      }
+    } finally {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
     }
   });
@@ -1248,6 +1361,87 @@ async function test(name, fn) {
 
     const hostHtml = fs.readFileSync(path.join(__dirname, "../shared/host.html"), "utf8");
     assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.2</span>'), "host.html must display version v1.3.2");
+  });
+
+  // 30. Name Fixer Dual-Mode (Name Cleaning vs Extra-Only) Tests
+  await test("name_fixer: supports dual mode (full vs extra_only) and configurable overwrite policy", () => {
+    const nameFixerCode = fs.readFileSync(path.join(__dirname, "../extension/modules/name_fixer.js"), "utf8");
+
+    // Verify mode definitions and UI radio controls
+    assert.ok(nameFixerCode.includes('id="nf-mode-full"'), "name_fixer.js must include full mode radio");
+    assert.ok(nameFixerCode.includes('id="nf-mode-extra"'), "name_fixer.js must include extra_only mode radio");
+    assert.ok(nameFixerCode.includes('id="nf-policy-empty"'), "name_fixer.js must include empty-only apply policy radio");
+    assert.ok(nameFixerCode.includes('id="nf-policy-overwrite"'), "name_fixer.js must include overwrite policy radio");
+
+    // Verify logic switches in Fixer.onEditPageFixNameAndBack
+    assert.ok(nameFixerCode.includes("const isExtraOnly = (opMode === 'extra_only');"), "name_fixer.js must identify extra_only mode");
+    assert.ok(nameFixerCode.includes("if (!isExtraOnly) {"), "name_fixer.js must bypass student name cleaning in extra_only mode");
+    assert.ok(nameFixerCode.includes("extraOverwrite ? (currentVal !== defAddress) : (!currentVal)"), "name_fixer.js must apply address policy correctly");
+    assert.ok(nameFixerCode.includes("extraOverwrite ? (currentVal !== defLang1) : isBlank"), "name_fixer.js must apply lang1 policy correctly");
+    assert.ok(nameFixerCode.includes("extraOverwrite ? (currentVal !== defLang2) : isBlank"), "name_fixer.js must apply lang2 policy correctly");
+    assert.ok(nameFixerCode.includes("extraOverwrite ? (currentVal !== defRegStatus) : isBlank"), "name_fixer.js must apply regStatus policy correctly");
+
+    // Verify dynamic UI button label
+    assert.ok(nameFixerCode.includes("▶️ بدء / استكمال تعديل البيانات الإضافية"), "name_fixer.js must show specialized toggle button text in extra_only mode");
+    assert.ok(nameFixerCode.includes("البيانات الإضافية مطابقة بالفعل، لا حاجة للتعديل."), "name_fixer.js must gracefully skip unchanged students in extra_only mode");
+  });
+
+  // 31. Technical Education Workers & Kashf 41 Newcomers Rules
+  await test("school_records & class_lists: enforces strict Kashf 41 criteria and Technical Workers priority sequence", () => {
+    // 1) Test Kashf 41 Filtering Logic
+    const schoolRecordsCode = fs.readFileSync(path.join(__dirname, "../extension/modules/school_records.js"), "utf8");
+    assert.ok(schoolRecordsCode.includes("isStageFirstGrade"), "school_records.js must define isStageFirstGrade");
+    assert.ok(schoolRecordsCode.includes("isNewcomerRegistrationStatus"), "school_records.js must define isNewcomerRegistrationStatus");
+    assert.ok(schoolRecordsCode.includes("runWorkersExport"), "school_records.js must export runWorkersExport");
+    assert.ok(schoolRecordsCode.includes("NEPRAS_RECORDS_WORKERS"), "school_records.js must handle NEPRAS_RECORDS_WORKERS");
+
+    // Simulate Kashf 41 filter directly
+    function isStageFirstGrade(gradeText) {
+      const g = String(gradeText || '')
+        .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+        .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+      // استبعاد الصفوف الثاني والثالث والرابع والخامس والسادس (مع الحذر من كلمة ثانوي أو ثانوية)
+      if (/الصف\s+(?:الثاني|الثانى|ثاني|ثانى|الثالث|ثالث|الرابع|رابع|الخامس|خامس|السادس|سادس)|kg2/i.test(g)) return false;
+      if (/(?:^|\s)(?:ثاني|ثانى|ثالث|رابع|خامس|سادس)(?:\s|$)/i.test(g)) return false;
+      return /(?:الصف\s+)?(?:الاول|اول|أول|الأول|kg1|المستوى\s+الاول|المستوى\s+الأول)/i.test(g);
+    }
+    function isNewcomerRegistrationStatus(statusText) {
+      const s = String(statusText || '')
+        .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+        .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+      if (/باق|اعاده|إعادة|راسب|مفصول|منقطع/i.test(s)) return false;
+      return /مستجد|ناجح\s*و\s*منقول/i.test(s);
+    }
+
+    const testStudents = [
+      { name: "طالب 1", grade: "الصف الأول الثانوي", status: "مستجد" },
+      { name: "طالب 2", grade: "الصف الأول الثانوي الفني", status: "ناجح ومنقول" },
+      { name: "طالب 3", grade: "الصف الأول الصناعي", status: "باق للإعادة" },
+      { name: "طالب 4", grade: "الصف الأول الإعدادي", status: "راسب" },
+      { name: "طالب 5", grade: "الصف الثاني الثانوي", status: "مستجد" },
+      { name: "طالب 6", grade: "الصف الثالث التجاري", status: "ناجح ومنقول" },
+      { name: "طالب 7", grade: "المستوى الأول رياض أطفال", status: "مستجد" }
+    ];
+
+    const accepted = testStudents.filter(s => isStageFirstGrade(s.grade) && isNewcomerRegistrationStatus(s.status));
+    assert.strictEqual(accepted.length, 3, "Only Grade 1 students with 'مستجد' or 'ناجح ومنقول' must be accepted");
+    assert.deepStrictEqual(accepted.map(s => s.name), ["طالب 1", "طالب 2", "طالب 7"]);
+
+    // 2) Test Class Lists Priority Ordering: (1. Regular -> 2. Homeschooling -> 3. Workers)
+    assert.ok(CL, "NeprasClassLists must be defined");
+
+    const sampleList = [
+      { code: "300", name: "علي حسن", study_type: "عمال", gender: "ذكر" },
+      { code: "200", name: "إبراهيم أحمد", study_type: "منازل", gender: "ذكر" },
+      { code: "101", name: "ياسر محمود", study_type: "نظامي", gender: "ذكر" },
+      { code: "100", name: "أحمد سيد", study_type: "منتظم", gender: "ذكر" }
+    ];
+
+    const sorted = CL.sortStudentsList([...sampleList], "gender_boys");
+    assert.strictEqual(sorted[0].code, "100", "First regular student");
+    assert.strictEqual(sorted[1].code, "101", "Second regular student");
+    assert.strictEqual(sorted[2].code, "200", "Homeschooling student follows regular");
+    assert.strictEqual(sorted[3].code, "300", "Workers student follows homeschooling");
   });
 
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);

@@ -99,7 +99,10 @@
   <div style="border:2px solid #000;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
     <div style="font-weight:bold;font-size:10pt;">محافظة: ${esc(gov)}<br>إدارة: ${esc(edara)}<br>مدرسة: ${esc(school)}</div>
     <div style="text-align:center;"><div style="font-size:14pt;font-weight:bold;text-decoration:underline;">إخطار غياب رسمي (${esc(w.level)})</div><div style="font-size:11pt;">للعام الدراسي: ${esc(year)}</div></div>
-    <div style="text-align:center;font-weight:bold;color:#1e3a8a;font-size:9pt;">نبراس برو 2026</div>
+    <div style="text-align:center;font-weight:bold;color:#1e3a8a;font-size:9pt;">
+      ${(info.logo || info.schoolLogo) ? `<img src="${info.logo || info.schoolLogo}" alt="شعار المدرسة" width="40" height="40" style="width:40px;height:40px;object-fit:contain;margin-bottom:2px;"><br>` : ''}
+      نبراس برو 2026
+    </div>
   </div>`;
 
       html += `

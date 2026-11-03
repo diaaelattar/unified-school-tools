@@ -9,8 +9,20 @@
  */
 (function () {
   "use strict";
-  if (globalThis.__NEPRAS_SHIM_INSTALLED__) return;
-  if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id && !globalThis.__NEPRAS_CFG__ && typeof window !== "undefined" && window.parent === window) {
+  if (globalThis.__NEPRAS_SHIM_INSTALLED__) {
+    if (typeof globalThis.__NEPRAS_SHIM_HELLO__ === "function") {
+      try { globalThis.__NEPRAS_SHIM_HELLO__(); } catch (_) {}
+    }
+    return;
+  }
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.runtime &&
+    chrome.runtime.id &&
+    !globalThis.__NEPRAS_CFG__ &&
+    ((typeof location !== "undefined" && location.protocol === "chrome-extension:") ||
+      (typeof window !== "undefined" && window.parent === window))
+  ) {
     return;
   }
   const CFG = globalThis.__NEPRAS_CFG__ || {};
@@ -188,7 +200,19 @@
 
   // ---------------------------------------------------------------- downloads
   const downloads = {
-    download: dual((o) => rpc("downloads.download", [o])),
+    download: dual(async (o) => {
+      let finalObj = o;
+      if (o && o.url && String(o.url).startsWith("blob:")) {
+        try {
+          const res = await fetch(o.url);
+          const buf = new Uint8Array(await res.arrayBuffer());
+          let s = ""; const CH = 0x8000;
+          for (let i = 0; i < buf.length; i += CH) s += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
+          finalObj = Object.assign({}, o, { base64Data: btoa(s), mimeType: res.headers.get("content-type") || "application/octet-stream" });
+        } catch (_) {}
+      }
+      return rpc("downloads.download", [finalObj]);
+    }),
     search: dual((q) => rpc("downloads.search", [q || {}])),
     erase: dual((q) => rpc("downloads.erase", [q || {}])),
     removeFile: dual((id) => rpc("downloads.removeFile", [id])),
@@ -274,8 +298,54 @@
     try {
       window.close = () => { transport.post({ kind: "closePage", ctx: CTX_ID, role: ROLE }); };
     } catch (_) {}
-    transport.post({ kind: "hello", ctx: CTX_ID, role: ROLE, url: String(location.href) });
+    // On Mobile (Capacitor), proxy cross-origin EMIS fetches through the native Android HttpURLConnection bridge
+    try {
+      const hostBackend = window.parent && window.parent.NeprasBackend;
+      if (hostBackend && hostBackend.platform === "android" && typeof hostBackend.fetchUrl === "function" && typeof window.fetch === "function") {
+        const origFetch = window.fetch.bind(window);
+        window.fetch = async function (input, init = {}) {
+          const urlStr = typeof input === "string" ? input : (input && input.url) || "";
+          if (/^https:\/\/[a-z0-9-]+\.emis\.gov\.eg\//i.test(urlStr)) {
+            try {
+              const headers = {};
+              const hIn = init.headers || (input && input.headers);
+              if (hIn) {
+                if (typeof hIn.forEach === "function") hIn.forEach((v, k) => { headers[k] = String(v); });
+                else if (Array.isArray(hIn)) hIn.forEach(([k, v]) => { headers[k] = String(v); });
+                else if (typeof hIn === "object") Object.keys(hIn).forEach((k) => { if (hIn[k] != null) headers[k] = String(hIn[k]); });
+              }
+              const body = typeof init.body === "string" ? init.body : null;
+              const r = await hostBackend.fetchUrl({ url: urlStr, method: init.method || "GET", headers, body });
+              let respBody;
+              if (r && r.base64) {
+                const bin = atob(r.base64);
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                respBody = u8.buffer;
+              } else {
+                respBody = typeof r?.text === "string" ? r.text : "";
+              }
+              return new Response(respBody, {
+                status: (r && r.status) || 200,
+                headers: (r && r.headers) || {}
+              });
+            } catch (proxyErr) {
+              console.warn("[Nepras Shim] Proxy fetch error, falling back:", proxyErr);
+              return origFetch(input, init);
+            }
+          }
+          return origFetch(input, init);
+        };
+      }
+    } catch (_) {}
+    globalThis.__NEPRAS_SHIM_HELLO__ = () => {
+      transport.post({ kind: "hello", ctx: CTX_ID, role: ROLE, url: String(location.href) });
+    };
+    globalThis.__NEPRAS_SHIM_HELLO__();
   } else {
-    transport.post({ kind: "hello", ctx: CTX_ID, role: "tab", url: String(location.href) });
+    globalThis.__NEPRAS_SHIM_HELLO__ = () => {
+      transport.post({ kind: "hello", ctx: CTX_ID, role: "tab", url: String(location.href) });
+    };
+    globalThis.__NEPRAS_SHIM_HELLO__();
   }
 })();

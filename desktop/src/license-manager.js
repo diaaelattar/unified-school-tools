@@ -32,6 +32,98 @@ const DEFAULT_SERVER_URL = process.env.NEPRAS_LICENSE_SERVER_URL || SUPABASE_LIC
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OFFLINE_GRACE_MS = 7 * DAY_MS; // 7 أيام سماح للعمل أوفلاين للمدرسة المفعّلة مسبقاً
 const WARN_DAYS = 10; // التنبيه قبل انتهاء الاشتراك السنوي بـ 10 أيام
+const MACHINE_SALT = "NEPRAS_HMAC_SEC_v1.3.2_EMIS_2027";
+const MAX_CLOCK_DRIFT_MS = 15 * 60 * 1000; // 15 دقيقة فقط كحد أقصى مسموح به لانحراف أو تراجع ساعة الجهاز
+
+function getMachineFingerprint() {
+  try {
+    const host = os.hostname() || "localhost";
+    const user = os.userInfo ? os.userInfo().username : "user";
+    const plat = os.platform();
+    const arch = os.arch();
+    return crypto.createHash("sha256").update(`${host}|${user}|${plat}|${arch}|${MACHINE_SALT}`).digest("hex");
+  } catch (_) {
+    return crypto.createHash("sha256").update(`fallback|${MACHINE_SALT}`).digest("hex");
+  }
+}
+
+function computeTicketHmac(schoolCode, expiresAt, status) {
+  const fp = getMachineFingerprint();
+  const data = `NEPRAS_TICKET:${normalizeSchoolCode(schoolCode)}:${Number(expiresAt)}:${String(status || "active").toLowerCase()}:${fp}`;
+  return crypto.createHmac("sha256", fp).update(data).digest("hex");
+}
+
+function createSupabaseTicket(schoolCode, expiresAt, status) {
+  const normCode = normalizeSchoolCode(schoolCode);
+  const expNum = Number(expiresAt || 0);
+  const cleanStatus = String(status || "active").toLowerCase();
+  const hmac = computeTicketHmac(normCode, expNum, cleanStatus);
+  return `SUPABASE_VERIFIED.${normCode}.${expNum}.${cleanStatus}.${hmac}`;
+}
+
+function verifySupabaseTicket(ticket, schoolCode, expiresAt, status) {
+  if (!ticket || typeof ticket !== "string") return false;
+  const parts = ticket.split(".");
+  const normCode = normalizeSchoolCode(schoolCode);
+  const expNum = Number(expiresAt || 0);
+  const cleanStatus = String(status || "active").toLowerCase();
+
+  // النمط المحمي الجديد: SUPABASE_VERIFIED.<schoolCode>.<expiresAt>.<status>.<hmac>
+  if (parts.length === 5 && parts[0] === "SUPABASE_VERIFIED") {
+    const [, tSchool, tExpires, tStatus, tHmac] = parts;
+    if (normalizeSchoolCode(tSchool) !== normCode) return false;
+    if (Number(tExpires) !== expNum) return false;
+    if (String(tStatus).toLowerCase() !== cleanStatus) return false;
+    const expected = computeTicketHmac(normCode, expNum, cleanStatus);
+    try {
+      return crypto.timingSafeEqual(Buffer.from(tHmac, "hex"), Buffer.from(expected, "hex"));
+    } catch (_) {
+      return false;
+    }
+  }
+  // الترقية التلقائية من التذاكر القديمة المكونة من 3 مقاطع عند التطابق
+  if (parts.length === 3 && parts[0] === "SUPABASE_VERIFIED") {
+    const [, tSchool, tExpires] = parts;
+    if (normalizeSchoolCode(tSchool) === normCode && Number(tExpires) === expNum) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * دالة جلب مكدس الشبكة الآمن: تفضل استخدام net.fetch الخاص بنواة إلكترون وكروميوم
+ * لأنه يمتلك شهادات الجذر المحدثة ويتجاوز مشكلة انهيار شهادات ويندوز 7 القديمة
+ */
+function getSafeFetch() {
+  try {
+    const electron = require("electron");
+    if (electron && electron.net && typeof electron.net.fetch === "function") {
+      return electron.net.fetch;
+    }
+  } catch (_) {}
+  if (typeof globalThis.fetch === "function") {
+    return globalThis.fetch;
+  }
+  throw new Error("No fetch implementation available");
+}
+
+/**
+ * استدعاء شبكي محمي بمهلة زمنية صارمة تمنع تجمد التطبيق في شبكات المدارس الضعيفة
+ */
+async function requestWithTimeout(url, options = {}, timeoutMs = 7000) {
+  const fetchFn = getSafeFetch();
+  if (typeof AbortController !== "undefined") {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetchFn(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return fetchFn(url, options);
+}
 
 function normalizeSchoolCode(raw) {
   const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
@@ -187,6 +279,13 @@ class DesktopLicenseManager {
           }
           // تنظيف أي رقم مسلسل تجريبي مكرر لنفس المدرسة التي تملك اشتراكاً سنوياً مفعّلاً
           let cleanedDuplicates = false;
+          // ترقية أي تذاكر قديمة إلى النمط المشفر ببصمة الجهاز (Machine-Bound HMAC)
+          for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
+            if (entry && String(entry.ticket || "").startsWith("SUPABASE_VERIFIED.") && entry.ticket.split(".").length === 3) {
+              entry.ticket = createSupabaseTicket(code, entry.expiresAt, entry.status || "active");
+              cleanedDuplicates = true;
+            }
+          }
           const activePaidByName = new Map();
           for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
             if (entry && String(entry.status || "").toLowerCase() === "active" && entry.schoolName) {
@@ -251,11 +350,11 @@ class DesktopLicenseManager {
 
   _isClockTampered() {
     const now = Date.now();
-    // إذا أرجع المستخدم ساعة الجهاز للخلف بأكثر من 24 ساعة عن آخر وقت مسجل
-    if (this.state.lastKnownServerTime > 0 && now < this.state.lastKnownServerTime - DAY_MS) {
+    // إذا أرجع المستخدم ساعة الجهاز للخلف بأكثر من 15 دقيقة عن آخر وقت مسجل
+    if (this.state.lastKnownServerTime > 0 && now < this.state.lastKnownServerTime - MAX_CLOCK_DRIFT_MS) {
       return true;
     }
-    if (this.state.lastLocalRunTime > 0 && now < this.state.lastLocalRunTime - DAY_MS) {
+    if (this.state.lastLocalRunTime > 0 && now < this.state.lastLocalRunTime - MAX_CLOCK_DRIFT_MS) {
       return true;
     }
     return false;
@@ -316,6 +415,20 @@ class DesktopLicenseManager {
     let resolvedSchoolName = schoolName || entry.schoolName || `مدرسة ${schoolCode}`;
 
     if (String(entry.ticket || "").startsWith("SUPABASE_VERIFIED.")) {
+      const isValidHmac = verifySupabaseTicket(entry.ticket, schoolCode, entry.expiresAt, entry.status);
+      if (!isValidHmac) {
+        return {
+          platform: "desktop",
+          locked: true,
+          status: "TAMPERED",
+          schoolCode,
+          schoolName: resolvedSchoolName,
+          serverUrl: this.state.serverUrl,
+          daysRemaining: 0,
+          expiresAt: 0,
+          message: "⚠️ تم رصد تعديل أو تلاعب غير مصرح به في ملف ترخيص المدرسة المحلي. تم إيقاف النظام لحماية البيانات. يرجى الاتصال بالإنترنت لإعادة فحص الاشتراك أو التفعيل السنوي."
+        };
+      }
       expiresAt = Number(entry.expiresAt || 0);
       payload = {
         schoolCode,
@@ -504,7 +617,7 @@ class DesktopLicenseManager {
         const isSupabase = String(this.state.serverUrl || "").includes("supabase.co");
 
         if (isSupabase) {
-          const res = await fetch(`${SUPABASE_LICENSE_URL}/rest/v1/rpc/check_school_subscription`, {
+          const res = await requestWithTimeout(`${SUPABASE_LICENSE_URL}/rest/v1/rpc/check_school_subscription`, {
             method: "POST",
             headers: {
               "apikey": SUPABASE_LICENSE_ANON_KEY,
@@ -515,12 +628,12 @@ class DesktopLicenseManager {
               p_school_code: normCode,
               p_school_name: this.state.activeSchoolName || ""
             })
-          });
+          }, 7000);
           data = await res.json();
         } else {
           const endpoint = `${this.state.serverUrl}/api/v1/check-school`;
           const deviceInfo = `${os.hostname()} (${os.platform()} ${os.release()})`;
-          const res = await fetch(endpoint, {
+          const res = await requestWithTimeout(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -528,7 +641,7 @@ class DesktopLicenseManager {
               schoolName: this.state.activeSchoolName || "",
               deviceInfo
             })
-          });
+          }, 7000);
           data = await res.json();
         }
 
@@ -562,7 +675,9 @@ class DesktopLicenseManager {
             }
           } else if (isSupabase) {
             this.state.ticketsBySchool[normCode] = {
-              ticket: (prevIsActivePaid && isTrial && prevEntry.ticket) ? prevEntry.ticket : `SUPABASE_VERIFIED.${normCode}.${finalExpiresAt}`,
+              ticket: (prevIsActivePaid && isTrial && prevEntry.ticket)
+                ? prevEntry.ticket
+                : createSupabaseTicket(normCode, finalExpiresAt, finalStatus),
               verifiedAt: Date.now(),
               expiresAt: finalExpiresAt,
               schoolName: resolvedSchoolName,
@@ -591,20 +706,20 @@ class DesktopLicenseManager {
         const fallbackStatus = this.getStatus(normCode);
         return { ok: !fallbackStatus.locked, status: fallbackStatus, message: data?.message || fallbackStatus.message };
       } catch (err) {
-        // في حالة انقطاع الإنترنت: نعتمد على التذكرة الموقعة المحفوظة إن كانت ضمن فترة السماح
+        // في حالة انقطاع الإنترنت أو حظر الخادم: نعتمد على التذكرة الموقعة المحفوظة إن كانت ضمن فترة السماح
         const cachedStatus = this.getStatus(normCode);
         if (!cachedStatus.locked) {
           return {
             ok: true,
             offline: true,
             status: cachedStatus,
-            message: "يعمل في وضع عدم الاتصال بالاعتماد على اشتراك المدرسة المفعّل مسبقاً."
+            message: "يعمل في وضع عدم الاتصال (أوفلاين) بالاعتماد على اشتراك المدرسة المفعّل مسبقاً."
           };
         }
         return {
           ok: false,
           status: cachedStatus,
-          message: "تعذر الاتصال بسيرفر التراخيص (" + this.state.serverUrl + "). تأكد من اتصال الإنترنت أو صحة رابط السيرفر."
+          message: "تعذر الاتصال بسيرفر التراخيص (شبكة المعمل غير متصلة بالإنترنت العام أو تم حظر الخادم). إذا كان المعمل بدون إنترنت، يمكنك التفعيل أوفلاين بلصق تذكرة التفعيل NEPRAS1. في خانة المفتاح."
         };
       }
     })();
@@ -683,7 +798,7 @@ class DesktopLicenseManager {
       const isSupabase = String(this.state.serverUrl || "").includes("supabase.co");
 
       if (isSupabase) {
-        const res = await fetch(`${SUPABASE_LICENSE_URL}/rest/v1/rpc/activate_license_key`, {
+        const res = await requestWithTimeout(`${SUPABASE_LICENSE_URL}/rest/v1/rpc/activate_license_key`, {
           method: "POST",
           headers: {
             "apikey": SUPABASE_LICENSE_ANON_KEY,
@@ -695,11 +810,11 @@ class DesktopLicenseManager {
             p_license_key: cleanKey.toUpperCase(),
             p_school_name: this.state.activeSchoolName || null
           })
-        });
+        }, 8000);
         data = await res.json();
       } else {
         const endpoint = `${this.state.serverUrl}/api/v1/activate-key`;
-        const res = await fetch(endpoint, {
+        const res = await requestWithTimeout(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -707,7 +822,7 @@ class DesktopLicenseManager {
             schoolName: this.state.activeSchoolName || "",
             licenseKey: cleanKey.toUpperCase()
           })
-        });
+        }, 8000);
         data = await res.json();
       }
 
@@ -761,7 +876,7 @@ class DesktopLicenseManager {
       return {
         ok: false,
         status: this.getStatus(normCode),
-        message: "تعذر الاتصال بسيرفر التفعيل (" + this.state.serverUrl + "). تأكد من اتصال الإنترنت."
+        message: "تعذر الاتصال بسيرفر التفعيل عبر الإنترنت (شبكة المعمل غير متصلة أو تم حظر الخادم). إذا كان الجهاز أوفلاين، يرجى لصق تذكرة التفعيل المكتبي (NEPRAS1.) مباشرة في خانة المفتاح."
       };
     }
   }
@@ -773,5 +888,9 @@ module.exports = {
   verifyTicketSignature,
   signTicket,
   extractSchoolFromEmisHeaders,
-  DEFAULT_SERVER_URL
+  DEFAULT_SERVER_URL,
+  createSupabaseTicket,
+  verifySupabaseTicket,
+  computeTicketHmac,
+  MAX_CLOCK_DRIFT_MS
 };

@@ -94,6 +94,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnToggleKeepOpen?.addEventListener("click", toggleKeepOpenSetting);
   btnSettingsKeepOpen?.addEventListener("click", toggleKeepOpenSetting);
+
+  const btnExportDiagnostics = document.getElementById("btn-export-diagnostics");
+  if (btnExportDiagnostics) {
+    btnExportDiagnostics.addEventListener("click", () => {
+      try {
+        if (globalThis.NeprasLogger && typeof globalThis.NeprasLogger.downloadDiagnosticsFile === "function") {
+          const ok = globalThis.NeprasLogger.downloadDiagnosticsFile();
+          if (ok) {
+            showNeprasPopupNotice("تم تصدير ملف تقرير التشخيص بنجاح. يمكنك إرسال هذا الملف للدعم الفني لحل أي مشكلة فوراً.", "success", "سجل التشخيص");
+          } else {
+            showNeprasPopupNotice("تعذر تحميل ملف التشخيص في هذه البيئة.", "error", "سجل التشخيص");
+          }
+        } else {
+          showNeprasPopupNotice("مسجل التشخيص غير متاح.", "warn", "سجل التشخيص");
+        }
+      } catch (err) {
+        showNeprasPopupNotice("خطأ أثناء تصدير السجل: " + (err?.message || err), "error", "سجل التشخيص");
+      }
+    });
+  }
   awaitSafe(loadKeepOpenSetting());
 
   function shouldAutoClosePopup() {
@@ -153,6 +173,123 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   window.neprasNotice = showNeprasPopupNotice;
+
+  async function neprasUnifiedDownload(blob, rawName, folder, successMsg) {
+    const safeFolder = String(folder || "قوالب_نبراس").trim().replace(/[\\/:*?"<>|]+/g, "_");
+    const safeName = String(rawName || "نموذج_نبراس.xlsx").trim().replace(/[\\/:*?"<>|]+/g, "_");
+    const finalRelPath = `Nepras/${safeFolder}/${safeName}`;
+
+    // 0) على تطبيق الهاتف (Android / Capacitor): الحفظ المباشر عبر الجسر الأصلي هو الأكثر استقراراً وموثوقية
+    const mobileBackend = (typeof window !== "undefined" && (window.NeprasBackend || window.parent?.NeprasBackend));
+    if (mobileBackend && typeof mobileBackend.saveFile === "function") {
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => {
+            const res = String(r.result || "");
+            const idx = res.indexOf(",");
+            resolve(idx >= 0 ? res.slice(idx + 1) : res);
+          };
+          r.onerror = () => reject(r.error || new Error("FILE_READ_FAILED"));
+          r.readAsDataURL(blob);
+        });
+        await mobileBackend.saveFile({
+          filename: finalRelPath,
+          base64,
+          mime: blob.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+        showNeprasPopupNotice(successMsg || `تم حفظ ${safeName} بنجاح في مجلد التنزيلات.`, "success", "تم التنزيل");
+        return;
+      } catch (mobileErr) {
+        console.warn("[Nepras] mobile direct saveFile error, falling back:", mobileErr);
+      }
+    }
+
+    // 1) في نافذة الامتداد المباشرة (popup)، تتوفر chrome.downloads برابط blob محلي
+    // وهو المسار الأكثر أماناً وموثوقية الذي يضمن حفظ الملف باسمه العربي الصريح ومجلده المخصص
+    if (typeof chrome !== "undefined" && chrome.downloads?.download) {
+      try {
+        const url = URL.createObjectURL(blob);
+        chrome.downloads.download({
+          url,
+          filename: finalRelPath,
+          saveAs: false
+        }, (downloadId) => {
+          const err = chrome.runtime.lastError;
+          setTimeout(() => { try { URL.revokeObjectURL(url); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); } }, 30000);
+          if (err || !downloadId) {
+            console.warn("[Nepras] popup chrome.downloads failed, trying background:", err);
+            fallbackToBackground();
+          } else {
+            if (window.neprasDialog?.registerGeneratedFile) {
+              window.neprasDialog.registerGeneratedFile(finalRelPath, { isTemplate: true, canOpen: true });
+            }
+            showNeprasPopupNotice(successMsg || `تم تنزيل ${safeName} بنجاح في مجلد Nepras/${safeFolder}.`, "success", "تم التنزيل");
+          }
+        });
+        return;
+      } catch (e) {
+        console.warn("[Nepras] direct download exception:", e);
+      }
+    }
+
+    async function fallbackToBackground() {
+      if (window.neprasDialog?.triggerDownload) {
+        try {
+          await window.neprasDialog.triggerDownload(blob, safeName, {
+            folder: safeFolder,
+            isTemplate: true,
+            registerSuccess: false
+          });
+          showNeprasPopupNotice(successMsg || `تم تنزيل ${safeName} بنجاح.`, "success", "تم التنزيل");
+          return;
+        } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+      }
+      // مسار احتياطي أخير
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showNeprasPopupNotice(successMsg || `تم حفظ ${safeName} بنجاح.`, "success", "تم التنزيل");
+    }
+
+    fallbackToBackground();
+  }
+
+  async function neprasUnifiedDownloadXlsx(wb, rawName, folder, successMsg) {
+    if (wb instanceof Uint8Array || (wb && wb.buffer instanceof ArrayBuffer)) {
+      const blob = new Blob([wb], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      await neprasUnifiedDownload(blob, rawName, folder, successMsg);
+      return;
+    }
+    if (typeof XLSX === "undefined") return;
+
+    let wbout = null;
+    if (typeof window !== "undefined" && typeof window.neprasXlsxConvertWorkbookToStyledPackage === "function") {
+      try {
+        wbout = window.neprasXlsxConvertWorkbookToStyledPackage(wb);
+      } catch (styleErr) {
+        console.warn("[Nepras] تعذر تطبيق التنسيق الملكي للأوفيس، جاري استخدام التصدير القياسي:", styleErr);
+      }
+    }
+    if (!wbout) {
+      wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    }
+
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    await neprasUnifiedDownload(blob, rawName, folder, successMsg);
+  }
+
+  window.neprasUnifiedDownload = neprasUnifiedDownload;
+  window.neprasUnifiedDownloadXlsx = neprasUnifiedDownloadXlsx;
 
   // شارة الاتصال في الهيدر: نقطة + نص (الحالة تُعرض بالنص وباللون معًا)
   function setSiteLabel(text) {
@@ -1594,34 +1731,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     const tabs = await chrome.tabs.query({});
     let tab = tabs.find(t =>
       t?.id != null &&
-      /^https:\/\/student\.emis\.gov\.eg\/student\/list(?:[/?#]|$)/i.test(String(t.url || ""))
+      /^https:\/\/student\.emis\.gov\.eg(?:\/|$)/i.test(String(t.url || "")) &&
+      !/\/login(?:[\/?#]|$)/i.test(String(t.url || ""))
     );
 
-    if (!tab?.id) {
+    const isMobile = typeof window !== "undefined" && (window.NeprasBackend || window.parent?.NeprasBackend);
+
+    if (!tab?.id && !isMobile) {
       tab = await chrome.tabs.create({
-        url:"https://student.emis.gov.eg/student/list",
-        active:false
+        url: "https://student.emis.gov.eg/student/list",
+        active: false
       });
+
+      const started = Date.now();
+      while (Date.now() - started < 16000) {
+        try {
+          tab = await chrome.tabs.get(tab.id);
+          if (tab?.status === "complete") break;
+        } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+        await new Promise(r => setTimeout(r, 300));
+      }
+    } else if (isMobile && !tab?.id) {
+      tab = tabs[0];
     }
 
-    const started = Date.now();
-    while (Date.now() - started < 16000) {
-      try {
-        tab = await chrome.tabs.get(tab.id);
-        if (tab?.status === "complete") break;
-      } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
-      await new Promise(r => setTimeout(r,300));
-    }
-
-    if (/\/login(?:[/?#]|$)/i.test(String(tab?.url || ""))) {
+    if (/\/login(?:[\/?#]|$)/i.test(String(tab?.url || ""))) {
       throw new Error("سجّل الدخول إلى بوابة بيانات التلميذ أولًا، ثم أعد المحاولة.");
     }
 
-    try {
-      await chrome.tabs.sendMessage(tab.id,{action:"PRIME_STUDENT_API_SESSION"});
-    } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+    if (tab?.id) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, { action: "PRIME_STUDENT_API_SESSION" });
+      } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+    }
 
-    await new Promise(r => setTimeout(r,1200));
+    await new Promise(r => setTimeout(r, 800));
   }
 
   function neprasRenderNationwideStudent(d) {
@@ -2774,6 +2918,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnRecordsMerge = document.getElementById("btn-records-merge");
   const btnRecordsEnrollment = document.getElementById("btn-records-enrollment");
   const btnRecordsManazel = document.getElementById("btn-records-manazel");
+  const btnRecordsWorkers = document.getElementById("btn-records-workers");
   const btnRecordsDownloadAnyTable = document.getElementById("btn-records-download-any-table");
   const btnRecordsNidCheck = document.getElementById("btn-records-nid-check");
   const inputRecordsNid = document.getElementById("input-records-nid");
@@ -2838,6 +2983,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRecordsManazel?.addEventListener("click", () => {
     window.withButtonBusy ? window.withButtonBusy(btnRecordsManazel, () => runRecordsAction("NEPRAS_RECORDS_MANAZEL")) : runRecordsAction("NEPRAS_RECORDS_MANAZEL");
+  });
+
+  btnRecordsWorkers?.addEventListener("click", () => {
+    window.withButtonBusy ? window.withButtonBusy(btnRecordsWorkers, () => runRecordsAction("NEPRAS_RECORDS_WORKERS")) : runRecordsAction("NEPRAS_RECORDS_WORKERS");
   });
 
   // ===== التنقل الذكي داخل موقع الوزارة (Angular SPA) بدون إعادة تحميل أو طلب تسجيل دخول من جديد =====
@@ -3751,94 +3900,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   function neprasInitEnhancedTools() {
-    async function neprasUnifiedDownload(blob, rawName, folder, successMsg) {
-      const safeFolder = String(folder || "قوالب_نبراس").trim().replace(/[\\/:*?"<>|]+/g, "_");
-      const safeName = String(rawName || "نموذج_نبراس.xlsx").trim().replace(/[\\/:*?"<>|]+/g, "_");
-      const finalRelPath = `Nepras/${safeFolder}/${safeName}`;
-
-      // 1) في نافذة الامتداد المباشرة (popup)، تتوفر chrome.downloads برابط blob محلي
-      // وهو المسار الأكثر أماناً وموثوقية الذي يضمن حفظ الملف باسمه العربي الصريح ومجلده المخصص
-      if (typeof chrome !== "undefined" && chrome.downloads?.download) {
-        try {
-          const url = URL.createObjectURL(blob);
-          chrome.downloads.download({
-            url,
-            filename: finalRelPath,
-            saveAs: false
-          }, (downloadId) => {
-            const err = chrome.runtime.lastError;
-            setTimeout(() => { try { URL.revokeObjectURL(url); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); } }, 30000);
-            if (err || !downloadId) {
-              console.warn("[Nepras] popup chrome.downloads failed, trying background:", err);
-              fallbackToBackground();
-            } else {
-              if (window.neprasDialog?.registerGeneratedFile) {
-                window.neprasDialog.registerGeneratedFile(finalRelPath, { isTemplate: true, canOpen: true });
-              }
-              showNeprasPopupNotice(successMsg || `تم تنزيل ${safeName} بنجاح في مجلد Nepras/${safeFolder}.`, "success", "تم التنزيل");
-            }
-          });
-          return;
-        } catch (e) {
-          console.warn("[Nepras] direct download exception:", e);
-        }
-      }
-
-      async function fallbackToBackground() {
-        if (window.neprasDialog?.triggerDownload) {
-          try {
-            await window.neprasDialog.triggerDownload(blob, safeName, {
-              folder: safeFolder,
-              isTemplate: true,
-              registerSuccess: false
-            });
-            showNeprasPopupNotice(successMsg || `تم تنزيل ${safeName} بنجاح.`, "success", "تم التنزيل");
-            return;
-          } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
-        }
-        // مسار احتياطي أخير
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = safeName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
-        showNeprasPopupNotice(successMsg || `تم حفظ ${safeName} بنجاح.`, "success", "تم التنزيل");
-      }
-
-      fallbackToBackground();
-    }
-
-    async function neprasUnifiedDownloadXlsx(wb, rawName, folder, successMsg) {
-      if (wb instanceof Uint8Array || (wb && wb.buffer instanceof ArrayBuffer)) {
-        const blob = new Blob([wb], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        });
-        await neprasUnifiedDownload(blob, rawName, folder, successMsg);
-        return;
-      }
-      if (typeof XLSX === "undefined") return;
-
-      let wbout = null;
-      if (typeof window !== "undefined" && typeof window.neprasXlsxConvertWorkbookToStyledPackage === "function") {
-        try {
-          wbout = window.neprasXlsxConvertWorkbookToStyledPackage(wb);
-        } catch (styleErr) {
-          console.warn("[Nepras] تعذر تطبيق التنسيق الملكي للأوفيس، جاري استخدام التصدير القياسي:", styleErr);
-        }
-      }
-      if (!wbout) {
-        wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      }
-
-      const blob = new Blob([wbout], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      });
-      await neprasUnifiedDownload(blob, rawName, folder, successMsg);
-    }
-
     // تفعيل النسخ والتحديد
     const btnCopyEnabler = document.getElementById("btn-copy-enabler");
     if (btnCopyEnabler) {
@@ -4038,6 +4099,44 @@ document.addEventListener("DOMContentLoaded", async () => {
       return await getOrLoadStudents();
     }
 
+    let currentSchoolLogo = null;
+
+    function updateSchoolLogoPreviewUI(logoUrl) {
+      const previewImg = document.getElementById("sc-meta-logo-preview");
+      const statusText = document.getElementById("sc-meta-logo-status");
+      const btnRemove = document.getElementById("btn-sc-meta-logo-remove");
+      const warningsBadgeImg = document.getElementById("warnings-school-logo-badge");
+      const warningsStatusText = document.getElementById("warnings-school-logo-status");
+      const warningsSchoolNameBadge = document.getElementById("warnings-school-name-badge");
+      const schoolNameInput = document.getElementById("sc-meta-school");
+
+      const defaultMinistryLogo = globalThis.NeprasReportHeader?.LOGO_B64 || "assets/logo.png";
+      const activeLogo = (logoUrl && typeof logoUrl === "string" && logoUrl.trim()) ? logoUrl.trim() : null;
+      currentSchoolLogo = activeLogo;
+
+      if (previewImg) {
+        previewImg.src = activeLogo || defaultMinistryLogo;
+      }
+      if (statusText) {
+        statusText.textContent = activeLogo ? "شعار مخصص للمدرسة (معتمد للطباعة)" : "الافتراضي: شعار وزارة التربية والتعليم الرسمي";
+        statusText.style.color = activeLogo ? "#0f766e" : "#64748b";
+        statusText.style.fontWeight = activeLogo ? "700" : "normal";
+      }
+      if (btnRemove) {
+        btnRemove.hidden = !activeLogo;
+      }
+      if (warningsBadgeImg) {
+        warningsBadgeImg.src = activeLogo || defaultMinistryLogo;
+      }
+      if (warningsStatusText) {
+        warningsStatusText.textContent = activeLogo ? "شعار مخصص معتمد" : "شعار الوزارة الافتراضي";
+        warningsStatusText.style.color = activeLogo ? "#0f766e" : "#64748b";
+      }
+      if (warningsSchoolNameBadge) {
+        warningsSchoolNameBadge.textContent = schoolNameInput?.value?.trim() || "المدرسة الحالية";
+      }
+    }
+
     function getStatsCenterMeta() {
       const year = document.getElementById("sc-meta-year")?.value?.trim() || (globalThis.NeprasEgypt?.academicYearLabel?.() || "2026 / 2027").replace(" / ", "-");
       const school = document.getElementById("sc-meta-school")?.value?.trim() || "المدرسة";
@@ -4050,7 +4149,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const stage = stageSelect?.value || "";
 
       try {
-        const metaObj = { year, schoolName: school, directorate: dir, administration: admin, affairs, principal, stage };
+        const metaObj = { year, schoolName: school, directorate: dir, administration: admin, affairs, principal, stage, logo: currentSchoolLogo || null };
         chrome.storage.local.set({
           nepras_report_header_meta: metaObj
         });
@@ -4059,7 +4158,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
 
-      return { year, school, dir, admin, affairs, principal, safeName, stage };
+      return { year, school, dir, admin, affairs, principal, safeName, stage, logo: currentSchoolLogo || null };
     }
 
     async function initStatsCenterMeta() {
@@ -4082,9 +4181,77 @@ document.addEventListener("DOMContentLoaded", async () => {
         setField("sc-meta-admin", meta.administration || "");
         setField("sc-meta-affairs", meta.affairs || "");
         setField("sc-meta-principal", meta.principal || "");
+        currentSchoolLogo = meta.logo || meta.schoolLogo || null;
+        updateSchoolLogoPreviewUI(currentSchoolLogo);
       } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
     }
     initStatsCenterMeta();
+
+    const scMetaLogoInput = document.getElementById("sc-meta-logo-input");
+    const btnScMetaLogoRemove = document.getElementById("btn-sc-meta-logo-remove");
+    const scMetaSchoolInput = document.getElementById("sc-meta-school");
+
+    if (scMetaSchoolInput) {
+      scMetaSchoolInput.addEventListener("input", () => {
+        const warningsSchoolNameBadge = document.getElementById("warnings-school-name-badge");
+        if (warningsSchoolNameBadge) {
+          warningsSchoolNameBadge.textContent = scMetaSchoolInput.value.trim() || "المدرسة الحالية";
+        }
+      });
+    }
+
+    if (scMetaLogoInput) {
+      scMetaLogoInput.addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type || !file.type.startsWith("image/")) {
+          showNeprasPopupNotice("يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, SVG).", "warning", "شعار المدرسة");
+          return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          showNeprasPopupNotice("حجم ملف الشعار يتجاوز 2 ميجابايت. يُفضل اختيار ملف أصغر حجماً لتفادي بطء تجهيز مستندات الطباعة.", "warning", "شعار المدرسة");
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          currentSchoolLogo = dataUrl;
+          updateSchoolLogoPreviewUI(currentSchoolLogo);
+          getStatsCenterMeta();
+          showNeprasPopupNotice("تم حفظ واعتماد شعار المدرسة الرسمي بنجاح في كافة الإنذارات والمطبوعات.", "success", "شعار المدرسة");
+        };
+        reader.onerror = () => {
+          showNeprasPopupNotice("تعذر قراءة ملف الصورة المحدد. يرجى تجربة ملف آخر.", "error", "شعار المدرسة");
+        };
+        reader.readAsDataURL(file);
+        e.target.value = "";
+      });
+    }
+
+    if (btnScMetaLogoRemove) {
+      btnScMetaLogoRemove.addEventListener("click", () => {
+        currentSchoolLogo = null;
+        updateSchoolLogoPreviewUI(null);
+        getStatsCenterMeta();
+        showNeprasPopupNotice("تمت إزالة الشعار المخصص واستعادة شعار الوزارة الرسمي بنجاح.", "info", "شعار المدرسة");
+      });
+    }
+
+    const btnWarningsQuickHeaderSettings = document.getElementById("btn-warnings-quick-header-settings");
+    if (btnWarningsQuickHeaderSettings) {
+      btnWarningsQuickHeaderSettings.addEventListener("click", () => {
+        const tabReports = document.getElementById("tab-reports");
+        if (tabReports) tabReports.click();
+
+        const metaDetails = document.querySelector(".stats-center-meta-details");
+        if (metaDetails) {
+          metaDetails.open = true;
+          metaDetails.scrollIntoView({ behavior: "smooth", block: "center" });
+          metaDetails.style.transition = "outline 0.3s ease";
+          metaDetails.style.outline = "2px solid #0f766e";
+          setTimeout(() => { metaDetails.style.outline = ""; }, 2500);
+        }
+      });
+    }
 
     // ==========================================================
     // Multi-School Profile Manager & Switcher UI
@@ -4210,6 +4377,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         setMetaField("sc-meta-admin", meta?.administration || meta?.admin || "");
         setMetaField("sc-meta-affairs", meta?.affairs || "");
         setMetaField("sc-meta-principal", meta?.principal || "");
+        currentSchoolLogo = meta?.logo || meta?.schoolLogo || null;
+        updateSchoolLogoPreviewUI(currentSchoolLogo);
 
         if (data && data.stats) {
           renderSchoolStats(data.stats);
@@ -4239,6 +4408,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         setMetaField("sc-meta-admin", "");
         setMetaField("sc-meta-affairs", "");
         setMetaField("sc-meta-principal", "");
+        currentSchoolLogo = null;
+        updateSchoolLogoPreviewUI(null);
       }
 
       await updateStatsCenterStatus();
@@ -5063,6 +5234,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (warningsCountSecond) warningsCountSecond.textContent = summary.second;
       if (warningsCountFinal) warningsCountFinal.textContent = summary.final;
 
+      const schoolNameInput = document.getElementById("sc-meta-school");
+      const warningsSchoolNameBadge = document.getElementById("warnings-school-name-badge");
+      if (warningsSchoolNameBadge) {
+        warningsSchoolNameBadge.textContent = schoolNameInput?.value?.trim() || "المدرسة الحالية";
+      }
+
       if (warningsStatusNote) {
         if (summary.total === 0) {
           warningsStatusNote.innerHTML = '<span style="color:#d97706;font-weight:700;">●</span> لا توجد بيانات طلاب محفوظة حاليًا للمدرسة. حدّث بيانات المدرسة أولاً.';
@@ -5456,10 +5633,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           administration: meta?.administration || meta?.edara || "....................",
           edara: meta?.administration || meta?.edara || "....................",
           academicYear: meta?.academicYear || ((globalThis.NeprasEgypt?.academicYearLabel?.() || "2026 / 2027") + " م"),
-          logo: meta?.logo || meta?.schoolLogo || null
+          logo: currentSchoolLogo || meta?.logo || meta?.schoolLogo || null
         };
       } catch (_) {
-        return { schoolName: "....................", governorate: "....................", administration: "...................." };
+        return { schoolName: "....................", governorate: "....................", administration: "....................", logo: currentSchoolLogo || null };
       }
     }
 
@@ -5921,6 +6098,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const quickEditsTypeSelect = document.getElementById("quick-edits-type-select");
     const quickEditsValueSelect = document.getElementById("quick-edits-value-select");
     const quickEditsValueWrap = document.getElementById("quick-edits-value-wrap");
+    const quickEditsValueLabel = document.getElementById("quick-edits-value-label");
+    const quickEditsSpecWrap = document.getElementById("quick-edits-spec-wrap");
+    const quickEditsSectionSelect = document.getElementById("quick-edits-section-select");
+    const quickEditsMajorSelect = document.getElementById("quick-edits-major-select");
     const quickEditsFileInput = document.getElementById("quick-edits-file-input");
     const quickEditsFileName = document.getElementById("quick-edits-file-name");
     const quickEditsSummary = document.getElementById("quick-edits-summary");
@@ -5960,7 +6141,24 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function updateQuickEditsMode() {
       const isDirect = quickEditsModeDirect?.checked;
-      if (quickEditsValueWrap) quickEditsValueWrap.style.display = isDirect ? "block" : "none";
+      const editTypeVal = quickEditsTypeSelect?.value || "1";
+
+      if (isDirect) {
+        if (editTypeVal === "2") {
+          if (quickEditsValueWrap) quickEditsValueWrap.style.display = "none";
+          if (quickEditsSpecWrap) quickEditsSpecWrap.style.display = "grid";
+        } else {
+          if (quickEditsValueWrap) quickEditsValueWrap.style.display = "block";
+          if (quickEditsSpecWrap) quickEditsSpecWrap.style.display = "none";
+          if (quickEditsValueLabel) {
+            quickEditsValueLabel.textContent = editTypeVal === "0" ? "اللغة الأولى المراد تطبيقها" : "اللغة الثانية المراد تطبيقها";
+          }
+        }
+      } else {
+        if (quickEditsValueWrap) quickEditsValueWrap.style.display = "none";
+        if (quickEditsSpecWrap) quickEditsSpecWrap.style.display = "none";
+      }
+
       if (quickEditsExcelWrap) quickEditsExcelWrap.style.display = isDirect ? "none" : "block";
       if (btnQuickEditsTemplate) btnQuickEditsTemplate.hidden = isDirect;
 
@@ -5982,6 +6180,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     quickEditsModeDirect?.addEventListener("change", updateQuickEditsMode);
     quickEditsModeExcel?.addEventListener("change", updateQuickEditsMode);
+    quickEditsTypeSelect?.addEventListener("change", updateQuickEditsMode);
+
+    quickEditsSectionSelect?.addEventListener("change", () => {
+      if (!quickEditsMajorSelect) return;
+      const sec = quickEditsSectionSelect.value;
+      if (sec === "203") {
+        quickEditsMajorSelect.innerHTML = `
+          <option value="auto">تلقائي (حسب الشعبة بموقع الوزارة)</option>
+          <option value="676" selected>مسار الطب وعلوم الحياة (676)</option>
+        `;
+      } else {
+        quickEditsMajorSelect.innerHTML = `
+          <option value="auto" selected>تلقائي (حسب الشعبة بموقع الوزارة)</option>
+        `;
+      }
+    });
+
     updateQuickEditsMode();
 
     if (quickEditsScopeGrade && quickEditsScopeClass && quickEditsClassWrap) {
@@ -6047,9 +6262,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         const classVal = isClassScope ? (quickEditsClassSelect?.value || "1") : "";
         const editTypeVal = quickEditsTypeSelect?.value || "1";
         const editValueVal = quickEditsValueSelect?.value || "2";
+        const sectionVal = quickEditsSectionSelect?.value || "2";
+        const majorVal = quickEditsMajorSelect?.value || "auto";
 
-        const typeLabel = editTypeVal === "0" ? "اللغة الأولى" : (editTypeVal === "1" ? "اللغة الثانية" : "التخصص");
-        const valText = quickEditsValueSelect?.options[quickEditsValueSelect.selectedIndex]?.text || "";
+        let typeLabel = "اللغة الثانية";
+        let valText = "";
+        if (editTypeVal === "0") {
+          typeLabel = "اللغة الأولى";
+          valText = quickEditsValueSelect?.options[quickEditsValueSelect.selectedIndex]?.text || editValueVal;
+        } else if (editTypeVal === "2") {
+          typeLabel = "الشعبة والتخصص";
+          const secText = quickEditsSectionSelect?.options[quickEditsSectionSelect.selectedIndex]?.text || sectionVal;
+          const majText = majorVal !== "auto" ? ` — ${quickEditsMajorSelect?.options[quickEditsMajorSelect.selectedIndex]?.text || majorVal}` : "";
+          valText = secText + majText;
+        } else {
+          typeLabel = "اللغة الثانية";
+          valText = quickEditsValueSelect?.options[quickEditsValueSelect.selectedIndex]?.text || editValueVal;
+        }
 
         const confirmMsg = isDirect
           ? `هل ترغب في تطبيق (${typeLabel}: ${valText}) لطلاب ${isClassScope ? `فصل ${classVal}` : "الصف بالكامل"} آلياً وحفظ التعديلات بموقع الوزارة؟`
@@ -6081,7 +6310,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             grade: gradeVal,
             classNo: classVal,
             directEditType: editTypeVal,
-            directValue: editValueVal
+            directValue: editTypeVal === "2" ? sectionVal : editValueVal,
+            directSection: sectionVal,
+            directMajor: majorVal
           }
         }, "تعذر إرسال أمر التعديلات");
 
@@ -7068,6 +7299,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   neprasInitEnhancedTools();
+
+  // 🚀 تفعيل وحدات التحكم المعمارية الحديثة (Modern Modular Controllers)
+  try {
+    globalThis.NeprasCardsController?.init?.({ showNotice: showNeprasPopupNotice, getSchoolMeta: getStatsCenterMeta });
+    globalThis.NeprasAttendanceController?.init?.({ showNotice: showNeprasPopupNotice, getSchoolMeta: getStatsCenterMeta });
+    globalThis.NeprasStatsController?.init?.({
+      showNotice: showNeprasPopupNotice,
+      getSchoolMeta: getStatsCenterMeta,
+      getCachedStudents: () => window.neprasCachedStudentsList || []
+    });
+  } catch (err) {
+    if (globalThis.NeprasLogger) NeprasLogger.warn("POPUP_INIT", "controllers_init", err);
+  }
   awaitSafe(window.updateAbsenceWarningsUI?.());
 
   function awaitSafe(promise) {

@@ -907,3 +907,69 @@ function neprasXlsxConvertWorkbookToStyledPackage(wb) {
 
 globalThis.neprasBuildMultiSheetWorkbook = neprasBuildMultiSheetWorkbook;
 globalThis.neprasXlsxConvertWorkbookToStyledPackage = neprasXlsxConvertWorkbookToStyledPackage;
+
+/**
+ * بناء وتوليد ملف الإكسيل في مسار خلفي Web Worker لمنع تجمد الواجهة
+ * @param {Array} sheets مصفوفة أوراق العمل
+ * @param {Object} options خيارات إضافية
+ * @returns {Promise<Uint8Array>}
+ */
+function neprasBuildWorkbookAsync(sheets, options = {}) {
+  return new Promise((resolve, reject) => {
+    let worker = null;
+    try {
+      if (typeof Worker !== "undefined" && typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+        worker = new Worker(chrome.runtime.getURL("workers/xlsx_worker.js"));
+      } else if (typeof Worker !== "undefined") {
+        worker = new Worker("workers/xlsx_worker.js");
+      }
+    } catch (_) {
+      worker = null;
+    }
+
+    if (!worker) {
+      // Fallback مباشر تزامني إذا لم يكن الـ Worker متاحاً
+      try {
+        if (typeof XLSX !== "undefined") {
+          const wb = XLSX.utils.book_new();
+          for (const s of (sheets || [])) {
+            const ws = s.headers ? XLSX.utils.aoa_to_sheet([s.headers, ...(s.rows || [])]) : XLSX.utils.json_to_sheet(s.rows || []);
+            if (s.rtl !== false) ws["!views"] = [{ RTL: true }];
+            XLSX.utils.book_append_sheet(wb, ws, String(s.name || "Sheet").slice(0, 31));
+          }
+          const out = XLSX.write(wb, { bookType: options.bookType || "xlsx", type: "array", compression: true });
+          return resolve(new Uint8Array(out));
+        }
+        throw new Error("لا يمكن بناء ملف الإكسيل: لا يوجد Worker ولا SheetJS.");
+      } catch (e) {
+        return reject(e);
+      }
+    }
+
+    const reqId = "req_" + Math.random().toString(36).slice(2);
+    const timeout = setTimeout(() => {
+      try { worker.terminate(); } catch (_) {}
+      reject(new Error("استغرق بناء ملف الإكسيل وقتاً أطول من المتوقع (Timeout)."));
+    }, 45000);
+
+    worker.onmessage = (e) => {
+      clearTimeout(timeout);
+      try { worker.terminate(); } catch (_) {}
+      if (e.data && e.data.ok) {
+        resolve(new Uint8Array(e.data.buffer));
+      } else {
+        reject(new Error(e.data?.error || "خطأ غير معروف في بناء الإكسيل."));
+      }
+    };
+
+    worker.onerror = (err) => {
+      clearTimeout(timeout);
+      try { worker.terminate(); } catch (_) {}
+      reject(new Error(err?.message || "فشل تشغيل عامل بناء الإكسيل."));
+    };
+
+    worker.postMessage({ id: reqId, action: "BUILD_WORKBOOK", sheets, options });
+  });
+}
+
+globalThis.neprasBuildWorkbookAsync = neprasBuildWorkbookAsync;

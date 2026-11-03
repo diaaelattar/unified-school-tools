@@ -232,6 +232,7 @@
 <div class="action-grid two-actions">
 <button class="n-btn n-btn--secondary n-btn--block" id="btn-records-enrollment" type="button" title="سجل القيد الشامل لجميع طلاب المدرسة"><i data-icon="folder"></i><span class="n-btn__label">سجل القيد الشامل</span></button>
 <button class="n-btn n-btn--secondary n-btn--block" id="btn-records-manazel" type="button" title="حصر وتصدير كشوف طلاب المنازل بشكل منفصل"><i data-icon="users"></i><span class="n-btn__label">كشوف طلاب المنازل</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-records-workers" type="button" title="حصر وتصدير كشوف طلاب العمال بالتعليم الفني"><i data-icon="briefcase"></i><span class="n-btn__label">كشوف طلاب العمال (فني)</span></button>
 </div>
 </div>
 </section>
@@ -392,11 +393,11 @@
     <select class="n-input" id="quick-edits-type-select">
       <option value="1" selected>اللغة الثانية</option>
       <option value="0">اللغة الأولى</option>
-      <option value="2">التخصص / الشعبة</option>
+      <option value="2">التخصص / الشعبة (للثانوي)</option>
     </select>
   </div>
   <div class="field-block" id="quick-edits-value-wrap">
-    <label for="quick-edits-value-select">اللغة / التخصص المراد تطبيقه</label>
+    <label for="quick-edits-value-select" id="quick-edits-value-label">اللغة الثانية المراد تطبيقها</label>
     <select class="n-input" id="quick-edits-value-select">
       <option value="2" selected>لغة فرنسية</option>
       <option value="3">لغة المانية</option>
@@ -407,6 +408,27 @@
       <option value="6">لغة صينية</option>
       <option value="8">لغة روسية</option>
       <option value="9">لغة يابانية</option>
+    </select>
+  </div>
+</div>
+<!-- خيارات الشعبة والتخصص للثانوي عند اختيار التخصص -->
+<div class="panel-grid two-col" id="quick-edits-spec-wrap" style="margin-bottom:8px;display:none;">
+  <div class="field-block">
+    <label for="quick-edits-section-select">الشعبة <span style="color:#dc2626;">*</span></label>
+    <select class="n-input" id="quick-edits-section-select">
+      <option value="2">ادبي</option>
+      <option value="3">علمي</option>
+      <option value="203" selected>بكالوريا مسار الطب وعلوم الحياة</option>
+      <option value="204">بكالوريا مسار الهندسة وعلوم الحاسب</option>
+      <option value="205">بكالوريا مسار الاعمال</option>
+      <option value="206">بكالوريا مسار الادب والفنون</option>
+    </select>
+  </div>
+  <div class="field-block">
+    <label for="quick-edits-major-select">التخصص / المسار</label>
+    <select class="n-input" id="quick-edits-major-select">
+      <option value="auto" selected>تلقائي (حسب الشعبة بموقع الوزارة)</option>
+      <option value="676">مسار الطب وعلوم الحياة (676)</option>
     </select>
   </div>
 </div>
@@ -645,6 +667,28 @@
       <div><label style="font-size:10px;color:#64748b;">الإدارة:</label><input type="text" id="sc-meta-admin" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="الإدارة التعليمية"></div>
       <div><label style="font-size:10px;color:#64748b;">مسئول شئون الطلاب:</label><input type="text" id="sc-meta-affairs" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="مثال: أ/ محمد"></div>
       <div><label style="font-size:10px;color:#64748b;">مدير المدرسة:</label><input type="text" id="sc-meta-principal" class="n-input" style="width:100%;padding:4px 8px;font-size:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;" placeholder="مثال: أ/ أحمد"></div>
+
+      <!-- تخصيص شعار لوجو المدرسة المعتمد للترويسة وكافة الإنذارات والمطبوعات -->
+      <div style="grid-column:1 / -1;background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:40px;height:40px;border:1px dashed #94a3b8;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#f8fafc;overflow:hidden;flex-shrink:0;">
+            <img id="sc-meta-logo-preview" src="assets/logo.png" alt="شعار المدرسة" style="max-width:100%;max-height:100%;object-fit:contain;">
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#1e293b;">شعار المدرسة للإنذارات والترويسة الرسمية</div>
+            <div style="font-size:10px;color:#64748b;" id="sc-meta-logo-status">الافتراضي: شعار وزارة التربية والتعليم الرسمي</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <label class="n-btn n-btn--secondary n-btn--sm" style="cursor:pointer;margin:0;padding:4px 8px;font-size:11px;font-weight:700;" title="اختيار صورة شعار مخصص للمدرسة (PNG, JPG, WebP, SVG)">
+            <i data-icon="upload"></i> رفع شعار
+            <input type="file" id="sc-meta-logo-input" accept="image/png, image/jpeg, image/webp, image/svg+xml" style="display:none;">
+          </label>
+          <button class="n-btn n-btn--ghost n-btn--sm" type="button" id="btn-sc-meta-logo-remove" style="padding:4px 8px;font-size:11px;color:#ef4444;" title="الرجوع لشعار الوزارة الافتراضي" hidden>
+            <i data-icon="trash"></i> إزالة
+          </button>
+        </div>
+      </div>
     </div>
   </details>
 
@@ -920,6 +964,22 @@
 <header class="n-section__head"><span class="n-section__icon"><i data-icon="file-text"></i></span><div class="n-section__copy"><h2 id="sec-absence-warnings-title">إنذارات الغياب الرسمية</h2><p>تجهيز وطباعة إخطارات الغياب الرسمية للطلاب مع بطاقة التعهد والاستلام</p></div></header>
 <div class="n-section__body" id="section-body-absence-warnings">
 
+  <!-- شريط ترويسة المدرسة وشعار الإنذارات المعتمد -->
+  <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border:1px solid #e2e8f0;padding:6px 10px;border-radius:8px;margin-bottom:8px;font-size:11px;">
+    <div style="display:flex;align-items:center;gap:8px;overflow:hidden;flex:1;">
+      <div style="width:28px;height:28px;border:1px solid #cbd5e1;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden;flex-shrink:0;">
+        <img id="warnings-school-logo-badge" src="assets/logo.png" alt="شعار المدرسة" style="max-width:100%;max-height:100%;object-fit:contain;">
+      </div>
+      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        <span style="font-weight:700;color:#1e293b;" id="warnings-school-name-badge">المدرسة الحالية</span>
+        <span style="color:#64748b;font-size:10px;display:block;" id="warnings-school-logo-status">الافتراضي: شعار الوزارة الرسمي</span>
+      </div>
+    </div>
+    <button class="n-btn n-btn--ghost n-btn--sm" id="btn-warnings-quick-header-settings" type="button" style="padding:3px 8px;font-size:11px;color:#0f766e;white-space:nowrap;font-weight:600;" title="تعديل ترويسة وشعار المدرسة للإنذارات والمطبوعات">
+      ⚙️ ضبط الشعار والترويسة
+    </button>
+  </div>
+
   <!-- شريط ملخص إحصاء الغياب والمستحقين -->
   <div id="warnings-stat-bar" class="mini-note" style="margin-bottom:8px;background:#f8fafc;border:1px solid #e2e8f0;padding:8px 10px;border-radius:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -1074,6 +1134,7 @@
 </div>
 <div class="settings-actions" style="margin-bottom: 8px;">
 <button class="n-btn n-btn--secondary n-btn--block" id="btn-settings-keep-open" type="button"><i data-icon="check"></i><span class="n-btn__label" id="lbl-settings-keep-open">حالة إبقاء الأداة نشطة: مفعلة</span></button>
+<button class="n-btn n-btn--secondary n-btn--block" id="btn-export-diagnostics" type="button" style="background:#f1f5f9;color:#0f172a;font-weight:700;margin-top:6px;" title="تصدير ملف تشخيصي شامل لمساعدة الدعم الفني"><i data-icon="file"></i><span class="n-btn__label">📥 تصدير تقرير التشخيص (diagnostics.log)</span></button>
 </div>
 <div class="settings-actions">
 <a class="n-btn n-btn--secondary n-btn--block" href="https://wa.me/201118209309" rel="noopener noreferrer" target="_blank"><i data-icon="whatsapp"></i><span class="n-btn__label">مراسلة الدعم على واتساب</span></a>
@@ -1120,6 +1181,7 @@
 <script src="ui/brand.js"></script>
 <script src="ui/escape.js"></script>
 <script src="ui/charts.js"></script>
+<script src="modules/nepras_logger.js"></script>
 <script src="modules/egypt_ids.js"></script>
 <script src="modules/school_manager.js"></script>
 <script src="modules/local_database.js"></script>
@@ -1156,6 +1218,9 @@
 <script src="modules/staff_stats.js"></script>
 <script src="modules/quick_login.js"></script>
 <script src="modules/nepras_security_guard.js"></script>
+<script src="controllers/attendance_controller.js"></script>
+<script src="controllers/cards_controller.js"></script>
+<script src="controllers/stats_controller.js"></script>
 <script src="popup.js"></script>
 
 <section id="student-dossier-modal" class="school-stats-detail-modal" hidden>

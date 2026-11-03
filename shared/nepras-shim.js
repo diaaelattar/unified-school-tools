@@ -200,7 +200,19 @@
 
   // ---------------------------------------------------------------- downloads
   const downloads = {
-    download: dual((o) => rpc("downloads.download", [o])),
+    download: dual(async (o) => {
+      let finalObj = o;
+      if (o && o.url && String(o.url).startsWith("blob:")) {
+        try {
+          const res = await fetch(o.url);
+          const buf = new Uint8Array(await res.arrayBuffer());
+          let s = ""; const CH = 0x8000;
+          for (let i = 0; i < buf.length; i += CH) s += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
+          finalObj = Object.assign({}, o, { base64Data: btoa(s), mimeType: res.headers.get("content-type") || "application/octet-stream" });
+        } catch (_) {}
+      }
+      return rpc("downloads.download", [finalObj]);
+    }),
     search: dual((q) => rpc("downloads.search", [q || {}])),
     erase: dual((q) => rpc("downloads.erase", [q || {}])),
     removeFile: dual((id) => rpc("downloads.removeFile", [id])),
@@ -294,20 +306,33 @@
         window.fetch = async function (input, init = {}) {
           const urlStr = typeof input === "string" ? input : (input && input.url) || "";
           if (/^https:\/\/[a-z0-9-]+\.emis\.gov\.eg\//i.test(urlStr)) {
-            const headers = {};
-            const hIn = init.headers || (input && input.headers);
-            if (hIn) {
-              if (typeof hIn.forEach === "function") hIn.forEach((v, k) => { headers[k] = String(v); });
-              else if (Array.isArray(hIn)) hIn.forEach(([k, v]) => { headers[k] = String(v); });
-              else if (typeof hIn === "object") Object.keys(hIn).forEach((k) => { if (hIn[k] != null) headers[k] = String(hIn[k]); });
+            try {
+              const headers = {};
+              const hIn = init.headers || (input && input.headers);
+              if (hIn) {
+                if (typeof hIn.forEach === "function") hIn.forEach((v, k) => { headers[k] = String(v); });
+                else if (Array.isArray(hIn)) hIn.forEach(([k, v]) => { headers[k] = String(v); });
+                else if (typeof hIn === "object") Object.keys(hIn).forEach((k) => { if (hIn[k] != null) headers[k] = String(hIn[k]); });
+              }
+              const body = typeof init.body === "string" ? init.body : null;
+              const r = await hostBackend.fetchUrl({ url: urlStr, method: init.method || "GET", headers, body });
+              let respBody;
+              if (r && r.base64) {
+                const bin = atob(r.base64);
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                respBody = u8.buffer;
+              } else {
+                respBody = typeof r?.text === "string" ? r.text : "";
+              }
+              return new Response(respBody, {
+                status: (r && r.status) || 200,
+                headers: (r && r.headers) || {}
+              });
+            } catch (proxyErr) {
+              console.warn("[Nepras Shim] Proxy fetch error, falling back:", proxyErr);
+              return origFetch(input, init);
             }
-            const body = typeof init.body === "string" ? init.body : null;
-            const r = await hostBackend.fetchUrl({ url: urlStr, method: init.method || "GET", headers, body });
-            const respBody = typeof r.text === "string" ? r.text : (r.base64 ? atob(r.base64) : "");
-            return new Response(respBody, {
-              status: r.status || 200,
-              headers: r.headers || {}
-            });
           }
           return origFetch(input, init);
         };

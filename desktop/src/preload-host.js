@@ -1,14 +1,14 @@
 "use strict";
 const { contextBridge, ipcRenderer } = require("electron");
-const { pathToFileURL } = require("url");
-const path = require("path");
 
 function sub(channel, cb) { ipcRenderer.on(channel, (_e, ...a) => cb(...a)); }
 const cfg = ipcRenderer.sendSync("nep:config");
 
 contextBridge.exposeInMainWorld("nepDesktop", {
   partition: cfg.partition,
-  tabPreloadUrl: pathToFileURL(path.join(__dirname, "preload-tab.js")).href,
+  tabPreloadUrl: cfg.tabPreloadUrl,
+  writeLog: (entry) => ipcRenderer.invoke("nep:writeLog", entry),
+  getDiagnosticsLog: () => ipcRenderer.invoke("nep:getDiagnosticsLog"),
   loadState: () => ipcRenderer.invoke("nep:loadState"),
   saveState: (s) => ipcRenderer.invoke("nep:saveState", s),
   saveFile: (o) => ipcRenderer.invoke("nep:saveFile", o),

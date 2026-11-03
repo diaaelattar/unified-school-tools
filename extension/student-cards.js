@@ -3633,6 +3633,10 @@ async function loadFromNebras() {
         state.settings.school = schoolInfo.schoolName || schoolInfo.school;
         state.touched.school = true;
       }
+      if (schoolInfo?.logo && !state.settings.logo) {
+        state.settings.logo = schoolInfo.logo;
+        setLogo();
+      }
       syncSettingsUi();
       schedule();
       notice('ok', 'تم استيراد كشف طلاب ' + schoolName + ' (' + rows.length + ' طالب) بنجاح من نبراس برو.');

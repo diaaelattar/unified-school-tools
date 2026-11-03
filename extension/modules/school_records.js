@@ -232,7 +232,9 @@
     const raw = (r && r.__neprasApiRaw) || {};
     const nid = cleanDigits(r?.['الرقم القومي'] || r?.nationalId || r?.national_id || raw.nationalId);
     const parsedNid = parseNationalId(nid);
-    const isManazel = String(r?.['نوع التعليم'] || r?.studyType || r?.study_type || raw.studyTypeName || '').includes('منازل');
+    const studyTypeRaw = String(r?.['نوعية التعليم'] || r?.['نوع التعليم'] || r?.studyType || r?.study_type || raw.studyTypeName || '');
+    const isManazel = studyTypeRaw.includes('منازل') || studyTypeRaw.includes('منزل');
+    const isWorker = studyTypeRaw.includes('عمال') || studyTypeRaw.includes('عمل') || String(r?.['حالة القيد'] || r?.status || '').includes('عمال');
     const gradeName = cleanText(
       r?.['الصف'] ||
       r?.['الصف الدراسي'] ||
@@ -271,8 +273,9 @@
       gender: cleanText(r?.['النوع'] || r?.gender || (parsedNid ? parsedNid.gender : '')),
       religion: officialReligion(r),
       status: cleanText(r?.['حالة القيد'] || r?.status || raw.status || 'مقيد'),
-      study_type: cleanText(r?.['نوع التعليم'] || r?.studyType || r?.study_type || raw.studyTypeName || 'رسمي'),
+      study_type: cleanText(r?.['نوعية التعليم'] || r?.['نوع التعليم'] || r?.studyType || r?.study_type || raw.studyTypeName || 'رسمي'),
       is_manazel: isManazel,
+      is_worker: isWorker,
       phone: cleanDigits(raw.phone || raw.mobile || raw.guardianMobile || r?.phone || ''),
       dob: parsedNid ? parsedNid.birthDateFormatted : (raw.birthDate || r?.dob || ''),
       gov: parsedNid ? parsedNid.governorate : (raw.governorate || r?.gov || ''),
@@ -1764,10 +1767,37 @@
       const list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
       if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة.');
 
-      // التركيز على طلاب الصف الأول / KG1 أو جميع الطلاب المستجدين
-      const newcomers = list.filter(s => s.grade.includes('الأول') || s.grade.includes('اول') || /kg|رياض/i.test(s.grade) || s.status.includes('مستجد'));
+      // التدقيق الصارم لكشف 41 مستجدين: الصف الأول لكل مرحلة دراسية، وحالة القيد (ناجح ومنقول أو مستجد) فقط
+      function isStageFirstGrade(gradeText) {
+        const g = (globalThis.NeprasEgypt?.normalizeArabic ? globalThis.NeprasEgypt.normalizeArabic(gradeText) : String(gradeText || ''))
+          .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+          .replace(/[أإآ]/g, 'ا')
+          .replace(/ة/g, 'ه')
+          .replace(/ى/g, 'ي')
+          .trim();
+        // استبعاد الصفوف الثاني والثالث والرابع والخامس والسادس (مع الحذر من كلمة ثانوي أو ثانوية)
+        if (/الصف\s+(?:الثاني|الثانى|ثاني|ثانى|الثالث|ثالث|الرابع|رابع|الخامس|خامس|السادس|سادس)|kg2/i.test(g)) return false;
+        if (/(?:^|\s)(?:ثاني|ثانى|ثالث|رابع|خامس|سادس)(?:\s|$)/i.test(g)) return false;
+        // مطابقة الصف الأول أو KG1
+        return /(?:الصف\s+)?(?:الاول|اول|أول|الأول|kg1|المستوى\s+الاول|المستوى\s+الأول)/i.test(g);
+      }
+
+      function isNewcomerRegistrationStatus(statusText) {
+        const s = (globalThis.NeprasEgypt?.normalizeArabic ? globalThis.NeprasEgypt.normalizeArabic(statusText) : String(statusText || ''))
+          .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+          .replace(/[أإآ]/g, 'ا')
+          .replace(/ة/g, 'ه')
+          .replace(/ى/g, 'ي')
+          .trim();
+        // استبعاد حالات الرسوب والبقاء للإعادة والانقطاع صراحة
+        if (/باق|اعاده|إعادة|راسب|مفصول|منقطع/i.test(s)) return false;
+        // مطابقة مستجد أو ناجح ومنقول
+        return /مستجد|ناجح\s*و\s*منقول/i.test(s);
+      }
+
+      const newcomers = list.filter(s => isStageFirstGrade(s.grade) && isNewcomerRegistrationStatus(s.status));
       if (!newcomers.length) {
-        throw new Error(`لا يوجد في المدرسة طلاب مستجدون (الصف الأول أو حالة «مستجد») من بين ${list.length} طالبًا، فلم يُنشأ الكشف. راجع الصف والحالة في بيانات الطلاب.`);
+        throw new Error(`لا يوجد في المدرسة طلاب مستجدون مطابقون للشروط (الصف الأول وحالة القيد «ناجح ومنقول» أو «مستجد») من بين ${list.length} طالبًا، فلم يُنشأ الكشف. راجع الصف وحالة القيد في بيانات الطلاب.`);
       }
 
       const ctx = await loadSchoolContext(list);
@@ -2200,6 +2230,69 @@
     }
   }
 
+  // (8-ب) حصر وإدارة طلاب العمال (التعليم الفني) بشكل منفصل
+  async function runWorkersExport(passedStudents = null) {
+    setRunning('workers', 'جاري حصر وتصدير كشوف طلاب العمال (التعليم الفني)...');
+    try {
+      const list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
+      const workersList = list.filter(s => s.is_worker || s.study_type.includes('عمال') || s.study_type.includes('عمل') || s.status.includes('عمال'));
+
+      if (!workersList.length) {
+        reportStatus('⚠️ لا يوجد طلاب مقيدين بنظام العمال في هذه المدرسة.');
+        return { ok: true, count: 0, message: 'لا يوجد طلاب عمال' };
+      }
+
+      const ctx = await loadSchoolContext(list);
+      const headers = [
+        'م', 'كود الطالب', 'اسم الطالب رباعياً', 'الرقم القومي', 'تاريخ الميلاد',
+        'السن في 1 أكتوبر', 'النوع', 'الديانة', 'الصف الدراسي', 'حالة القيد', 'نوع التعليم', 'رقم الهاتف'
+      ];
+
+      const rows = workersList.map((st, idx) => {
+        const parsed = parseNationalId(st.national_id);
+        const age = parsed ? calculateAgeOnOct1(parsed.birthDate) : null;
+        return [
+          idx + 1,
+          st.code || '',
+          st.name,
+          st.national_id || '',
+          st.dob || (parsed ? parsed.birthDateFormatted : ''),
+          age ? age.text : '',
+          st.gender || (parsed ? parsed.gender : ''),
+          st.religion || '',
+          st.grade,
+          st.status || 'مقيد عمال',
+          st.study_type || 'نظام عمال',
+          st.phone || ''
+        ];
+      });
+
+      const sheetSpecs = [{
+        name: 'كشف طلاب العمال',
+        title: `كشف حصر طلاب العمال المعتمد (التعليم الفني) — ${ctx.school}`,
+        infoLines: reportInfoLines(ctx, `إجمالي طلاب العمال: ${workersList.length} طالباً`),
+        headers,
+        rows,
+        recordCount: workersList.length,
+        countLabel: 'إجمالي طلاب العمال',
+        printFit: true,
+        orientation: 'landscape',
+        repeatRows: '1:4',
+        numericCols: [0],
+        footerSigners: ['مسئول شؤون الطلاب', 'وكيل شؤون الطلاب', 'يعتمد / مدير المدرسة']
+      }];
+
+      if (isAborted()) throw new Error('تم إلغاء العملية.');
+
+      const filename = `كشف_طلاب_العمال_${ctx.school}_${NeprasEgypt.todayStamp()}.xlsx`;
+      await deliverNeprasWorkbook(sheetSpecs, filename, 'طلاب العمال');
+      reportStatus(`✅ تم تصدير كشف طلاب العمال بنجاح (${workersList.length} طالب).`);
+      return { ok: true, count: workersList.length, filename };
+    } finally {
+      clearRunning();
+    }
+  }
+
   // (9) أداة تفريغ وتحميل أي جدول معروض بالصفحة فوراً
   async function downloadAnyTableAsExcel() {
     setRunning('any_table', 'جاري فحص وتفريغ الجدول المعروض...');
@@ -2466,6 +2559,7 @@
     NEPRAS_RECORDS_SPECIAL_NEEDS_MERGE: (r) => runSpecialNeedsMergeExport(r.students, r.sortMode),
     NEPRAS_RECORDS_ENROLLMENT_REGISTERS: (r) => runEnrollmentRegistersExport(r.students, r.sortMode),
     NEPRAS_RECORDS_MANAZEL: (r) => runManazelExport(r.students),
+    NEPRAS_RECORDS_WORKERS: (r) => runWorkersExport(r.students),
     NEPRAS_RECORDS_CLASSBOOKS: (r) => runClassBooksExport(r),
     NEPRAS_RECORDS_DOWNLOAD_ANY_TABLE: () => downloadAnyTableAsExcel(),
     NEPRAS_RECORDS_DOWNLOAD_TEMPLATE: (r) => downloadBlankTemplate(r.templateKey),
@@ -2524,6 +2618,7 @@
     runSpecialNeedsMergeExport,
     runEnrollmentRegistersExport,
     runManazelExport,
+    runWorkersExport,
     runClassBooksExport,
     downloadAnyTableAsExcel,
     requestStop

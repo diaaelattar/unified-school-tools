@@ -125,6 +125,10 @@ public class EmisBrowserPlugin extends Plugin {
                 cm.setAcceptCookie(true);
                 cm.setAcceptThirdPartyCookies(emisWebView, true);
 
+                emisWebView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                    handleDownloadFromPage(url, contentDisposition, mimetype);
+                });
+
                 emisWebView.setWebViewClient(new WebViewClient() {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -383,55 +387,67 @@ public class EmisBrowserPlugin extends Plugin {
                 "    } catch(_) {}\n" +
                 "  }\n" +
                 "  try {\n" +
-                "    var jwtRe = /eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}/;\n" +
-                "    var auth = '', scode = '', sstage = '', utype = '0';\n" +
-                "    var scanObj = function(obj, d) {\n" +
-                "      if (!obj || typeof obj !== 'object' || d > 4) return;\n" +
-                "      Object.keys(obj).forEach(function(k) {\n" +
-                "        var v = obj[k]; if (v == null) return;\n" +
-                "        var lk = String(k).toLowerCase().replace(/[_-]/g, '');\n" +
-                "        if (typeof v === 'string' || typeof v === 'number') {\n" +
-                "          var sv = String(v).trim();\n" +
-                "          if (!auth && jwtRe.test(sv)) auth = 'Bearer ' + sv.match(jwtRe)[0];\n" +
-                "          if (!scode && (lk === 'schoolcode' || lk === 'schoolid' || lk === 'schcode' || lk === 'sc') && /^\\d{3,12}$/.test(sv)) scode = sv;\n" +
-                "          if (!sstage && (lk === 'schoolstage' || lk === 'stagecode' || lk === 'stageid' || lk === 'stage') && /^\\d{1,3}$/.test(sv)) sstage = sv;\n" +
-                "          if (utype === '0' && (lk === 'usertype' || lk === 'usertypeid') && /^\\d{1,3}$/.test(sv)) utype = sv;\n" +
-                "        } else if (typeof v === 'object') scanObj(v, d + 1);\n" +
-                "      });\n" +
-                "    };\n" +
-                "    [window.localStorage, window.sessionStorage].forEach(function(st) {\n" +
-                "      if (!st) return;\n" +
-                "      for (var i = 0; i < st.length; i++) {\n" +
-                "        var k = st.key(i); if (!k) continue;\n" +
-                "        var raw = (st.getItem(k) || '').trim(); if (!raw) continue;\n" +
-                "        if (!auth && jwtRe.test(raw)) auth = 'Bearer ' + raw.match(jwtRe)[0];\n" +
-                "        var lk = k.toLowerCase().replace(/[_-]/g, '');\n" +
-                "        var cv = raw.replace(/^[\"']|[\"']$/g, '');\n" +
-                "        if (!scode && (lk.indexOf('schoolcode') !== -1 || lk === 'schoolid' || lk === 'sc') && /^\\d{3,12}$/.test(cv)) scode = cv;\n" +
-                "        if (!sstage && (lk.indexOf('schoolstage') !== -1 || lk.indexOf('stagecode') !== -1 || lk === 'stageid') && /^\\d{1,3}$/.test(cv)) sstage = cv;\n" +
-                "        if (raw.charAt(0) === '{' || raw.charAt(0) === '[') { try { scanObj(JSON.parse(raw), 0); } catch(_) {} }\n" +
-                "      }\n" +
-                "    });\n" +
-                "    if (auth) {\n" +
-                "      try {\n" +
-                "        var m = auth.match(jwtRe);\n" +
-                "        if (m) {\n" +
-                "          var b64 = m[0].split('.')[1].replace(/-/g, '+').replace(/_/g, '/');\n" +
-                "          var claims = JSON.parse(decodeURIComponent(escape(atob(b64))));\n" +
-                "          scanObj(claims, 0);\n" +
-                "        }\n" +
-                "      } catch(_) {}\n" +
-                "      window.__neprasLastEmisHeaders = window.__neprasLastEmisHeaders || {};\n" +
-                "      window.__neprasLastEmisHeaders.authorization = auth;\n" +
-                "      if (scode) window.__neprasLastEmisHeaders.schoolcode = scode;\n" +
-                "      if (sstage) window.__neprasLastEmisHeaders.schoolstage = sstage;\n" +
-                "      window.__neprasLastEmisHeaders.usertype = utype;\n" +
-                "      var hdrs = [{ name: 'Authorization', value: auth }, { name: 'usertype', value: utype }];\n" +
-                "      if (scode) hdrs.push({ name: 'schoolcode', value: scode });\n" +
-                "      if (sstage) hdrs.push({ name: 'schoolstage', value: sstage });\n" +
-                "      if (location.hostname.indexOf('student.emis.gov.eg') !== -1) {\n" +
-                "        window.neprasNative.reportHeaders(JSON.stringify({ url: 'https://studaapi.emis.gov.eg/api/auto', method: 'GET', tabId: 1, requestHeaders: hdrs }));\n" +
-                "      }\n" +
+                "    if (!window.__neprasAuthScannerActive) {\n" +
+                "      window.__neprasAuthScannerActive = true;\n" +
+                "      var lastSentAuth = '';\n" +
+                "      var scanAndReportAuth = function() {\n" +
+                "        try {\n" +
+                "          var jwtRe = /eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}/;\n" +
+                "          var auth = '', scode = '', sstage = '', utype = '0';\n" +
+                "          var scanObj = function(obj, d) {\n" +
+                "            if (!obj || typeof obj !== 'object' || d > 4) return;\n" +
+                "            Object.keys(obj).forEach(function(k) {\n" +
+                "              var v = obj[k]; if (v == null) return;\n" +
+                "              var lk = String(k).toLowerCase().replace(/[_-]/g, '');\n" +
+                "              if (typeof v === 'string' || typeof v === 'number') {\n" +
+                "                var sv = String(v).trim();\n" +
+                "                if (!auth && jwtRe.test(sv)) auth = 'Bearer ' + sv.match(jwtRe)[0];\n" +
+                "                if (!scode && (lk === 'schoolcode' || lk === 'schoolid' || lk === 'schcode' || lk === 'sc') && /^\\d{3,12}$/.test(sv)) scode = sv;\n" +
+                "                if (!sstage && (lk === 'schoolstage' || lk === 'stagecode' || lk === 'stageid' || lk === 'stage') && /^\\d{1,3}$/.test(sv)) sstage = sv;\n" +
+                "                if (utype === '0' && (lk === 'usertype' || lk === 'usertypeid') && /^\\d{1,3}$/.test(sv)) utype = sv;\n" +
+                "              } else if (typeof v === 'object') scanObj(v, d + 1);\n" +
+                "            });\n" +
+                "          };\n" +
+                "          [window.localStorage, window.sessionStorage].forEach(function(st) {\n" +
+                "            if (!st) return;\n" +
+                "            for (var i = 0; i < st.length; i++) {\n" +
+                "              var k = st.key(i); if (!k) continue;\n" +
+                "              var raw = (st.getItem(k) || '').trim(); if (!raw) continue;\n" +
+                "              if (!auth && jwtRe.test(raw)) auth = 'Bearer ' + raw.match(jwtRe)[0];\n" +
+                "              var lk = k.toLowerCase().replace(/[_-]/g, '');\n" +
+                "              var cv = raw.replace(/^[\"']|[\"']$/g, '');\n" +
+                "              if (!scode && (lk.indexOf('schoolcode') !== -1 || lk === 'schoolid' || lk === 'sc') && /^\\d{3,12}$/.test(cv)) scode = cv;\n" +
+                "              if (!sstage && (lk.indexOf('schoolstage') !== -1 || lk.indexOf('stagecode') !== -1 || lk === 'stageid') && /^\\d{1,3}$/.test(cv)) sstage = cv;\n" +
+                "              if (raw.charAt(0) === '{' || raw.charAt(0) === '[') { try { scanObj(JSON.parse(raw), 0); } catch(_) {} }\n" +
+                "            }\n" +
+                "          });\n" +
+                "          if (auth && auth !== lastSentAuth) {\n" +
+                "            lastSentAuth = auth;\n" +
+                "            try {\n" +
+                "              var m = auth.match(jwtRe);\n" +
+                "              if (m) {\n" +
+                "                var b64 = m[0].split('.')[1].replace(/-/g, '+').replace(/_/g, '/');\n" +
+                "                var claims = JSON.parse(decodeURIComponent(escape(atob(b64))));\n" +
+                "                scanObj(claims, 0);\n" +
+                "              }\n" +
+                "            } catch(_) {}\n" +
+                "            window.__neprasLastEmisHeaders = window.__neprasLastEmisHeaders || {};\n" +
+                "            window.__neprasLastEmisHeaders.authorization = auth;\n" +
+                "            if (scode) window.__neprasLastEmisHeaders.schoolcode = scode;\n" +
+                "            if (sstage) window.__neprasLastEmisHeaders.schoolstage = sstage;\n" +
+                "            window.__neprasLastEmisHeaders.usertype = utype;\n" +
+                "            var hdrs = [{ name: 'Authorization', value: auth }, { name: 'usertype', value: utype }];\n" +
+                "            if (scode) hdrs.push({ name: 'schoolcode', value: scode });\n" +
+                "            if (sstage) hdrs.push({ name: 'schoolstage', value: sstage });\n" +
+                "            var targetUrl = (location.hostname.indexOf('teacher.emis.gov.eg') !== -1)\n" +
+                "              ? 'https://professopi.emis.gov.eg/api/auto'\n" +
+                "              : 'https://studaapi.emis.gov.eg/api/auto';\n" +
+                "            window.neprasNative.reportHeaders(JSON.stringify({ url: targetUrl, method: 'GET', tabId: 1, requestHeaders: hdrs }));\n" +
+                "          }\n" +
+                "        } catch(_) {}\n" +
+                "      };\n" +
+                "      scanAndReportAuth();\n" +
+                "      setInterval(scanAndReportAuth, 1500);\n" +
                 "    }\n" +
                 "  } catch(_) {}\n" +
                 "})();";
@@ -620,6 +636,9 @@ public class EmisBrowserPlugin extends Plugin {
                         }
                     }
                 }
+                if (conn.getRequestProperty("Accept") == null) {
+                    conn.setRequestProperty("Accept", "application/json, text/plain, */*");
+                }
 
                 if (bodyStr != null && !method.equalsIgnoreCase("GET") && !method.equalsIgnoreCase("HEAD")) {
                     conn.setDoOutput(true);
@@ -667,11 +686,143 @@ public class EmisBrowserPlugin extends Plugin {
         });
     }
 
+    private void handleDownloadFromPage(String url, String contentDisposition, String mimetype) {
+        if (url == null || url.isEmpty()) return;
+        ioPool.execute(() -> {
+            try {
+                String fileName = "download";
+                if (contentDisposition != null && contentDisposition.contains("filename=")) {
+                    int idx = contentDisposition.indexOf("filename=");
+                    fileName = contentDisposition.substring(idx + 9).replace("\"", "").trim();
+                    if (fileName.contains(";")) fileName = fileName.substring(0, fileName.indexOf(';')).trim();
+                } else {
+                    try {
+                        String cleanUrl = url.split("\\?")[0];
+                        String lastSeg = cleanUrl.substring(cleanUrl.lastIndexOf('/') + 1);
+                        if (!lastSeg.isEmpty()) fileName = lastSeg;
+                    } catch (Exception ignored) {}
+                }
+                if (fileName.isEmpty() || fileName.equalsIgnoreCase("download") || !fileName.contains(".")) {
+                    String ext = ".bin";
+                    if (mimetype != null) {
+                        if (mimetype.contains("pdf")) ext = ".pdf";
+                        else if (mimetype.contains("sheet") || mimetype.contains("excel") || mimetype.contains("xlsx")) ext = ".xlsx";
+                        else if (mimetype.contains("zip")) ext = ".zip";
+                        else if (mimetype.contains("image/png")) ext = ".png";
+                        else if (mimetype.contains("image/jpeg")) ext = ".jpg";
+                    }
+                    fileName = "emis_report_" + System.currentTimeMillis() + ext;
+                }
+
+                byte[] bytes = null;
+                if (url.startsWith("data:")) {
+                    int comma = url.indexOf(',');
+                    if (comma != -1) {
+                        bytes = Base64.decode(url.substring(comma + 1), Base64.DEFAULT);
+                    }
+                } else if (url.startsWith("http://") || url.startsWith("https://")) {
+                    URL u = new URL(url);
+                    HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                    String host = u.getHost() != null ? u.getHost().toLowerCase() : "";
+                    if (conn instanceof HttpsURLConnection && host.endsWith("emis.gov.eg")) {
+                        HttpsURLConnection https = (HttpsURLConnection) conn;
+                        SSLSocketFactory sf = getEmisSslSocketFactory();
+                        if (sf != null) https.setSSLSocketFactory(sf);
+                        https.setHostnameVerifier((hostname, session) -> hostname != null && hostname.toLowerCase().endsWith("emis.gov.eg"));
+                    }
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(30000);
+                    conn.setReadTimeout(30000);
+                    conn.setRequestProperty("User-Agent", defaultUserAgent);
+                    String originSite = host.contains("teacher") ? "https://teacher.emis.gov.eg" : "https://student.emis.gov.eg";
+                    conn.setRequestProperty("Origin", originSite);
+                    conn.setRequestProperty("Referer", originSite + "/");
+                    CookieManager cm = CookieManager.getInstance();
+                    String cookie = cm.getCookie(url);
+                    if (cookie == null || cookie.isEmpty()) cookie = cm.getCookie(originSite);
+                    if (cookie != null && !cookie.isEmpty()) conn.setRequestProperty("Cookie", cookie);
+
+                    int status = conn.getResponseCode();
+                    if (status >= 200 && status < 400) {
+                        try (InputStream is = conn.getInputStream();
+                             ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                            byte[] buf = new byte[8192];
+                            int n;
+                            while ((n = is.read(buf)) != -1) bos.write(buf, 0, n);
+                            bytes = bos.toByteArray();
+                        }
+                    }
+                    conn.disconnect();
+                }
+
+                if (bytes != null && bytes.length > 0) {
+                    saveBytesDirectly("Nepras/" + fileName, bytes, mimetype);
+                }
+            } catch (Exception e) {
+                mainHandler.post(() -> Toast.makeText(getContext(), "تعذر تنزيل الملف: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private String saveBytesDirectly(String rawFilename, byte[] bytes, String mime) throws Exception {
+        String normalized = rawFilename.replace("\\", "/").replaceAll("^/+", "");
+        String fileNameOnly = normalized.contains("/")
+                ? normalized.substring(normalized.lastIndexOf('/') + 1)
+                : normalized;
+        String subFolder = normalized.contains("/")
+                ? normalized.substring(0, normalized.lastIndexOf('/'))
+                : "Nepras";
+        if (!subFolder.startsWith("Nepras")) {
+            subFolder = "Nepras/" + subFolder;
+        }
+
+        if (mime == null || mime.isEmpty() || mime.equals("application/octet-stream")) {
+            String lower = fileNameOnly.toLowerCase();
+            if (lower.endsWith(".xlsx")) mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            else if (lower.endsWith(".pdf")) mime = "application/pdf";
+            else if (lower.endsWith(".zip")) mime = "application/zip";
+            else if (lower.endsWith(".csv")) mime = "text/csv";
+            else if (lower.endsWith(".png")) mime = "image/png";
+            else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) mime = "image/jpeg";
+            else mime = "application/octet-stream";
+        }
+
+        String savedPath;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver resolver = getContext().getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, fileNameOnly);
+            values.put(MediaStore.Downloads.MIME_TYPE, mime);
+            values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + subFolder);
+            Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) throw new Exception("تعذر إنشاء الملف في مجلد التنزيلات");
+            try (OutputStream os = resolver.openOutputStream(uri, "w")) {
+                if (os == null) throw new Exception("تعذر فتح مسار الحفظ");
+                os.write(bytes);
+                os.flush();
+            }
+            savedPath = Environment.DIRECTORY_DOWNLOADS + "/" + subFolder + "/" + fileNameOnly;
+        } else {
+            File dlDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), subFolder);
+            if (!dlDir.exists()) dlDir.mkdirs();
+            File outFile = new File(dlDir, fileNameOnly);
+            try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                fos.write(bytes);
+                fos.flush();
+            }
+            savedPath = outFile.getAbsolutePath();
+        }
+
+        final String finalPath = savedPath;
+        mainHandler.post(() -> Toast.makeText(getContext(), "✅ تم حفظ الملف في التنزيلات:\n" + finalPath, Toast.LENGTH_LONG).show());
+        return savedPath;
+    }
+
     @PluginMethod
     public void saveFile(PluginCall call) {
         final String rawFilename = call.getString("filename", "Nepras_Export.xlsx");
         final String base64 = call.getString("base64", "");
-        final String mime = call.getString("mime", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        final String mime = call.getString("mime", "");
 
         if (base64 == null || base64.isEmpty()) {
             call.reject("EMPTY_DATA");
@@ -681,46 +832,9 @@ public class EmisBrowserPlugin extends Plugin {
         ioPool.execute(() -> {
             try {
                 byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
-                String normalized = rawFilename.replace("\\", "/").replaceAll("^/+", "");
-                String fileNameOnly = normalized.contains("/")
-                        ? normalized.substring(normalized.lastIndexOf('/') + 1)
-                        : normalized;
-                String subFolder = normalized.contains("/")
-                        ? normalized.substring(0, normalized.lastIndexOf('/'))
-                        : "Nepras";
-                if (!subFolder.startsWith("Nepras")) {
-                    subFolder = "Nepras/" + subFolder;
-                }
-
-                String savedPath;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    ContentResolver resolver = getContext().getContentResolver();
-                    ContentValues values = new ContentValues();
-                    values.put(MediaStore.Downloads.DISPLAY_NAME, fileNameOnly);
-                    values.put(MediaStore.Downloads.MIME_TYPE, mime);
-                    values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + subFolder);
-                    Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-                    if (uri == null) throw new Exception("تعذر إنشاء الملف في مجلد التنزيلات");
-                    try (OutputStream os = resolver.openOutputStream(uri)) {
-                        if (os == null) throw new Exception("تعذر فتح مسار الحفظ");
-                        os.write(bytes);
-                    }
-                    savedPath = Environment.DIRECTORY_DOWNLOADS + "/" + subFolder + "/" + fileNameOnly;
-                } else {
-                    File dlDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), subFolder);
-                    if (!dlDir.exists()) dlDir.mkdirs();
-                    File outFile = new File(dlDir, fileNameOnly);
-                    try (FileOutputStream fos = new FileOutputStream(outFile)) {
-                        fos.write(bytes);
-                    }
-                    savedPath = outFile.getAbsolutePath();
-                }
-
-                final String finalPath = savedPath;
-                mainHandler.post(() -> Toast.makeText(getContext(), "✅ تم حفظ الملف في التنزيلات:\n" + finalPath, Toast.LENGTH_LONG).show());
-
+                String path = saveBytesDirectly(rawFilename, bytes, mime);
                 JSObject ret = new JSObject();
-                ret.put("path", finalPath);
+                ret.put("path", path);
                 ret.put("size", bytes.length);
                 call.resolve(ret);
             } catch (Exception e) {

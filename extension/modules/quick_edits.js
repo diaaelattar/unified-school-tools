@@ -78,6 +78,62 @@
     "9": "لغة يابانية"
   };
 
+  // قاموس الشعب الرسمية المعتمدة لصفوف الثانوي بموقع الوزارة
+  const SECTIONS_MAP = {
+    "2": "ادبي",
+    "3": "علمي",
+    "203": "بكالوريا مسار الطب وعلوم الحياة",
+    "204": "بكالوريا مسار الهندسة وعلوم الحاسب",
+    "205": "بكالوريا مسار الاعمال",
+    "206": "بكالوريا مسار الادب والفنون"
+  };
+
+  // قاموس التخصصات والمسارات الدقيقة
+  const MAJORS_MAP = {
+    "676": "مسار الطب وعلوم الحياة"
+  };
+
+  /**
+   * تحويل اسم الشعبة بالعربية إلى كود الشعبة في الوزارة
+   * @param {string|number} rawSection
+   * @returns {string} كود الشعبة
+   */
+  function resolveSectionCode(rawSection) {
+    if (rawSection == null) return "";
+    const clean = String(rawSection).trim();
+    if (SECTIONS_MAP[clean]) return clean;
+
+    const norm = clean
+      .replace(/[أإآ]/g, "ا")
+      .replace(/ة/g, "ه")
+      .replace(/ى/g, "ي")
+      .toLowerCase();
+
+    if (norm.includes("203") || norm === "676" || norm.includes("طب") || norm.includes("علوم الحياه") || norm.includes("حياه")) return "203";
+    if (norm.includes("204") || norm.includes("هندس") || norm.includes("حاسب")) return "204";
+    if (norm.includes("205") || norm.includes("اعمال") || norm.includes("business")) return "205";
+    if (norm.includes("206") || norm.includes("فنون") || norm.includes("ادب وفنون")) return "206";
+    if (norm.includes("ادب") || norm.includes("ادبي") || norm.includes("lit")) return "2";
+    if (norm.includes("علم") || norm.includes("علمي") || norm.includes("sci")) return "3";
+
+    return clean;
+  }
+
+  /**
+   * تحويل كود أو اسم التخصص/المسار
+   * @param {string|number} rawMajor
+   * @param {string} [sectionCode]
+   * @returns {string} كود التخصص
+   */
+  function resolveMajorCode(rawMajor, sectionCode) {
+    if (rawMajor == null) return "";
+    const clean = String(rawMajor).trim();
+    if (MAJORS_MAP[clean]) return clean;
+    if (clean === "676" || clean.includes("طب") || clean.includes("علوم الحياه")) return "676";
+    if (sectionCode === "203") return "676";
+    return clean;
+  }
+
   /**
    * تحويل اسم اللغة بالعربية أو الإنجليزية إلى كود اللغة في الوزارة
    * @param {string|number} rawLang
@@ -116,7 +172,7 @@
   const EDIT_TYPES = [
     { code: "0", label: "اللغة الأولى", controlName: "firstLangControl" },
     { code: "1", label: "اللغة الثانية", controlName: "secondLangControl" },
-    { code: "2", label: "التخصص / الشعبة", controlName: "specControl" }
+    { code: "2", label: "التخصص / الشعبة", controlName: "sectionControl" }
   ];
 
   /**
@@ -169,6 +225,8 @@
     let idxClass = -1;
     let idxL1 = -1;
     let idxL2 = -1;
+    let idxSection = -1;
+    let idxMajor = -1;
     let idxSpec = -1;
 
     const cleanHeaders = (headers || Object.keys(rows[0] || {})).map(h => String(h || "").trim());
@@ -190,7 +248,11 @@
       if (norm.includes("لغه ثانيه") || norm.includes("اللغه الثانيه") || norm.includes("lang2") || norm.includes("l2")) {
         idxL2 = i;
       }
-      if (norm.includes("تخصص") || norm.includes("شعبه") || norm.includes("spec") || norm.includes("track")) {
+      if (norm.includes("شعبه") || norm.includes("section")) {
+        idxSection = i;
+      } else if (norm.includes("تخصص") || norm.includes("مسار") || norm.includes("major")) {
+        idxMajor = i;
+      } else if (norm.includes("spec") || norm.includes("track")) {
         idxSpec = i;
       }
     });
@@ -204,7 +266,11 @@
       const classNo = idxClass >= 0 ? String(rowArr[idxClass] || "").trim() : "";
       const l1 = idxL1 >= 0 ? String(rowArr[idxL1] || "").trim() : "";
       const l2 = idxL2 >= 0 ? String(rowArr[idxL2] || "").trim() : "";
-      const spec = idxSpec >= 0 ? String(rowArr[idxSpec] || "").trim() : "";
+      const rawSection = idxSection >= 0 ? String(rowArr[idxSection] || "").trim() : (idxSpec >= 0 ? String(rowArr[idxSpec] || "").trim() : "");
+      const rawMajor = idxMajor >= 0 ? String(rowArr[idxMajor] || "").trim() : (idxSpec >= 0 ? String(rowArr[idxSpec] || "").trim() : "");
+      const sectionCode = resolveSectionCode(rawSection || rawMajor);
+      const majorCode = resolveMajorCode(rawMajor, sectionCode);
+      const spec = rawSection || rawMajor;
 
       return {
         rowIndex: rowIndex + 1,
@@ -216,6 +282,8 @@
         l2,
         l2Code: resolveLanguageCode(l2),
         spec,
+        sectionCode,
+        majorCode,
         rawRow: r
       };
     }).filter(item => Boolean(item.code));
@@ -387,7 +455,7 @@
   }
 
   /**
-   * البحث عن القائمة المنسدلة للغة أو التخصص في النموذج العلوي لصفحة الوزارة
+   * البحث عن القائمة المنسدلة للغة في النموذج العلوي لصفحة الوزارة
    */
   function findTopLanguageSelect() {
     // 1. بالمعرفات الرسمية الأكثر شيوعاً في منظومة الوزارة
@@ -395,19 +463,18 @@
       'select[formcontrolname="firstLangControl"]',
       'select[formcontrolname="secondLangControl"]',
       'select[formcontrolname="langControl"]',
-      'select[formcontrolname="languageControl"]',
-      'select[formcontrolname="specControl"]'
+      'select[formcontrolname="languageControl"]'
     ];
     for (const selStr of candidates) {
       const el = document.querySelector(selStr);
       if (el && el.offsetParent !== null) return el;
     }
 
-    // 2. أي قائمة منسدلة ظاهرة داخل النموذج بخلاف الصف والفصل ونوع التعديل
+    // 2. أي قائمة منسدلة ظاهرة داخل النموذج بخلاف الصف والفصل ونوع التعديل والشعبة والتخصص
     const allSelects = Array.from(document.querySelectorAll("form select.form-select, form select"));
     for (const s of allSelects) {
       const fcn = s.getAttribute("formcontrolname") || "";
-      if (["levelControl", "classControl", "editTypeControl"].includes(fcn)) continue;
+      if (["levelControl", "classControl", "editTypeControl", "sectionControl", "SectionControl", "MajorControl", "majorControl"].includes(fcn)) continue;
       if (s.offsetParent !== null) {
         return s;
       }
@@ -421,6 +488,62 @@
       }
     }
 
+    return null;
+  }
+
+  /**
+   * البحث عن القائمة المنسدلة للشعبة (sectionControl) في النموذج العلوي لصفحة الوزارة
+   */
+  function findTopSectionSelect() {
+    const candidates = [
+      'select[formcontrolname="sectionControl"]',
+      'select[formcontrolname="SectionControl"]',
+      'select[formcontrolname="specControl"]'
+    ];
+    for (const selStr of candidates) {
+      const el = document.querySelector(selStr);
+      if (el && el.offsetParent !== null) return el;
+    }
+    const selects = Array.from(document.querySelectorAll("form select.form-select, form select"));
+    for (const s of selects) {
+      const fcn = s.getAttribute("formcontrolname") || "";
+      if (/section/i.test(fcn) && s.offsetParent !== null) return s;
+    }
+    const labels = Array.from(document.querySelectorAll("form label, .form-label"));
+    for (const lb of labels) {
+      if (/شعب[ةه]/i.test(lb.innerText || "")) {
+        const sel = lb.parentElement?.querySelector("select") || lb.nextElementSibling;
+        if (sel && sel.tagName === "SELECT") return sel;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * البحث عن القائمة المنسدلة للتخصص (MajorControl) في النموذج العلوي لصفحة الوزارة
+   */
+  function findTopMajorSelect() {
+    const candidates = [
+      'select[formcontrolname="MajorControl"]',
+      'select[formcontrolname="majorControl"]',
+      'select[formcontrolname="specializationControl"]'
+    ];
+    for (const selStr of candidates) {
+      const el = document.querySelector(selStr);
+      if (el && el.offsetParent !== null) return el;
+    }
+    const selects = Array.from(document.querySelectorAll("form select.form-select, form select"));
+    for (const s of selects) {
+      const fcn = s.getAttribute("formcontrolname") || "";
+      if (/major/i.test(fcn) && s.offsetParent !== null) return s;
+    }
+    const labels = Array.from(document.querySelectorAll("form label, .form-label"));
+    for (const lb of labels) {
+      if (/تخصص/i.test(lb.innerText || "") && !/نوع\s*التعديل/i.test(lb.innerText || "")) {
+        const sel = lb.parentElement?.querySelector("select") || lb.nextElementSibling;
+        if (sel && sel.tagName === "SELECT") return sel;
+      }
+    }
     return null;
   }
 
@@ -473,6 +596,8 @@
     const records = payload.records || [];
     const directEditType = String(payload.options?.directEditType || "1"); // 0=l1, 1=l2, 2=spec
     const directValue = String(payload.options?.directValue || "2"); // مثلاً 2 للفرنسية
+    const directSection = String(payload.options?.directSection || payload.options?.section || directValue || "2");
+    const directMajor = String(payload.options?.directMajor || payload.options?.major || "");
 
     // 1. اختيار وتأكيد الصف الدراسي أولاً
     if (levelSelect) {
@@ -579,24 +704,53 @@
 
       // ────────────────────────────────────────────────────────────
       // المسار الأول: التطبيق المباشر (Direct Bulk)
-      // يتم اختيار نوع التعديل ثم اختيار اللغة المحددة من الكمبوبوكس العلوي بالموقع،
+      // يتم اختيار نوع التعديل ثم اختيار اللغة أو الشعبة والتخصص من النموذج العلوي،
       // ثم تحديد الطلاب والضغط على حفظ
       // ────────────────────────────────────────────────────────────
       if (mode === "direct") {
         // 1. تحديد نوع التعديل في رأس الصفحة (0 للغة الأولى، 1 للغة الثانية، 2 للتخصص)
         if (editTypeSelect && editTypeSelect.value !== directEditType) {
           setAngularSelectValue(editTypeSelect, directEditType);
-          await sleep(500);
+          await sleep(800); // إتاحة وقت كافٍ لـ Angular لإظهار القوائم التابعة لنوع التعديل
         }
 
-        // 2. اختيار اللغة المحددة من الكمبوبوكس الخاص بها في الموقع أولاً
-        const topLangSelect = findTopLanguageSelect();
-        if (topLangSelect) {
-          setAngularSelectValue(topLangSelect, directValue);
-          await sleep(400);
+        let appliedLabel = "";
+
+        // 2. إذا كان التعديل لغة أولى أو ثانية:
+        if (directEditType === "0" || directEditType === "1") {
+          const topLangSelect = findTopLanguageSelect();
+          if (topLangSelect) {
+            setAngularSelectValue(topLangSelect, directValue);
+            await sleep(400);
+          }
+          appliedLabel = LANGUAGES_MAP[directValue] || `كود ${directValue}`;
+        }
+        // 3. إذا كان التعديل للتخصص / الشعبة للثانوي (directEditType === "2"):
+        else if (directEditType === "2") {
+          // أ. اختيار الشعبة من sectionControl
+          const sectionSelect = findTopSectionSelect();
+          if (sectionSelect) {
+            setAngularSelectValue(sectionSelect, directSection);
+            await sleep(1000); // إتاحة وقت لـ Angular لتحميل خيارات MajorControl المتصلة بالشعبة
+          }
+
+          // ب. اختيار التخصص الدقيق (MajorControl)
+          const majorSelect = findTopMajorSelect();
+          if (majorSelect && majorSelect.offsetParent !== null) {
+            let valToSet = directMajor;
+            if (!valToSet || valToSet === "auto") {
+              const validOpts = Array.from(majorSelect.options || []).filter(o => o.value !== "-1" && o.value !== "" && !o.text.includes("اختر"));
+              if (validOpts.length) valToSet = validOpts[0].value;
+            }
+            if (valToSet) {
+              setAngularSelectValue(majorSelect, valToSet);
+              await sleep(400);
+            }
+          }
+          appliedLabel = `شعبة: ${SECTIONS_MAP[directSection] || directSection}${directMajor && directMajor !== 'auto' ? ` — تخصص: ${MAJORS_MAP[directMajor] || directMajor}` : ''}`;
         }
 
-        // 3. تحديد الطلاب بالجدول وتحديث خياراتهم
+        // 4. تحديد الطلاب بالجدول وتحديث خياراتهم
         uncheckAllTableRows();
         let classModifiedCount = 0;
 
@@ -621,7 +775,7 @@
           }
           const studentName = tds[2] ? tds[2].innerText.trim() : "";
 
-          // تحديث القائمة المنسدلة في صف الطالب لتطابق القيمة
+          // تحديث القائمة المنسدلة في صف الطالب إن وجدت بالجدول
           const selL1 = tds[3]?.querySelector("select") || tr.querySelector("td:nth-child(4) select");
           const selL2 = tds[4]?.querySelector("select") || tr.querySelector("td:nth-child(5) select");
 
@@ -631,7 +785,7 @@
             setAngularSelectValue(selL2, directValue);
           } else if (directEditType === "2") {
             const selSpec = tds[5]?.querySelector("select") || tr.querySelector("td:nth-child(6) select");
-            if (selSpec) setAngularSelectValue(selSpec, directValue);
+            if (selSpec) setAngularSelectValue(selSpec, directSection);
           }
 
           // تحديد مربع الاختيار للطالب
@@ -652,7 +806,7 @@
             grade: targetGrade,
             classNo: classItem.value,
             success: true,
-            reason: `تم التعديل بالقيمة المطلوبة (${LANGUAGES_MAP[directValue] || directValue})`
+            reason: `تم التعديل بالقيمة المطلوبة (${appliedLabel})`
           });
         }
 
@@ -663,10 +817,10 @@
           theadChk.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
-        // 4. الضغط على زر الحفظ وتأكيد الحفظ
+        // 5. الضغط على زر الحفظ وتأكيد الحفظ
         if (classModifiedCount > 0) {
           if (typeof window.showFloatingStatus === "function") {
-            window.showFloatingStatus(`💾 جاري حفظ ${classItem.text} (${LANGUAGES_MAP[directValue] || directValue})...`);
+            window.showFloatingStatus(`💾 جاري حفظ ${classItem.text} (${appliedLabel})...`);
           }
 
           const saveBtn = document.querySelector(".buttonBlock button[type='submit'], button.btn-success[type='submit'], button[type='submit'].btn-success");
@@ -681,20 +835,20 @@
         }
       }
       // ────────────────────────────────────────────────────────────
-      // المسار الثاني: التطبيق عبر ملف Excel (Smart Language Batches)
-      // تجميع الطلاب حسب كل لغة محددة، واختيار كل لغة على حدة في الكمبوبوكس العلوي
-      // ثم تحديد طلاب تلك اللغة وحفظهم، وتكرار ذلك لكل لغة
+      // المسار الثاني: التطبيق عبر ملف Excel (Smart Batches)
+      // تجميع الطلاب حسب كل لغة أو شعبة/تخصص، واختيار القوائم العلوية لكل دفعة
+      // ثم تحديد طلاب تلك الدفعة وحفظهم، وتكرار ذلك لكافة المجموعات
       // ────────────────────────────────────────────────────────────
       else {
-        // حصر طلاب الفصل وتصنيفهم حسب نوع التعديل واللغة المطلوبة
-        const targetEditType = directEditType; // افتراضياً اللغة الثانية أو الأولى
+        // حصر طلاب الفصل وتصنيفهم حسب نوع التعديل
+        const targetEditType = directEditType;
         if (editTypeSelect && editTypeSelect.value !== targetEditType) {
           setAngularSelectValue(editTypeSelect, targetEditType);
-          await sleep(500);
+          await sleep(800);
         }
 
-        // تجميع الطلاب حسب كود اللغة المطلوبة في هذا الفصل
-        const langGroups = new Map(); // langCode -> Array of { tr, code, name, targetVal, rowSelect }
+        // تجميع الطلاب حسب كود اللغة أو كود الشعبة في هذا الفصل
+        const langGroups = new Map(); // groupKey -> Array of { tr, code, name, targetVal, targetMajor, rowSelect }
 
         for (let rIdx = 0; rIdx < rows.length; rIdx++) {
           const tr = rows[rIdx];
@@ -719,6 +873,7 @@
           if (code && recordMap.has(code)) {
             const rec = recordMap.get(code);
             let targetVal = "";
+            let targetMajor = "";
             let rowSelect = null;
 
             if (targetEditType === "0") {
@@ -728,38 +883,63 @@
               targetVal = rec.l2Code;
               rowSelect = tds[4]?.querySelector("select") || tr.querySelector("td:nth-child(5) select");
             } else if (targetEditType === "2") {
-              targetVal = rec.spec;
+              targetVal = rec.sectionCode || rec.spec;
+              targetMajor = rec.majorCode;
               rowSelect = tds[5]?.querySelector("select") || tr.querySelector("td:nth-child(6) select");
             }
 
             if (targetVal) {
               if (!langGroups.has(targetVal)) langGroups.set(targetVal, []);
-              langGroups.get(targetVal).push({ tr, code, name: studentName, targetVal, rowSelect });
+              langGroups.get(targetVal).push({ tr, code, name: studentName, targetVal, targetMajor, rowSelect });
             }
           }
         }
 
-        // تنفيذ الحفظ لكل لغة على حدة في هذا الفصل
-        for (const [langCode, studentList] of langGroups.entries()) {
+        // تنفيذ الحفظ لكل مجموعة على حدة في هذا الفصل
+        for (const [groupCode, studentList] of langGroups.entries()) {
           if (neprasQuickEditsStopRequested()) break;
           if (!studentList.length) continue;
 
-          const langLabel = LANGUAGES_MAP[langCode] || `كود ${langCode}`;
+          const groupLabel = targetEditType === "2"
+            ? `شعبة: ${SECTIONS_MAP[groupCode] || groupCode}`
+            : (LANGUAGES_MAP[groupCode] || `كود ${groupCode}`);
+
           if (typeof window.showFloatingStatus === "function") {
-            window.showFloatingStatus(`⏳ جاري ضبط كمبوبوكس اللغة: (${langLabel}) لـ ${studentList.length} طالب بـ ${classItem.text}...`);
+            window.showFloatingStatus(`⏳ جاري ضبط القوائم العلوية: (${groupLabel}) لـ ${studentList.length} طالب بـ ${classItem.text}...`);
           }
 
-          // 1. اختيار اللغة المحددة من الكمبوبوكس الخاص بها في الموقع أولاً
-          const topLangSelect = findTopLanguageSelect();
-          if (topLangSelect) {
-            setAngularSelectValue(topLangSelect, langCode);
-            await sleep(400);
+          // 1. ضبط القوائم العلوية في رأس الصفحة بالموقع أولاً
+          if (targetEditType === "0" || targetEditType === "1") {
+            const topLangSelect = findTopLanguageSelect();
+            if (topLangSelect) {
+              setAngularSelectValue(topLangSelect, groupCode);
+              await sleep(400);
+            }
+          } else if (targetEditType === "2") {
+            const sectionSelect = findTopSectionSelect();
+            if (sectionSelect) {
+              setAngularSelectValue(sectionSelect, groupCode);
+              await sleep(1000);
+            }
+            const majorSelect = findTopMajorSelect();
+            if (majorSelect && majorSelect.offsetParent !== null) {
+              const grpMajor = studentList[0]?.targetMajor;
+              let valToSet = grpMajor;
+              if (!valToSet || valToSet === "auto") {
+                const validOpts = Array.from(majorSelect.options || []).filter(o => o.value !== "-1" && o.value !== "" && !o.text.includes("اختر"));
+                if (validOpts.length) valToSet = validOpts[0].value;
+              }
+              if (valToSet) {
+                setAngularSelectValue(majorSelect, valToSet);
+                await sleep(400);
+              }
+            }
           }
 
-          // 2. إلغاء تحديد كافة الطلاب أولاً لضمان عدم إرسال طلاب لغة أخرى
+          // 2. إلغاء تحديد كافة الطلاب أولاً لضمان عدم إرسال طلاب مجموعة أخرى
           uncheckAllTableRows();
 
-          // 3. تحديد فقط الطلاب التابعين لهذه اللغة وتحديث قوائمهم
+          // 3. تحديد فقط الطلاب التابعين لهذه المجموعة وتحديث قوائمهم
           studentList.forEach(st => {
             const chk = st.tr.querySelector("input[type='checkbox']");
             if (chk) {
@@ -769,7 +949,7 @@
               try { chk.dispatchEvent(new Event("click", { bubbles: true })); } catch (_) {}
             }
             if (st.rowSelect) {
-              setAngularSelectValue(st.rowSelect, langCode);
+              setAngularSelectValue(st.rowSelect, groupCode);
             }
             totalUpdated++;
             results.push({
@@ -778,13 +958,13 @@
               grade: targetGrade,
               classNo: classItem.value,
               success: true,
-              reason: `تم التعديل وحفظ لغة: ${langLabel}`
+              reason: `تم التعديل وحفظ: ${groupLabel}`
             });
           });
 
-          // 4. الضغط على زر الحفظ وتأكيد الحفظ لهذه اللغة
+          // 4. الضغط على زر الحفظ وتأكيد الحفظ لهذه المجموعة
           if (typeof window.showFloatingStatus === "function") {
-            window.showFloatingStatus(`💾 جاري حفظ طلاب (${langLabel}) في ${classItem.text}...`);
+            window.showFloatingStatus(`💾 جاري حفظ طلاب (${groupLabel}) في ${classItem.text}...`);
           }
 
           const saveBtn = document.querySelector(".buttonBlock button[type='submit'], button.btn-success[type='submit'], button[type='submit'].btn-success");
@@ -841,8 +1021,12 @@
   // التصدير وتجميد الكائن
   const NeprasQuickEdits = Object.freeze({
     LANGUAGES_MAP,
+    SECTIONS_MAP,
+    MAJORS_MAP,
     EDIT_TYPES,
     resolveLanguageCode,
+    resolveSectionCode,
+    resolveMajorCode,
     parseQuickEditsExcel,
     buildQuickEditsTemplateWorkbook,
     buildQuickEditsResultsWorkbook,

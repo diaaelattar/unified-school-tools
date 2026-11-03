@@ -93,6 +93,13 @@ function neprasStatsIsHomeStudent(row) {
   return n.includes("منازل") || n.includes("منزل") || n.includes("منزلي");
 }
 
+function neprasStatsIsWorkerStudent(row) {
+  const eduType = neprasStatsValue(row, ["نوعية التعليم", "نوعيه التعليم", "نظام التعليم", "نوع التعليم", "التعليم"]);
+  const n = neprasStatsNorm(eduType);
+  const status = neprasStatsNorm(neprasStatsValue(row, ["حالة القيد", "حاله القيد", "الحالة"]));
+  return n.includes("عمال") || n.includes("عمل") || status.includes("عمال");
+}
+
 function neprasStatsValidClassName(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -314,11 +321,13 @@ function neprasStatsNewBreakdown() {
   return {
     enrollment: {
       "منتظم": neprasStatsEmptyGenderSplit(),
-      "منازل": neprasStatsEmptyGenderSplit()
+      "منازل": neprasStatsEmptyGenderSplit(),
+      "عمال": neprasStatsEmptyGenderSplit()
     },
     integration: {
       "منتظم": neprasStatsEmptyGenderSplit(),
-      "منازل": neprasStatsEmptyGenderSplit()
+      "منازل": neprasStatsEmptyGenderSplit(),
+      "عمال": neprasStatsEmptyGenderSplit()
     },
     statuses: {}
   };
@@ -328,7 +337,8 @@ function neprasStatsEnsureStatusBreakdown(breakdown, statusName) {
   if (!breakdown.statuses[statusName]) {
     breakdown.statuses[statusName] = {
       "منتظم": neprasStatsEmptyGenderSplit(),
-      "منازل": neprasStatsEmptyGenderSplit()
+      "منازل": neprasStatsEmptyGenderSplit(),
+      "عمال": neprasStatsEmptyGenderSplit()
     };
   }
   return breakdown.statuses[statusName];
@@ -376,10 +386,12 @@ function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys 
     else if (gender === "بنات") out.girls++;
     else out.unknownGender++;
 
-    const isHome = neprasStatsIsHomeStudent(sourceRow) || neprasStatsIsHomeStudent(row);
-    if (isHome) out.homes++;
+    const isWorker = neprasStatsIsWorkerStudent(sourceRow) || neprasStatsIsWorkerStudent(row);
+    const isHome = !isWorker && (neprasStatsIsHomeStudent(sourceRow) || neprasStatsIsHomeStudent(row));
+    if (isWorker) out.workers = (out.workers || 0) + 1;
+    else if (isHome) out.homes++;
 
-    const educationMode = isHome ? "منازل" : "منتظم";
+    const educationMode = isWorker ? "عمال" : (isHome ? "منازل" : "منتظم");
     const genderKey =
       gender === "بنين" || gender === "بنات"
         ? gender
@@ -387,8 +399,8 @@ function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys 
 
     out.breakdown.enrollment[educationMode][genderKey]++;
 
-    // عدد الفصول = الفصول الفعلية فقط. لا نحسب 0/بدون فصل، ولا طالب المنازل.
-    if (!isHome) {
+    // عدد الفصول = الفصول الفعلية فقط. لا نحسب 0/بدون فصل، ولا طالب المنازل أو العمال.
+    if (!isHome && !isWorker) {
       const className = neprasStatsValidClassName(
         neprasStatsValue(row, ["الفصل", "الصف الفصل", "اسم الفصل"])
       );

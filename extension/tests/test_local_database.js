@@ -159,10 +159,41 @@ async function runTest() {
   assert.ok(loadedB.stats, 'Loaded stats for 6002 must exist');
   assert.strictEqual(loadedB.students.length, 1, 'Loaded students for 6002 must be 1');
 
+  // 8. اختبار استيراد نسخة احتياطية كاملة (Full State / nepras-state.json)
+  const fullBackup = {
+    local: {
+      nepras_schools_registry_v1: [
+        { code: '21024219', name: 'الشهيد محمد سليمان سلامة ع بنين', stage: 'اعدادى' }
+      ],
+      nepras_active_school_code_v1: '21024219',
+      nepras_school_21024219_students: [
+        { code: 'S_REC_1', name: 'طالب مستعاد 1' },
+        { code: 'S_REC_2', name: 'طالب مستعاد 2' }
+      ],
+      nepras_school_21024219_stats: { schoolName: 'الشهيد محمد سليمان سلامة ع بنين', totalStudents: 2 },
+      neprasCachedStudentsList: [
+        { code: 'S_REC_1', name: 'طالب مستعاد 1' },
+        { code: 'S_REC_2', name: 'طالب مستعاد 2' }
+      ]
+    }
+  };
+
+  const importRes = await SM.importSchoolPackage(fullBackup);
+  assert.strictEqual(importRes.ok, true, 'Full backup import must succeed');
+  assert.strictEqual(importRes.schoolCode, '21024219');
+  assert.strictEqual(importRes.studentsCount, 2);
+  const activeAfterBackup = await SM.getActiveCode();
+  assert.strictEqual(activeAfterBackup, '21024219');
+  const loadedBackupSchool = await SM.loadSchoolStats('21024219');
+  assert.strictEqual(loadedBackupSchool.students.length, 2);
+
   console.log('✓ تم التحقق من حفظ واسترجاع اللقطات الشهرية الشاملة بدقة 100%');
   console.log('✓ تم التحقق من فهرسة الشهور والأرشيف التاريخي بنجاح');
   console.log('✓ تم التحقق من محرك حساب الفروقات الذكي (Delta Diff) بنجاح');
   console.log('✓ تم التحقق من تكامل مدير المدارس NeprasSchoolManager مع قاعدة البيانات المحلية');
+  console.log('✓ تم التحقق من دعم واستيراد ملفات حالة النظام والنسخ الاحتياطية (nepras-state.json) بنجاح');
+  console.log('✓ تم التحقق من العزل التام بين المدارس المتعددة (Multi-school Isolation)');
+  console.log('✓ تم التحقق من الفتح الفوري اللحظي (Zero Latency) من الذاكرة المحلية');
   console.log('✓ تم التحقق من العزل التام بين المدارس المتعددة (Multi-school Isolation)');
   console.log('✓ تم التحقق من الفتح الفوري اللحظي (Zero Latency) من الذاكرة المحلية');
   console.log('\nجميع اختبارات قاعدة البيانات المحلية NeprasLocalDB اجتازت بنجاح تام 100%!\n');

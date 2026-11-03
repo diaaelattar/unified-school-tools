@@ -850,6 +850,8 @@ body.nf-dark-mode {
             const fixedCount    = await Store.get('nf_fixed_count', 0);
             const isDark        = await Store.get('nf_dark_mode', false);
             const batchSize     = await Store.get('nf_batch_size', 0);
+            const opMode        = await Store.get('nf_mode', 'full');
+            const extraOverwrite = await Store.get('nf_extra_overwrite', false);
             const extraEnabled  = await Store.get('nf_extra_enabled', false);
             const defAddress    = await Store.get('nf_default_address', '');
             const defLang1      = await Store.get('nf_default_lang1', '');
@@ -933,6 +935,20 @@ body.nf-dark-mode {
     <span>⏱ المتبقي: <b id="nf-eta-val">—</b></span>
   </div>
 
+  <div class="nf-row" style="background:var(--nf-bg2);border:1px solid var(--nf-border);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+    <label style="font-weight:700;margin-bottom:8px;display:block;">🎯 نمط تشغيل الأداة:</label>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:normal;">
+        <input type="radio" name="nf-op-mode" id="nf-mode-full" value="full" ${opMode !== 'extra_only' ? 'checked' : ''}>
+        <span>🔤 <b>تنقية الأسماء</b> + البيانات الإضافية (اختياري)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:normal;">
+        <input type="radio" name="nf-op-mode" id="nf-mode-extra" value="extra_only" ${opMode === 'extra_only' ? 'checked' : ''}>
+        <span>📋 <b>تعديل البيانات الإضافية فقط</b> (العنوان واللغات) دون مساس بالأسماء</span>
+      </label>
+    </div>
+  </div>
+
   <div class="nf-row">
     <label>الصف المستهدف</label>
     <select id="nf-level-select" class="nf-select">
@@ -979,19 +995,31 @@ body.nf-dark-mode {
 
   <div class="nf-divider"></div>
 
-  <div class="nf-row" style="display:flex;align-items:center;gap:8px;">
+  <div class="nf-row" id="nf-extra-check-row" style="display:${opMode === 'extra_only' ? 'none' : 'flex'};align-items:center;gap:8px;">
     <input type="checkbox" id="nf-extra-enabled" style="width:16px;height:16px;" ${extraEnabled ? 'checked' : ''}>
     <label for="nf-extra-enabled" style="margin:0;text-transform:none;font-size:12.5px;cursor:pointer;">
       تصحيح إضافي: العنوان الافتراضي / اللغات / حالة القيد
     </label>
   </div>
-  <div id="nf-extra-box" style="${extraEnabled ? '' : 'display:none;'}">
-    <div class="nf-row" style="background:var(--nf-bg2);border:1px solid var(--nf-border);border-radius:10px;padding:10px;margin-bottom:10px;">
-      <div style="font-size:11px;color:var(--nf-sub);margin-bottom:8px;line-height:1.6;">
-        ⚠️ هذه القيم تُستخدم فقط لو الحقل <b>فاضي</b> عند الطالب، ولن تُغيَّر أي قيمة موجودة بالفعل.
-        <br>📌 <b>الفصل لا يُختار تلقائيًا أبدًا</b> — لو كان فاضيًا، ستنتظر الأداة اختيارك اليدوي قبل الحفظ.
+  <div id="nf-extra-box" style="${(opMode === 'extra_only' || extraEnabled) ? '' : 'display:none;'}">
+    <div class="nf-row" style="background:var(--nf-bg2);border:1px solid var(--nf-border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <label style="font-weight:700;margin-bottom:6px;display:block;">⚙️ سياسة تطبيق العنوان واللغات:</label>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-weight:normal;">
+          <input type="radio" name="nf-extra-policy" id="nf-policy-empty" value="empty" ${!extraOverwrite ? 'checked' : ''}>
+          <span>ملء الحقول <b>الفارغة فقط</b> (لحماية المسجل مسبقاً)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-weight:normal;">
+          <input type="radio" name="nf-extra-policy" id="nf-policy-overwrite" value="overwrite" ${extraOverwrite ? 'checked' : ''}>
+          <span><b>استبدال وتوحيد الجميع</b> (إجباري لكل طالب)</span>
+        </label>
       </div>
-      <label>العنوان الافتراضي <span style="font-weight:400;text-transform:none">(لو فاضي فقط)</span></label>
+      <div style="font-size:11px;color:var(--nf-sub);margin-top:6px;line-height:1.6;">
+        📌 <b>الفصل لا يُختار تلقائيًا أبدًا</b> — لو كان فاضيًا، ستنتظر الأداة اختيارك اليدوي قبل الحفظ.
+      </div>
+    </div>
+    <div class="nf-row">
+      <label>العنوان الافتراضي</label>
       <input type="text" id="nf-default-address" class="nf-input" value="${Utils.escapeHtml(defAddress)}" placeholder="مثال: شارع الجمهورية 15">
     </div>
     <div class="nf-row">
@@ -1003,14 +1031,18 @@ body.nf-dark-mode {
       <select id="nf-default-lang2" class="nf-select">${/* html-safe: مبنية من CONFIG مع هروب */ lang2Opts}</select>
     </div>
     <div class="nf-row">
-      <label>حالة قيد الطالب <span style="font-weight:400;text-transform:none;color:#dc2626">(إجباري: تستبدل القيمة الحالية لكل طالب)</span></label>
+      <label>حالة قيد الطالب الافتراضية</label>
       <select id="nf-default-reg-status" class="nf-select">${/* html-safe: مبنية من CONFIG مع هروب */ regStatusOpts}</select>
     </div>
   </div>
 
   <div class="nf-divider"></div>
 
-  <button id="nf-btn-toggle" class="nf-btn ${isRunning ? 'nf-btn-danger' : 'nf-btn-primary'}">${isRunning ? '⏹ إيقاف التنقية' : '▶️ بدء / استكمال تنقية الأسماء'}</button>
+  <button id="nf-btn-toggle" class="nf-btn ${isRunning ? 'nf-btn-danger' : 'nf-btn-primary'}">${
+    isRunning
+      ? (opMode === 'extra_only' ? '⏹ إيقاف تعديل البيانات' : '⏹ إيقاف التنقية')
+      : (opMode === 'extra_only' ? '▶️ بدء / استكمال تعديل البيانات الإضافية' : '▶️ بدء / استكمال تنقية الأسماء')
+  }</button>
   <button id="nf-btn-skip" class="nf-btn nf-btn-skip" ${isRunning ? '' : 'disabled'}>⏭ تخطي الطالب الحالي</button>
 
   <div class="nf-divider"></div>
@@ -1062,15 +1094,26 @@ body.nf-dark-mode {
         _attachEvents() {
             document.getElementById('nf-btn-toggle').addEventListener('click', async () => {
                 const running = await Store.get('nf_running', false);
+                const opMode  = await Store.get('nf_mode', 'full');
                 if (running) {
                     await Store.set('nf_running', false);
                     this.updateStatus('متوقف', false);
                     this._setToggleBtn(false);
-                    showToast('تم إيقاف التنقية', 'warning');
+                    showToast(opMode === 'extra_only' ? 'تم إيقاف تعديل البيانات' : 'تم إيقاف التنقية', 'warning');
                 } else {
                     const sel = document.getElementById('nf-level-select');
                     if (sel.value === '-1' || sel.options.length <= 1) {
                         showToast('يرجى الانتظار واختيار الصف أولاً.', 'warning'); return;
+                    }
+                    if (opMode === 'extra_only') {
+                        const defAddr = (document.getElementById('nf-default-address')?.value || '').trim();
+                        const defL1   = document.getElementById('nf-default-lang1')?.value || '';
+                        const defL2   = document.getElementById('nf-default-lang2')?.value || '';
+                        const defReg  = document.getElementById('nf-default-reg-status')?.value || '';
+                        if (!defAddr && !defL1 && !defL2 && !defReg) {
+                            showToast('يرجى تحديد بيان إضافي واحد على الأقل لتطبيقه (عنوان أو لغة أو حالة قيد).', 'warning');
+                            return;
+                        }
                     }
                     const raw   = document.getElementById('nf-codes-input').value;
                     const codes = raw.split(/\r?\n|,/).map(c => c.trim()).filter(Boolean);
@@ -1125,7 +1168,42 @@ body.nf-dark-mode {
                 await Fixer.skipCurrentStudent('تخطي يدوي من اللوحة');
             });
 
-            document.getElementById('nf-extra-enabled').addEventListener('change', async e => {
+            const onModeChange = async (mode) => {
+                await Store.set('nf_mode', mode);
+                const isExtra = (mode === 'extra_only');
+                const extraBox = document.getElementById('nf-extra-box');
+                const extraCheckRow = document.getElementById('nf-extra-check-row');
+                const extraCheck = document.getElementById('nf-extra-enabled');
+                if (extraCheckRow) extraCheckRow.style.display = isExtra ? 'none' : 'flex';
+                if (extraBox) {
+                    extraBox.style.display = (isExtra || extraCheck?.checked) ? '' : 'none';
+                }
+                const running = await Store.get('nf_running', false);
+                this._setToggleBtn(running);
+                showToast(isExtra ? 'تم تفعيل نمط "تعديل البيانات الإضافية فقط"' : 'تم تفعيل نمط "تنقية الأسماء"', 'info');
+            };
+
+            document.getElementById('nf-mode-full')?.addEventListener('change', e => {
+                if (e.target.checked) onModeChange('full');
+            });
+            document.getElementById('nf-mode-extra')?.addEventListener('change', e => {
+                if (e.target.checked) onModeChange('extra_only');
+            });
+
+            document.getElementById('nf-policy-empty')?.addEventListener('change', async e => {
+                if (e.target.checked) {
+                    await Store.set('nf_extra_overwrite', false);
+                    showToast('تم ضبط السياسة: ملء الحقول الفارغة فقط', 'info');
+                }
+            });
+            document.getElementById('nf-policy-overwrite')?.addEventListener('change', async e => {
+                if (e.target.checked) {
+                    await Store.set('nf_extra_overwrite', true);
+                    showToast('تم ضبط السياسة: استبدال وتوحيد الجميع إجبارياً', 'info');
+                }
+            });
+
+            document.getElementById('nf-extra-enabled')?.addEventListener('change', async e => {
                 const on = e.target.checked;
                 await Store.set('nf_extra_enabled', on);
                 document.getElementById('nf-extra-box').style.display = on ? '' : 'none';
@@ -1244,8 +1322,13 @@ body.nf-dark-mode {
         _setToggleBtn(running) {
             const btn = document.getElementById('nf-btn-toggle');
             if (btn) {
+                const isExtra = document.getElementById('nf-mode-extra')?.checked;
                 btn.className = `nf-btn ${running ? 'nf-btn-danger' : 'nf-btn-primary'}`;
-                btn.textContent = running ? '⏹ إيقاف التنقية' : '▶️ بدء / استكمال تنقية الأسماء';
+                if (isExtra) {
+                    btn.textContent = running ? '⏹ إيقاف تعديل البيانات' : '▶️ بدء / استكمال تعديل البيانات الإضافية';
+                } else {
+                    btn.textContent = running ? '⏹ إيقاف التنقية' : '▶️ بدء / استكمال تنقية الأسماء';
+                }
             }
             const skipBtn = document.getElementById('nf-btn-skip');
             if (skipBtn) skipBtn.disabled = !running;
@@ -1968,7 +2051,8 @@ body.nf-dark-mode {
                 if (failedCodes.length > 0) {
                     showToast(`⚠️ تعذر معالجة ${failedCodes.length} أكواد بعد ${CONFIG.MAX_AUTO_RETRY} محاولات.`, 'error');
                 } else {
-                    showToast('🎉 اكتملت التنقية! جميع الأكواد بنجاح.', 'success');
+                    const opMode = await Store.get('nf_mode', 'full');
+                    showToast(opMode === 'extra_only' ? '🎉 اكتمل تعديل البيانات الإضافية! جميع الأكواد بنجاح.' : '🎉 اكتملت التنقية! جميع الأكواد بنجاح.', 'success');
                     Utils.playDone();
                 }
 
@@ -2025,8 +2109,10 @@ body.nf-dark-mode {
             const targetCodes = await Store.get('nf_target_codes', []);
             const currentIdx  = await Store.get('nf_current_index', 0);
             const currentCode = targetCodes[currentIdx];
+            const opMode      = await Store.get('nf_mode', 'full');
+            const isExtraOnly = (opMode === 'extra_only');
 
-            showToast('جاري فحص وتنقية اسم الطالب...', 'info');
+            showToast(isExtraOnly ? 'جاري فحص وتعديل البيانات الإضافية للطالب...' : 'جاري فحص وتنقية اسم الطالب...', 'info');
 
             let elapsed = 0;
             let formLoaded = false;
@@ -2054,89 +2140,114 @@ body.nf-dark-mode {
                 return;
             }
 
-            // ── تنقية حقول الاسم ──
+            // ── تنقية حقول الاسم (يتم تخطيها بالكامل في نمط البيانات الإضافية فقط) ──
             let namesCleaned  = false;
             let nameFieldsSeen = 0;
             const changes = [];
             const checked = [];
-            console.log('%c[منقّي الأسماء] بدء فحص الحقول...', 'color:#0d9488;font-weight:bold');
-            pageInputs().forEach(el => {
-                if (el.tagName.toLowerCase() !== 'input') return;
-                if (['hidden', 'submit', 'button', 'checkbox', 'radio'].includes(el.type?.toLowerCase())) return;
 
-                const label      = Utils.findLabelForInput(el);
-                const byControl  = Utils.isNameFormControl(el);
-                const byLabel    = Utils.isNameField(label);
-                const isName     = byControl || byLabel;
-                const ctrlAttr   = el.getAttribute('formcontrolname') || '';
-                console.log(`  · formcontrolname="${ctrlAttr}" id="${el.id}" name="${el.name}" label="${label}" byControl=${byControl} byLabel=${byLabel} value="${el.value}"`);
-                if (!isName) return;
+            if (!isExtraOnly) {
+                console.log('%c[منقّي الأسماء] بدء فحص الحقول...', 'color:#0d9488;font-weight:bold');
+                pageInputs().forEach(el => {
+                    if (el.tagName.toLowerCase() !== 'input') return;
+                    if (['hidden', 'submit', 'button', 'checkbox', 'radio'].includes(el.type?.toLowerCase())) return;
 
-                nameFieldsSeen++;
-                const original = el.value;
-                const cleaned  = Utils.normalizeArabicName(original);
-                checked.push({ field: ctrlAttr, label, value: original });
-                if (cleaned && cleaned !== original) {
-                    console.log(`    ✏️ تغيير: "${original}" → "${cleaned}"`);
-                    Utils.setInputValueAngular(el, cleaned);
-                    namesCleaned = true;
-                    changes.push({ field: ctrlAttr, label, before: original, after: cleaned });
+                    const label      = Utils.findLabelForInput(el);
+                    const byControl  = Utils.isNameFormControl(el);
+                    const byLabel    = Utils.isNameField(label);
+                    const isName     = byControl || byLabel;
+                    const ctrlAttr   = el.getAttribute('formcontrolname') || '';
+                    console.log(`  · formcontrolname="${ctrlAttr}" id="${el.id}" name="${el.name}" label="${label}" byControl=${byControl} byLabel=${byLabel} value="${el.value}"`);
+                    if (!isName) return;
+
+                    nameFieldsSeen++;
+                    const original = el.value;
+                    const cleaned  = Utils.normalizeArabicName(original);
+                    checked.push({ field: ctrlAttr, label, value: original });
+                    if (cleaned && cleaned !== original) {
+                        console.log(`    ✏️ تغيير: "${original}" → "${cleaned}"`);
+                        Utils.setInputValueAngular(el, cleaned);
+                        namesCleaned = true;
+                        changes.push({ field: ctrlAttr, label, before: original, after: cleaned });
+                    }
+                });
+
+                if (nameFieldsSeen === 0) {
+                    showToast('⚠️ لم يتم التعرّف على أي حقل اسم في هذه الصفحة! افتح الكونسول (F12) لمراجعة قائمة الحقول.', 'error');
+                    await Log.add({ code: currentCode || '', status: 'no_name_fields', changes: [], checked: [] });
                 }
-            });
-
-            if (nameFieldsSeen === 0) {
-                showToast('⚠️ لم يتم التعرّف على أي حقل اسم في هذه الصفحة! افتح الكونسول (F12) لمراجعة قائمة الحقول.', 'error');
-                await Log.add({ code: currentCode || '', status: 'no_name_fields', changes: [], checked: [] });
+            } else {
+                console.log('%c[منقّي الأسماء] نمط "البيانات الإضافية فقط" مفعّل — لن يتم تعديل الأسماء.', 'color:#3b82f6;font-weight:bold');
             }
 
-            // ── تصحيح إضافي (اختياري) ──
+            // ── تصحيح البيانات الإضافية (العنوان / اللغات / حالة القيد) ──
             let otherFieldsChanged = false;
-            const extraEnabled = await Store.get('nf_extra_enabled', false);
+            const extraEnabled   = isExtraOnly || (await Store.get('nf_extra_enabled', false));
+            const extraOverwrite = await Store.get('nf_extra_overwrite', false);
+
             if (extraEnabled) {
-                // 2) ملء العنوان الافتراضي إن كان الحقل فارغاً
+                // 1) العنوان الافتراضي
                 const address = document.querySelector('input[formcontrolname="address"]');
-                const defAddress = await Store.get('nf_default_address', '');
-                if (address && !address.value.trim() && defAddress) {
-                    const before = address.value;
-                    Utils.setInputValueAngular(address, defAddress);
-                    changes.push({ field: 'address', label: 'العنوان', before, after: defAddress });
-                    otherFieldsChanged = true;
+                const defAddress = (await Store.get('nf_default_address', '')).trim();
+                if (address && defAddress) {
+                    const currentVal = (address.value || '').trim();
+                    const shouldApply = extraOverwrite ? (currentVal !== defAddress) : (!currentVal);
+                    if (shouldApply) {
+                        const before = address.value;
+                        Utils.setInputValueAngular(address, defAddress);
+                        changes.push({ field: 'address', label: 'العنوان', before, after: defAddress });
+                        otherFieldsChanged = true;
+                    }
                 }
 
-                // (التليفون والمحمول لا يُمسحان تلقائيًا — يُفحصان بالأسفل ويوقفان الحفظ عند الخطأ)
-
-                // 4) اللغات
+                // 2) اللغة الأولى
                 const lang1 = document.querySelector('select[formcontrolname="languageId1"]');
                 const defLang1 = await Store.get('nf_default_lang1', '');
-                if (lang1 && (!lang1.value || lang1.value === '0') && defLang1) {
-                    const before = lang1.value;
-                    Utils.setInputValueAngular(lang1, defLang1);
-                    const txt = (CONFIG.LANG1_OPTIONS.find(o => o.value === defLang1) || {}).text || defLang1;
-                    changes.push({ field: 'languageId1', label: 'اللغة الأولى', before, after: txt });
-                    otherFieldsChanged = true;
+                if (lang1 && defLang1) {
+                    const currentVal = lang1.value;
+                    const isBlank = !currentVal || currentVal === '0' || currentVal === '-1';
+                    const shouldApply = extraOverwrite ? (currentVal !== defLang1) : isBlank;
+                    if (shouldApply) {
+                        const before = (lang1.options[lang1.selectedIndex]?.text || lang1.value || '').trim();
+                        Utils.setInputValueAngular(lang1, defLang1);
+                        const txt = (CONFIG.LANG1_OPTIONS.find(o => o.value === defLang1) || {}).text || defLang1;
+                        changes.push({ field: 'languageId1', label: 'اللغة الأولى', before, after: txt });
+                        otherFieldsChanged = true;
+                    }
                 }
 
+                // 3) اللغة الثانية
                 const lang2 = document.querySelector('select[formcontrolname="languageId2"]');
                 const defLang2 = await Store.get('nf_default_lang2', '');
-                if (lang2 && (!lang2.value || lang2.value === '0') && defLang2) {
-                    const before = lang2.value;
-                    Utils.setInputValueAngular(lang2, defLang2);
-                    const txt = (CONFIG.LANG2_OPTIONS.find(o => o.value === defLang2) || {}).text || defLang2;
-                    changes.push({ field: 'languageId2', label: 'اللغة الثانية', before, after: txt });
-                    otherFieldsChanged = true;
+                if (lang2 && defLang2) {
+                    const currentVal = lang2.value;
+                    const isBlank = !currentVal || currentVal === '0' || currentVal === '-1';
+                    const shouldApply = extraOverwrite ? (currentVal !== defLang2) : isBlank;
+                    if (shouldApply) {
+                        const before = (lang2.options[lang2.selectedIndex]?.text || lang2.value || '').trim();
+                        Utils.setInputValueAngular(lang2, defLang2);
+                        const txt = (CONFIG.LANG2_OPTIONS.find(o => o.value === defLang2) || {}).text || defLang2;
+                        changes.push({ field: 'languageId2', label: 'اللغة الثانية', before, after: txt });
+                        otherFieldsChanged = true;
+                    }
                 }
 
-                // 5) حالة قيد الطالب (إجباري: تُستبدل القيمة المسجلة دائمًا بالقيمة المختارة)
+                // 4) حالة قيد الطالب
                 const regSel = document.querySelector('select[formcontrolname="registrationId"]');
                 const defRegStatus = await Store.get('nf_default_reg_status', '');
-                if (regSel && defRegStatus && regSel.value !== defRegStatus) {
-                    const hasOpt = Array.from(regSel.options).some(o => o.value === defRegStatus);
-                    if (hasOpt) {
-                        const before = (regSel.options[regSel.selectedIndex]?.text || regSel.value || '').trim();
-                        Utils.setInputValueAngular(regSel, defRegStatus);
-                        const txt = (CONFIG.REG_STATUS_OPTIONS.find(o => o.value === defRegStatus) || {}).text || defRegStatus;
-                        changes.push({ field: 'registrationId', label: 'حالة قيد الطالب', before, after: txt });
-                        otherFieldsChanged = true;
+                if (regSel && defRegStatus) {
+                    const currentVal = regSel.value;
+                    const isBlank = !currentVal || currentVal === '0' || currentVal === '-1';
+                    const shouldApply = extraOverwrite ? (currentVal !== defRegStatus) : isBlank;
+                    if (shouldApply) {
+                        const hasOpt = Array.from(regSel.options).some(o => o.value === defRegStatus);
+                        if (hasOpt) {
+                            const before = (regSel.options[regSel.selectedIndex]?.text || regSel.value || '').trim();
+                            Utils.setInputValueAngular(regSel, defRegStatus);
+                            const txt = (CONFIG.REG_STATUS_OPTIONS.find(o => o.value === defRegStatus) || {}).text || defRegStatus;
+                            changes.push({ field: 'registrationId', label: 'حالة قيد الطالب', before, after: txt });
+                            otherFieldsChanged = true;
+                        }
                     }
                 }
             }
@@ -2244,11 +2355,14 @@ body.nf-dark-mode {
                         });
                     }
                 } else {
-                    showToast('⚠️ تم تنقية الاسم محلياً، لكن لم يُعثر على زر الحفظ بالصفحة', 'warning');
+                    showToast(isExtraOnly ? '⚠️ تم تعديل البيانات الإضافية محلياً، لكن لم يُعثر على زر الحفظ بالصفحة' : '⚠️ تم تنقية الاسم محلياً، لكن لم يُعثر على زر الحفظ بالصفحة', 'warning');
                     await Log.add({ code: currentCode || '', status: 'save_button_missing', changes, checked });
                 }
-            } else if (nameFieldsSeen > 0) {
+            } else if (!isExtraOnly && nameFieldsSeen > 0) {
                 showToast(`الاسم نظيف بالفعل (فُحص ${nameFieldsSeen} حقل)، لا حاجة للتعديل.`, 'info');
+                await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
+            } else if (isExtraOnly) {
+                showToast('البيانات الإضافية مطابقة بالفعل، لا حاجة للتعديل.', 'info');
                 await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
             }
 

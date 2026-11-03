@@ -66,6 +66,9 @@
 
   const panelFrames = new Map();
   const ui = {
+    isDesktopLocked() {
+      return Boolean(isDesktopWithLicense && desktopLicenseState && desktopLicenseState.locked);
+    },
     openPanel(tabId, url) {
       if (isDesktopWithLicense && desktopLicenseState && desktopLicenseState.locked) {
         core.removeTab(tabId);
@@ -546,9 +549,9 @@
           try {
             const res = await window.nepDesktop.checkSchoolLicense({ schoolCode: code, serverUrl: srv || undefined });
             if (res?.status) renderDesktopLicense(res.status);
-            toast(res?.message || "تم فحص حالة اشتراك المدرسة", 4000);
+            toast(res?.message || "تم فحص حالة اشتراك المدرسة", res?.ok ? 4000 : 6500);
           } catch (e) {
-            toast("تعذر الفحص: " + e.message, 4000);
+            toast("تعذر الفحص: " + e.message, 5000);
           } finally {
             btnCheckSchool.disabled = false;
             btnCheckSchool.textContent = "🔄 فحص التفعيل التلقائي";
@@ -572,10 +575,10 @@
               serverUrl: srv || undefined
             });
             if (res?.status) renderDesktopLicense(res.status);
-            toast(res?.message || "تمت عملية التفعيل", 4500);
+            toast(res?.message || "تمت عملية التفعيل", res?.ok ? 4500 : 6500);
             if (res?.ok) keyInput.value = "";
           } catch (e) {
-            toast("خطأ أثناء التفعيل: " + e.message, 4000);
+            toast("خطأ أثناء التفعيل: " + e.message, 5000);
           } finally {
             btnActivateKey.disabled = false;
             btnActivateKey.textContent = "✅ تفعيل الاشتراك السنوي";

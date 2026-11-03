@@ -63,7 +63,7 @@
 
   <!-- اليسار: شعار المدرسة أو الوزارة المعتمد + نبراس برو 2026 -->
   <div style="text-align: center; min-width: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-    ${showLogo ? `<img src="${logoSrc}" alt="شعار المدرسة" style="width: 46px; height: 46px; object-fit: contain; margin-bottom: 3px;" />` : ''}
+    ${showLogo ? `<img src="${logoSrc}" alt="شعار المدرسة" width="46" height="46" style="width: 46px; height: 46px; object-fit: contain; margin-bottom: 3px;" />` : ''}
     <div style="font-size: 9pt; font-weight: 800; color: #1e3a8a; letter-spacing: 0.5px; white-space: nowrap;">${esc(badge)}</div>
   </div>
 </div>
