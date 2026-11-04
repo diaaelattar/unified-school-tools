@@ -64,7 +64,9 @@ public class EmisBrowserPlugin extends Plugin {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService ioPool = Executors.newCachedThreadPool();
     private final ConcurrentHashMap<String, PluginCall> pendingExecCalls = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PluginCall> pendingFetchCalls = new ConcurrentHashMap<>();
     private final AtomicLong execSeq = new AtomicLong(0);
+    private final AtomicLong fetchSeq = new AtomicLong(0);
     private boolean isVisible = true;
     private SSLSocketFactory emisSslSocketFactory = null;
 
@@ -252,6 +254,34 @@ public class EmisBrowserPlugin extends Plugin {
                             pending.resolve(ret);
                         } else {
                             pending.reject(resultJson != null ? resultJson : "EXEC_ERROR");
+                        }
+                    }
+
+                    @JavascriptInterface
+                    public void onFetchDone(String fetchId, boolean ok, int status, String b64, String headersJson) {
+                        PluginCall pending = pendingFetchCalls.remove(fetchId);
+                        if (pending == null) return;
+                        if (ok) {
+                            JSObject ret = new JSObject();
+                            ret.put("ok", status >= 200 && status < 300);
+                            ret.put("status", status);
+                            ret.put("base64", b64 != null ? b64 : "");
+                            String text = "";
+                            if (b64 != null && !b64.isEmpty()) {
+                                try {
+                                    byte[] raw = Base64.decode(b64, Base64.DEFAULT);
+                                    text = new String(raw, StandardCharsets.UTF_8);
+                                } catch (Exception ignored) {}
+                            }
+                            ret.put("text", text);
+                            try {
+                                ret.put("headers", new JSObject(headersJson));
+                            } catch (Exception ignored) {
+                                ret.put("headers", new JSObject());
+                            }
+                            pending.resolve(ret);
+                        } else {
+                            ioPool.execute(() -> executeHttpUrlConnection(pending));
                         }
                     }
 
@@ -581,109 +611,201 @@ public class EmisBrowserPlugin extends Plugin {
     @PluginMethod
     public void fetchUrl(PluginCall call) {
         final String urlStr = call.getString("url");
-        final String method = call.getString("method", "GET");
-        final String bodyStr = call.getString("body", null);
-        final JSObject headersObj = call.getObject("headers", new JSObject());
-
         if (urlStr == null || urlStr.isEmpty()) {
             call.reject("URL_REQUIRED");
             return;
         }
 
-        ioPool.execute(() -> {
-            HttpURLConnection conn = null;
-            try {
-                URL url = new URL(urlStr);
-                conn = (HttpURLConnection) url.openConnection();
-                String host = url.getHost() != null ? url.getHost().toLowerCase() : "";
+        mainHandler.post(() -> {
+            String currentUrl = (emisWebView != null) ? emisWebView.getUrl() : null;
+            boolean canUseInPage = (emisWebView != null &&
+                    currentUrl != null &&
+                    currentUrl.toLowerCase().contains("emis.gov.eg") &&
+                    urlStr.toLowerCase().contains("emis.gov.eg"));
 
-                if (conn instanceof HttpsURLConnection && host.endsWith("emis.gov.eg")) {
-                    HttpsURLConnection https = (HttpsURLConnection) conn;
-                    SSLSocketFactory sf = getEmisSslSocketFactory();
-                    if (sf != null) https.setSSLSocketFactory(sf);
-                    https.setHostnameVerifier((hostname, session) -> hostname != null && hostname.toLowerCase().endsWith("emis.gov.eg"));
-                }
-
-                conn.setRequestMethod(method);
-                conn.setConnectTimeout(30000);
-                conn.setReadTimeout(30000);
-                conn.setInstanceFollowRedirects(true);
-
-                // Standard browser headers required by Ministry API servers
-                conn.setRequestProperty("User-Agent", defaultUserAgent);
-                String originSite = (host.contains("professopi") || host.contains("teacher"))
-                        ? "https://teacher.emis.gov.eg"
-                        : "https://student.emis.gov.eg";
-                conn.setRequestProperty("Origin", originSite);
-                conn.setRequestProperty("Referer", originSite + "/");
-
-                CookieManager cm = CookieManager.getInstance();
-                String cookie = cm.getCookie(urlStr);
-                if (cookie == null || cookie.isEmpty()) {
-                    cookie = cm.getCookie(originSite);
-                }
-                if (cookie != null && !cookie.isEmpty()) {
-                    conn.setRequestProperty("Cookie", cookie);
-                }
-
-                if (headersObj != null) {
-                    Iterator<String> keys = headersObj.keys();
-                    while (keys.hasNext()) {
-                        String k = keys.next();
-                        String v = headersObj.getString(k);
-                        if (k != null && v != null) {
-                            conn.setRequestProperty(k, v);
-                        }
-                    }
-                }
-                if (conn.getRequestProperty("Accept") == null) {
-                    conn.setRequestProperty("Accept", "application/json, text/plain, */*");
-                }
-
-                if (bodyStr != null && !method.equalsIgnoreCase("GET") && !method.equalsIgnoreCase("HEAD")) {
-                    conn.setDoOutput(true);
-                    byte[] outBytes = bodyStr.getBytes(StandardCharsets.UTF_8);
-                    try (OutputStream os = conn.getOutputStream()) {
-                        os.write(outBytes);
-                    }
-                }
-
-                int status = conn.getResponseCode();
-                InputStream is = (status >= 200 && status < 400) ? conn.getInputStream() : conn.getErrorStream();
-                byte[] respBytes = new byte[0];
-                if (is != null) {
-                    try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-                        byte[] buf = new byte[8192];
-                        int n;
-                        while ((n = is.read(buf)) != -1) {
-                            bos.write(buf, 0, n);
-                        }
-                        respBytes = bos.toByteArray();
-                    } finally {
-                        is.close();
-                    }
-                }
-
-                JSObject respHeaders = new JSObject();
-                for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
-                    if (entry.getKey() != null && entry.getValue() != null && !entry.getValue().isEmpty()) {
-                        respHeaders.put(entry.getKey().toLowerCase(), entry.getValue().get(0));
-                    }
-                }
-
-                JSObject ret = new JSObject();
-                ret.put("ok", status >= 200 && status < 300);
-                ret.put("status", status);
-                ret.put("headers", respHeaders);
-                ret.put("text", new String(respBytes, StandardCharsets.UTF_8));
-                ret.put("base64", Base64.encodeToString(respBytes, Base64.NO_WRAP));
-                call.resolve(ret);
-            } catch (Exception e) {
-                call.reject("FETCH_FAILED: " + e.getMessage());
-            } finally {
-                if (conn != null) conn.disconnect();
+            if (canUseInPage) {
+                executeInPageFetch(call);
+            } else {
+                ioPool.execute(() -> executeHttpUrlConnection(call));
             }
         });
+    }
+
+    private void executeInPageFetch(PluginCall call) {
+        final String fetchId = "fc_" + fetchSeq.incrementAndGet();
+        pendingFetchCalls.put(fetchId, call);
+
+        // Safety timeout of 35 seconds: fallback to background connection if in-page fetch stalls
+        mainHandler.postDelayed(() -> {
+            PluginCall timeoutCall = pendingFetchCalls.remove(fetchId);
+            if (timeoutCall != null) {
+                ioPool.execute(() -> executeHttpUrlConnection(timeoutCall));
+            }
+        }, 35000);
+
+        String urlStr = call.getString("url", "");
+        String method = call.getString("method", "GET").toUpperCase();
+        String bodyStr = call.getString("body", null);
+        JSObject headersObj = call.getObject("headers", new JSObject());
+
+        String b64Url = Base64.encodeToString(urlStr.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        String b64Hdrs = headersObj != null ? Base64.encodeToString(headersObj.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP) : "";
+        String b64Body = bodyStr != null ? Base64.encodeToString(bodyStr.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP) : "";
+
+        // Executes natively inside student.emis.gov.eg or teacher.emis.gov.eg Chromium context
+        // so the Ministry's F5 BIG-IP WAF sees genuine browser TLS fingerprints and cookies.
+        String js = "(function(fid, b64Url, method, b64Hdrs, b64Body) {\n" +
+                "  try {\n" +
+                "    function b64ToUtf8(b64) {\n" +
+                "      if (!b64) return '';\n" +
+                "      var bin = atob(b64);\n" +
+                "      var bytes = new Uint8Array(bin.length);\n" +
+                "      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);\n" +
+                "      return new TextDecoder('utf-8').decode(bytes);\n" +
+                "    }\n" +
+                "    var u = b64ToUtf8(b64Url);\n" +
+                "    var h = {};\n" +
+                "    if (b64Hdrs) {\n" +
+                "      try { h = JSON.parse(b64ToUtf8(b64Hdrs)); } catch(_) {}\n" +
+                "    }\n" +
+                "    var opts = { method: method, headers: h };\n" +
+                "    if (b64Body && method !== 'GET' && method !== 'HEAD') {\n" +
+                "      opts.body = b64ToUtf8(b64Body);\n" +
+                "    }\n" +
+                "    fetch(u, opts).then(function(res) {\n" +
+                "      var st = res.status;\n" +
+                "      var hdrs = {};\n" +
+                "      try { res.headers.forEach(function(v, k) { hdrs[k] = v; }); } catch(_) {}\n" +
+                "      var hJson = JSON.stringify(hdrs);\n" +
+                "      return res.blob().then(function(blob) {\n" +
+                "        var reader = new FileReader();\n" +
+                "        reader.onloadend = function() {\n" +
+                "          var d = reader.result || '';\n" +
+                "          var c = d.indexOf(',');\n" +
+                "          var b64 = c >= 0 ? d.substring(c + 1) : '';\n" +
+                "          window.neprasNative.onFetchDone(fid, true, st, b64, hJson);\n" +
+                "        };\n" +
+                "        reader.onerror = function() {\n" +
+                "          window.neprasNative.onFetchDone(fid, true, st, '', hJson);\n" +
+                "        };\n" +
+                "        reader.readAsDataURL(blob);\n" +
+                "      });\n" +
+                "    }).catch(function(err) {\n" +
+                "      window.neprasNative.onFetchDone(fid, false, 0, '', String((err && err.message) || err));\n" +
+                "    });\n" +
+                "  } catch(e) {\n" +
+                "    window.neprasNative.onFetchDone(fid, false, 0, '', String((e && e.message) || e));\n" +
+                "  }\n" +
+                "})('" + fetchId + "', '" + b64Url + "', '" + method + "', '" + b64Hdrs + "', '" + b64Body + "');";
+
+        emisWebView.evaluateJavascript(js, null);
+    }
+
+    private void executeHttpUrlConnection(PluginCall call) {
+        final String urlStr = call.getString("url");
+        final String method = call.getString("method", "GET");
+        final String bodyStr = call.getString("body", null);
+        final JSObject headersObj = call.getObject("headers", new JSObject());
+
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            String host = url.getHost() != null ? url.getHost().toLowerCase() : "";
+
+            if (conn instanceof HttpsURLConnection && host.endsWith("emis.gov.eg")) {
+                HttpsURLConnection https = (HttpsURLConnection) conn;
+                SSLSocketFactory sf = getEmisSslSocketFactory();
+                if (sf != null) https.setSSLSocketFactory(sf);
+                https.setHostnameVerifier((hostname, session) -> hostname != null && hostname.toLowerCase().endsWith("emis.gov.eg"));
+            }
+
+            conn.setRequestMethod(method);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(30000);
+            conn.setInstanceFollowRedirects(true);
+
+            // Standard browser headers required by Ministry API servers
+            conn.setRequestProperty("User-Agent", defaultUserAgent);
+            conn.setRequestProperty("Accept-Language", "ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7");
+            conn.setRequestProperty("Sec-Ch-Ua-Mobile", "?1");
+            conn.setRequestProperty("Sec-Ch-Ua-Platform", "\"Android\"");
+            conn.setRequestProperty("Sec-Fetch-Dest", "empty");
+            conn.setRequestProperty("Sec-Fetch-Mode", "cors");
+            conn.setRequestProperty("Sec-Fetch-Site", "same-site");
+
+            String originSite = (host.contains("professopi") || host.contains("teacher"))
+                    ? "https://teacher.emis.gov.eg"
+                    : "https://student.emis.gov.eg";
+            conn.setRequestProperty("Origin", originSite);
+            conn.setRequestProperty("Referer", originSite + "/");
+
+            CookieManager cm = CookieManager.getInstance();
+            String cookie = cm.getCookie(urlStr);
+            if (cookie == null || cookie.isEmpty()) {
+                cookie = cm.getCookie(originSite);
+            }
+            if (cookie != null && !cookie.isEmpty()) {
+                conn.setRequestProperty("Cookie", cookie);
+            }
+
+            if (headersObj != null) {
+                Iterator<String> keys = headersObj.keys();
+                while (keys.hasNext()) {
+                    String k = keys.next();
+                    String v = headersObj.getString(k);
+                    if (k != null && v != null) {
+                        conn.setRequestProperty(k, v);
+                    }
+                }
+            }
+            if (conn.getRequestProperty("Accept") == null) {
+                conn.setRequestProperty("Accept", "application/json, text/plain, */*");
+            }
+
+            if (bodyStr != null && !method.equalsIgnoreCase("GET") && !method.equalsIgnoreCase("HEAD")) {
+                conn.setDoOutput(true);
+                byte[] outBytes = bodyStr.getBytes(StandardCharsets.UTF_8);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(outBytes);
+                }
+            }
+
+            int status = conn.getResponseCode();
+            InputStream is = (status >= 200 && status < 400) ? conn.getInputStream() : conn.getErrorStream();
+            byte[] respBytes = new byte[0];
+            if (is != null) {
+                try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = is.read(buf)) != -1) {
+                        bos.write(buf, 0, n);
+                    }
+                    respBytes = bos.toByteArray();
+                } finally {
+                    is.close();
+                }
+            }
+
+            JSObject respHeaders = new JSObject();
+            for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null && !entry.getValue().isEmpty()) {
+                    respHeaders.put(entry.getKey().toLowerCase(), entry.getValue().get(0));
+                }
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("ok", status >= 200 && status < 300);
+            ret.put("status", status);
+            ret.put("headers", respHeaders);
+            ret.put("text", new String(respBytes, StandardCharsets.UTF_8));
+            ret.put("base64", Base64.encodeToString(respBytes, Base64.NO_WRAP));
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("FETCH_FAILED: " + e.getMessage());
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
     }
 
     private void handleDownloadFromPage(String url, String contentDisposition, String mimetype) {
