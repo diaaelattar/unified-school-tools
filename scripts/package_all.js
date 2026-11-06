@@ -18,6 +18,8 @@ if (fs.existsSync(apkSrc)) {
 
 // 2. Package Extension ZIPs
 const zips = [
+  'Nepras_Edge_Extension_v1.3.4.zip',
+  'Nepras_v1.3.4_Extension.zip',
   'Nepras_Edge_Extension_v1.3.3.zip',
   'Nepras_Edge_Extension_v1.3.2.zip',
   'Nepras_v1.3.3_Extension.zip',

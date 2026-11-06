@@ -1,6 +1,6 @@
 {
   "name": "nepras-apps",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "private": true,
   "description": "Nepras desktop (Electron) and mobile (Capacitor) apps built from the Nepras_v1.3.1_patched extension",
   "scripts": {
