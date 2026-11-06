@@ -62,7 +62,8 @@
 
   // ---------------------------------------------------------------- Panel overlay (for tabs.create extension pages)
   let desktopLicenseState = null;
-  const isDesktopWithLicense = !isAndroid && !!(window.nepDesktop && window.nepDesktop.getLicenseStatus);
+  let openMobileSubscriptionModal = () => {};
+  const isDesktopWithLicense = !!(window.nepDesktop && window.nepDesktop.getLicenseStatus);
 
   const panelFrames = new Map();
   const ui = {
@@ -241,16 +242,14 @@
         const studentTab = [...core.tabs.values()].find((t) => (t.url || "").includes("student.emis.gov.eg"));
         if (studentTab) {
           core.setActive(studentTab.id);
-        } else {
-          core.createTab({ url: "https://student.emis.gov.eg/", active: true });
         }
+        core.navigateActive("https://student.emis.gov.eg/");
       } else if (v === "teacher" && core) {
         const teacherTab = [...core.tabs.values()].find((t) => (t.url || "").includes("teacher.emis.gov.eg"));
         if (teacherTab) {
           core.setActive(teacherTab.id);
-        } else {
-          core.createTab({ url: "https://teacher.emis.gov.eg/", active: true });
         }
+        core.navigateActive("https://teacher.emis.gov.eg/");
       }
     } else {
       if (backend.setBrowserVisible) backend.setBrowserVisible(true);
@@ -381,6 +380,125 @@
       }
     }
 
+    // Update Notification Modal & Auto/Manual Checking
+    const updateModal = $("#nepras-update-modal");
+    const latestVerEl = $("#update-modal-latest-ver");
+    const currVerEl = $("#update-modal-current-ver");
+    const notesEl = $("#update-modal-notes");
+    const btnModalDownloadUpdate = $("#btn-modal-download-update");
+    const btnCloseUpdateModal = $("#btn-close-update-modal");
+    const btnModalDismissUpdate = $("#btn-modal-dismiss-update");
+
+    function showUpdateNotificationModal(res) {
+      if (!res || !res.hasUpdate) return;
+      if (latestVerEl) latestVerEl.textContent = "v" + (res.latestVersion || "");
+      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.2");
+      if (notesEl && res.releaseNotes) notesEl.textContent = res.releaseNotes;
+
+      if (btnModalDownloadUpdate) {
+        btnModalDownloadUpdate.onclick = async () => {
+          if (updateModal) updateModal.classList.add("hidden");
+          const target = res.downloadUrl || "https://unified-school-tools-website.vercel.app/";
+          if (window.nepDesktop && window.nepDesktop.downloadUpdate) {
+            await window.nepDesktop.downloadUpdate(target);
+          } else {
+            window.open(target, "_blank");
+          }
+          toast("جاري فتح صفحة تنزيل التحديث في المتصفح...");
+        };
+      }
+      const closeUpd = () => { if (updateModal) updateModal.classList.add("hidden"); };
+      if (btnCloseUpdateModal) btnCloseUpdateModal.onclick = closeUpd;
+      if (btnModalDismissUpdate) btnModalDismissUpdate.onclick = closeUpd;
+      if (updateModal) {
+        updateModal.onclick = (e) => { if (e.target === updateModal) closeUpd(); };
+        updateModal.classList.remove("hidden");
+      }
+      toast(`🎉 يتوفر إصدار جديد من نبراس (v${res.latestVersion})! اضغط لتنزيله`, 6500);
+    }
+
+    async function checkUpdatesHandler(manual = false) {
+      const btnCheckUpdate = $("#btn-check-update");
+      if (btnCheckUpdate) btnCheckUpdate.classList.add("is-checking");
+      if (manual) toast("جاري فحص التحديثات من الموقع الرسمي...");
+      try {
+        if (window.nepDesktop && window.nepDesktop.checkUpdate) {
+          const res = await window.nepDesktop.checkUpdate();
+          if (btnCheckUpdate) btnCheckUpdate.classList.remove("is-checking");
+          if (res && res.hasUpdate) {
+            showUpdateNotificationModal(res);
+          } else if (res && res.success) {
+            if (manual) toast(`أنت تستخدم أحدث إصدار من نبراس (v${res.currentVersion}) ✅`, 4000);
+          } else if (manual) {
+            const openSite = confirm("تعذر الاتصال بخادم التحديثات التلقائية.\nهل ترغب في فتح الموقع الرسمي لنبراس للتحقق يدوياً؟");
+            if (openSite) {
+              await window.nepDesktop.downloadUpdate("https://unified-school-tools-website.vercel.app/");
+            }
+          }
+        } else if (manual) {
+          if (btnCheckUpdate) btnCheckUpdate.classList.remove("is-checking");
+          window.open("https://unified-school-tools-website.vercel.app/", "_blank");
+        }
+      } catch (err) {
+        if (btnCheckUpdate) btnCheckUpdate.classList.remove("is-checking");
+        if (manual) toast("خطأ أثناء فحص التحديث: " + (err?.message || err), 5000);
+      }
+    }
+
+    // Auto-check for updates after launch
+    setTimeout(() => { checkUpdatesHandler(false); }, 3500);
+
+    // Update Check Button (Top Navbar)
+    const btnCheckUpdate = $("#btn-check-update");
+    if (btnCheckUpdate) {
+      btnCheckUpdate.onclick = () => checkUpdatesHandler(true);
+    }
+
+    // Voluntary Support Modal
+    const supportModal = $("#nepras-support-modal");
+    const btnSupportProject = $("#btn-support-project");
+    const btnCloseSupport = $("#btn-close-support-modal");
+    const btnDismissSupport = $("#btn-dismiss-support");
+    const btnCopyPhone = $("#btn-copy-support-number");
+
+    const openSupportModal = () => {
+      if (supportModal) supportModal.classList.remove("hidden");
+    };
+    const closeSupportModal = () => {
+      if (supportModal) supportModal.classList.add("hidden");
+    };
+
+    if (btnSupportProject) btnSupportProject.onclick = openSupportModal;
+    if (btnCloseSupport) btnCloseSupport.onclick = closeSupportModal;
+    if (btnDismissSupport) btnDismissSupport.onclick = closeSupportModal;
+    if (supportModal) {
+      supportModal.onclick = (e) => {
+        if (e.target === supportModal) closeSupportModal();
+      };
+    }
+    if (btnCopyPhone) {
+      btnCopyPhone.onclick = async () => {
+        const phone = "01118209309";
+        try {
+          if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(phone);
+          } else {
+            const input = document.createElement("input");
+            input.value = phone;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            input.remove();
+          }
+          btnCopyPhone.textContent = "✅ تم النسخ!";
+          setTimeout(() => { btnCopyPhone.textContent = "📋 نسخ الرقم"; }, 2500);
+          toast("تم نسخ رقم الدعم (01118209309) بنجاح");
+        } catch (_) {
+          toast("رقم الدعم: 01118209309");
+        }
+      };
+    }
+
     // Fullscreen
     const btnFullscreen = $("#btn-fullscreen");
     if (btnFullscreen) {
@@ -425,10 +543,27 @@
     if (navPanel) navPanel.onclick = () => showView("panel");
 
     const navStudent = $("#nav-student");
-    if (navStudent) navStudent.onclick = () => showView("student");
+    if (navStudent) {
+      navStudent.onclick = () => {
+        showView("student");
+        if (core) core.navigateActive("https://student.emis.gov.eg/");
+      };
+    }
 
     const navTeacher = $("#nav-teacher");
-    if (navTeacher) navTeacher.onclick = () => showView("teacher");
+    if (navTeacher) {
+      navTeacher.onclick = () => {
+        showView("teacher");
+        if (core) core.navigateActive("https://teacher.emis.gov.eg/");
+      };
+    }
+
+    const navSubscription = $("#nav-subscription");
+    if (navSubscription) {
+      navSubscription.onclick = () => {
+        openMobileSubscriptionModal();
+      };
+    }
 
     const navBrowser = $("#nav-browser");
     if (navBrowser) navBrowser.onclick = () => showView("student");
@@ -522,6 +657,171 @@
           }
           statusBanner.textContent = st.message || "";
         }
+
+        renderMobileSubModalStatus(st);
+      }
+
+      // Mobile Subscription Modal Elements
+      const mobileSubModal = $("#nepras-mobile-sub-modal");
+      const btnCloseMobileSub = $("#btn-close-mobile-sub-modal");
+      const btnCloseMobileSubBtn = $("#btn-close-mobile-sub-btn");
+      const mobileStatusBox = $("#mobile-lic-status-box");
+      const mobileCodeInput = $("#mobile-lic-code-input");
+      const mobileKeyInput = $("#mobile-lic-key-input");
+      const btnMobileCheck = $("#btn-mobile-lic-check");
+      const btnMobileActivate = $("#btn-mobile-lic-activate");
+      const btnCopyMobilePhone = $("#btn-copy-mobile-sub-number");
+      const btnMobileCheckUpdate = $("#btn-mobile-modal-check-update");
+      const mobileSubDot = $("#mobile-sub-dot");
+      const navSubLabel = $("#nav-sub-label");
+
+      function renderMobileSubModalStatus(st) {
+        if (!st) return;
+        if (mobileStatusBox) {
+          mobileStatusBox.classList.remove("lic-banner-ok", "lic-banner-warn", "lic-banner-error");
+          if (!st.locked) {
+            mobileStatusBox.classList.add("lic-banner-ok");
+            const expStr = st.expiresAt ? new Date(st.expiresAt).toLocaleDateString("ar-EG") : "";
+            if (st.status === "TRIAL") {
+              mobileStatusBox.innerHTML = `⏱️ <b>فترة تجريبية مجانية نشطة</b><br>كود المدرسة: <b>${st.schoolCode}</b><br>متبقي <b>${st.daysRemaining} يوم</b> (حتى ${expStr})`;
+            } else {
+              mobileStatusBox.innerHTML = `✅ <b>اشتراك سنوي نشط</b><br>كود المدرسة: <b>${st.schoolCode}</b><br>صالح حتى <b>${expStr}</b> (متبقي ${st.daysRemaining} يوم)`;
+            }
+          } else if (st.schoolCode) {
+            mobileStatusBox.classList.add("lic-banner-error");
+            mobileStatusBox.innerHTML = `⚠️ <b>تنبيه انتهاء الاشتراك</b><br>كود المدرسة: <b>${st.schoolCode}</b><br>${st.message || "انتهت الفترة التجريبية. يرجى تفعيل الاشتراك السنوي."}`;
+          } else {
+            mobileStatusBox.classList.add("lic-banner-warn");
+            mobileStatusBox.innerHTML = `سجّل الدخول بحساب مدرستك على صفحة بيانات التلميذ أو المعلم لالتقاط كود المدرسة تلقائياً، أو اكتب كود المدرسة أدناه.`;
+          }
+        }
+
+        if (mobileCodeInput && st.schoolCode && document.activeElement !== mobileCodeInput) {
+          mobileCodeInput.value = st.schoolCode;
+        }
+
+        if (mobileSubDot) {
+          mobileSubDot.classList.remove("sub-active", "sub-warn", "sub-locked");
+          if (!st.locked && (st.status === "ACTIVE" || st.status === "TRIAL")) {
+            mobileSubDot.classList.add("sub-active");
+          } else if (!st.locked && st.status === "WARNING") {
+            mobileSubDot.classList.add("sub-warn");
+          } else {
+            mobileSubDot.classList.add("sub-locked");
+          }
+        }
+
+        if (navSubLabel) {
+          if (!st.locked && st.schoolCode) {
+            navSubLabel.textContent = `مشترك (${st.daysRemaining}ي)`;
+          } else if (st.schoolCode && st.locked) {
+            navSubLabel.textContent = "تفعيل";
+          } else {
+            navSubLabel.textContent = "الاشتراك";
+          }
+        }
+      }
+
+      openMobileSubscriptionModal = function() {
+        if (mobileSubModal) {
+          mobileSubModal.classList.remove("hidden");
+          if (desktopLicenseState) {
+            renderMobileSubModalStatus(desktopLicenseState);
+          } else if (window.nepDesktop && window.nepDesktop.getLicenseStatus) {
+            window.nepDesktop.getLicenseStatus().then(st => {
+              if (st) renderMobileSubModalStatus(st);
+            });
+          }
+        }
+      };
+
+      const closeMobileSubModal = () => {
+        if (mobileSubModal) mobileSubModal.classList.add("hidden");
+      };
+
+      if (btnCloseMobileSub) btnCloseMobileSub.onclick = closeMobileSubModal;
+      if (btnCloseMobileSubBtn) btnCloseMobileSubBtn.onclick = closeMobileSubModal;
+      if (mobileSubModal) {
+        mobileSubModal.onclick = (e) => {
+          if (e.target === mobileSubModal) closeMobileSubModal();
+        };
+      }
+
+      if (btnCopyMobilePhone) {
+        btnCopyMobilePhone.onclick = async () => {
+          const phone = "01118209309";
+          try {
+            if (navigator?.clipboard?.writeText) {
+              await navigator.clipboard.writeText(phone);
+            } else {
+              const input = document.createElement("input");
+              input.value = phone;
+              document.body.appendChild(input);
+              input.select();
+              document.execCommand("copy");
+              document.body.removeChild(input);
+            }
+            btnCopyMobilePhone.textContent = "تم النسخ ✓";
+            setTimeout(() => { btnCopyMobilePhone.textContent = "📋 نسخ الرقم"; }, 2500);
+            toast("تم نسخ رقم فودافون كاش / إنستاباي: 01118209309", 3500);
+          } catch (_) {
+            toast("رقم التحويل: 01118209309", 4000);
+          }
+        };
+      }
+
+      if (btnMobileCheck) {
+        btnMobileCheck.onclick = async () => {
+          const code = (mobileCodeInput?.value || "").trim();
+          btnMobileCheck.disabled = true;
+          btnMobileCheck.textContent = "فحص...";
+          try {
+            if (window.nepDesktop && window.nepDesktop.checkSchoolLicense) {
+              const res = await window.nepDesktop.checkSchoolLicense({ schoolCode: code });
+              if (res?.status) {
+                renderDesktopLicense(res.status);
+                renderMobileSubModalStatus(res.status);
+              }
+              toast(res?.message || "تم فحص حالة الاشتراك", res?.ok ? 3500 : 5500);
+            }
+          } catch (e) {
+            toast("تعذر الفحص: " + e.message, 4000);
+          } finally {
+            btnMobileCheck.disabled = false;
+            btnMobileCheck.textContent = "🔄 فحص";
+          }
+        };
+      }
+
+      if (btnMobileActivate) {
+        btnMobileActivate.onclick = async () => {
+          const code = (mobileCodeInput?.value || "").trim();
+          const key = (mobileKeyInput?.value || "").trim();
+          if (!code) return toast("يرجى إدخال كود المدرسة أولاً", 3000);
+          if (!key) return toast("يرجى إدخال مفتاح التفعيل السنوي", 3000);
+          btnMobileActivate.disabled = true;
+          btnMobileActivate.textContent = "تفعيل...";
+          try {
+            if (window.nepDesktop && window.nepDesktop.activateSchoolKey) {
+              const res = await window.nepDesktop.activateSchoolKey({ schoolCode: code, licenseKey: key });
+              if (res?.status) {
+                renderDesktopLicense(res.status);
+                renderMobileSubModalStatus(res.status);
+              }
+              toast(res?.message || "تمت عملية التفعيل", res?.ok ? 4000 : 6000);
+              if (res?.ok && mobileKeyInput) mobileKeyInput.value = "";
+            }
+          } catch (e) {
+            toast("خطأ أثناء التفعيل: " + e.message, 4500);
+          } finally {
+            btnMobileActivate.disabled = false;
+            btnMobileActivate.textContent = "✅ تفعيل";
+          }
+        };
+      }
+
+      if (btnMobileCheckUpdate) {
+        btnMobileCheckUpdate.onclick = () => checkUpdatesHandler(true);
       }
 
       if (subBadgeBtn) {

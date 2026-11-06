@@ -34,5 +34,9 @@ contextBridge.exposeInMainWorld("nepDesktop", {
   reportDetectedSchool: (opts) => ipcRenderer.invoke("nep:license:reportSchool", opts),
   reportLogout: () => ipcRenderer.invoke("nep:license:reportLogout"),
   setLicenseServerUrl: (url) => ipcRenderer.invoke("nep:license:setServerUrl", url),
-  onLicenseUpdate: (cb) => sub("nep:license", cb)
+  onLicenseUpdate: (cb) => sub("nep:license", cb),
+  // Auto-Update & External Browser
+  checkUpdate: () => ipcRenderer.invoke("nep:checkUpdate"),
+  downloadUpdate: (url) => ipcRenderer.invoke("nep:downloadUpdate", url),
+  openExternal: (url) => ipcRenderer.invoke("nep:openExternal", url)
 });

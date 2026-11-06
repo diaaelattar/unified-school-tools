@@ -93,6 +93,9 @@ const NEPRAS_SITE_COMMON_FILES = [
   'modules/quick_edits.js', // أداة تعديل التخصص واللغات والشعب المدرسية
   'modules/student_dossier.js', // الملف الرقمي والبحث الشامل للطالب
   'modules/staff_stats.js', // إحصائيات وسجلات العاملين وكشوف التخصصات
+  'modules/staff_annual_reports.js', // تقارير تقويم الأداء السنوية (الكفاية) للمعلمين والعاملين
+  'modules/health_records.js', // سجلات ومبادرات التأمين الصحي وسوء التغذية وفحص العيون
+  'modules/g9_exam_forms.js', // كشوف ومتابعة استمارة الشهادة الإعدادية الإلكترونية
   'modules/quick_login.js' // خزنة الدخول السريع والتعبئة التلقائية لحساب الوزارة
 ];
 const NEPRAS_SITE_INJECTION = {

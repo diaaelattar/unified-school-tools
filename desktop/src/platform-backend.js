@@ -14,13 +14,20 @@
 
   const DETECTOR_CODE = `(function() {
     try {
-      var code = "", name = "", stage = "";
+      var code = "", serial = "", name = "", stage = "";
       var norm = function(s) {
         if (!s) return "";
         var ar = "٠١٢٣٤٥٦٧٨٩";
         var str = String(s).replace(/[٠-٩]/g, function(d) { return String(ar.indexOf(d)); }).trim();
         var digits = str.replace(/\\D/g, "");
-        return (/^\\d{4,12}$/.test(digits)) ? digits : "";
+        // كود المدرسة أو المسلسل الرسمي يجب ألا يقل عن 5 أرقام لمنع الخلط مع أكواد المراحل (مثل 276)
+        return (/^\\d{5,12}$/.test(digits)) ? digits : "";
+      };
+      var isBadName = function(n) {
+        if (!n || typeof n !== "string") return true;
+        var s = n.trim();
+        if (s.length < 3 || /^\\d+$/.test(s) || /^مدرسة \\d+$/.test(s)) return true;
+        return /تعديل بيان|مجموعة طلاب|بيانات التلميذ|بيانات المعلم|طباعة|قوائم|استمارة|بوابة الخدمات/.test(s);
       };
       var inspectObj = function(obj, depth) {
         if (!obj || typeof obj !== "object" || (depth || 0) > 4) return;
@@ -35,7 +42,10 @@
             if (!code && (lk.indexOf("schoolcode") >= 0 || lk === "schoolid" || lk === "schcode" || lk === "sc") && norm(sv)) {
               code = norm(sv);
             }
-            if (!name && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname" || lk === "school_name") && sv.length >= 3 && !/^\\d+$/.test(sv)) {
+            if (!serial && (lk.indexOf("schoolserial") >= 0 || lk.indexOf("serial") >= 0) && norm(sv)) {
+              serial = norm(sv);
+            }
+            if (!name && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname" || lk === "school_name") && sv.length >= 3 && !/^\\d+$/.test(sv) && !isBadName(sv)) {
               name = sv;
             }
             if (!stage && (lk.indexOf("schoolstage") >= 0 || lk.indexOf("stagecode") >= 0 || lk === "stage")) {
@@ -60,7 +70,10 @@
           if (!code && (lk.indexOf("schoolcode") >= 0 || lk === "schoolid" || lk === "schcode" || lk === "sc") && norm(cleanVal)) {
             code = norm(cleanVal);
           }
-          if (!name && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname") && cleanVal.length >= 3 && !/^\\d+$/.test(cleanVal)) {
+          if (!serial && (lk.indexOf("schoolserial") >= 0 || lk.indexOf("serial") >= 0) && norm(cleanVal)) {
+            serial = norm(cleanVal);
+          }
+          if (!name && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname") && cleanVal.length >= 3 && !/^\\d+$/.test(cleanVal) && !isBadName(cleanVal)) {
             name = cleanVal;
           }
           if (v.indexOf("{") >= 0 || v.indexOf("[") >= 0) {
@@ -87,16 +100,20 @@
           var bTxt = (bEl.innerText || bEl.textContent || "").trim();
           if (!bTxt) continue;
           if (!code) {
-            var mMail = bTxt.match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
+            var mMail = bTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
             if (mMail) code = norm(mMail[1]);
             var mCode = bTxt.match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([٠-٩0-9]{5,12})/);
             if (!code && mCode) code = norm(mCode[1]);
+          }
+          if (!serial) {
+            var mSerial = bTxt.match(/(?:الرقم\\s*المسلسل|مسلسل\\s*المدرسة|مسلسل)\\s*[:\\-]?\\s*([٠-٩0-9]{7,12})/);
+            if (mSerial) serial = norm(mSerial[1]);
           }
           if (!name) {
             var mSch = bTxt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);
             if (mSch) {
               var candName = mSch[1].replace(/المرحل[ةه].*$/, "").replace(/التبعي[ةه].*$/, "").replace(/الرقم\\s*المسلسل.*$/, "").trim();
-              if (candName.length >= 3 && !/^\\d+$/.test(candName) && /[\\u0600-\\u06FF]/.test(candName)) name = candName;
+              if (candName.length >= 3 && !/^\\d+$/.test(candName) && /[\\u0600-\\u06FF]/.test(candName) && !isBadName(candName)) name = candName;
             }
           }
           if (!stage) {
@@ -111,21 +128,30 @@
         if ((!code || !name) && document.body) {
           var fullTxt = (document.body.innerText || "").slice(0, 8000);
           if (!code) {
-            var fbMail = fullTxt.match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
+            var fbMail = fullTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
             if (fbMail) code = norm(fbMail[1]);
             var fbCode = fullTxt.match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([٠-٩0-9]{5,12})/);
             if (!code && fbCode) code = norm(fbCode[1]);
+          }
+          if (!serial) {
+            var fbSerial = fullTxt.match(/(?:الرقم\\s*المسلسل|مسلسل\\s*المدرسة|مسلسل)\\s*[:\\-]?\\s*([٠-٩0-9]{7,12})/);
+            if (fbSerial) serial = norm(fbSerial[1]);
           }
           if (!name) {
             var fbName = fullTxt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([\\u0600-\\u06FF0-9\\s]{3,40})/);
             if (fbName) {
               var fn = fbName[1].trim();
-              if (fn.length >= 3 && !/^\\d+$/.test(fn)) name = fn;
+              if (fn.length >= 3 && !/^\\d+$/.test(fn) && !isBadName(fn)) name = fn;
             }
           }
         }
       } catch (_) {}
-      return code ? { schoolCode: code, schoolName: name || ("مدرسة " + code), stage: stage || "" } : null;
+      return (code || serial || name) ? {
+        schoolCode: code || serial || "",
+        schoolSerial: serial || "",
+        schoolName: isBadName(name) ? "" : (name || (code ? ("مدرسة " + code) : "")),
+        stage: stage || ""
+      } : null;
     } catch (_) { return null; }
   })()`;
 

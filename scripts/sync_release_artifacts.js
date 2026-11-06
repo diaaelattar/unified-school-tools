@@ -15,7 +15,7 @@ const extTargets = [
   path.join(root, 'Nepras_apps/release/desktop-legacy/win-ia32-unpacked/resources/dist/ext')
 ];
 
-const hostFiles = ['host.html', 'host.css', 'host-core.js', 'host-ui.js'];
+const hostFiles = ['host.html', 'host.css', 'host-core.js', 'host-ui.js', 'nepras_logger.js'];
 const distTargets = [
   path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.2_Portable/resources/dist'),
   path.join(root, 'Nepras_apps/release/desktop/win-unpacked/resources/dist'),

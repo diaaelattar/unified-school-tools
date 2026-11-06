@@ -109,4 +109,125 @@ test('كشف جدول الغياب المتقدم: تمييز جدول الطل�
   assert(!attendanceCode.includes('سحب وتجميع الغياب من جدول الفصل الحالي'), 'يجب التخلص من كلمة سحب في عنوان الدالة واستبدالها بمصطلح استيراد وتحديث');
 });
 
+// 5. فحص علاج مشكلة تسجيل أول 5-6 طلاب فقط في الفصل
+test('إصلاح تسجيل الغياب الكامل: أولوية زر عرض كل الطلبة والتمرير التكراري لحاوية الجدول وتحديث نماذج Angular', () => {
+  const attendanceCode = fs.readFileSync(path.join(__dirname, '../modules/attendance.js'), 'utf8');
+  assert(attendanceCode.includes('عرض\\s*كل\\s*الطلبة'), 'يجب أن يمنح زر عرض كل الطلبة الأولوية القصوى');
+  assert(attendanceCode.includes('neprasAttendanceSetNativeInputValue'), 'يجب استخدام دالة ضبط القيمة الأصلية لتحديث عناصر تحكم Angular');
+  assert(attendanceCode.includes('neprasAttendanceGetScrollContainer'), 'يجب كشف حاوية التمرير .table-responsive لدعم الفصول الطويلة');
+  assert(attendanceCode.includes('neprasAttendanceFillAllClassDaysWithScroll'), 'يجب استخدام التمرير التكراري لضمان تسجيل كل طلاب الفصل');
+  assert(attendanceCode.includes('neprasAttendanceWaitForTableLoad'), 'يجب الانتظار الذكي لاكتمال تحميل جدول الفصل قبل الحفظ');
+  assert(attendanceCode.includes('neprasAttendanceShuffleArray'), 'يجب استخدام خوارزمية خلط عشوائي حقيقية لتوزيع الغياب العشوائي');
+});
+
+// 6. فحص إحصائيات الثانوي العام المفصلة (مسارات وشعب ونظام التعليم والنوع)
+test('إحصائية الثانوي العام: مطابقة وتفكيك معرفات الوزارة الرسمية (مسارات وشعب ونظام التعليم والنوع والدمج)', () => {
+  const mockXlsx = {
+    utils: {
+      book_new: () => ({ Sheets: {}, SheetNames: [] }),
+      aoa_to_sheet: (aoa) => ({ aoa })
+    }
+  };
+  global.XLSX = mockXlsx;
+  require('../modules/stats_dashboard.js');
+  const dash = global.NeprasStatsDashboard;
+  assert(dash, 'يجب تحميل وحدة NeprasStatsDashboard');
+  assert(typeof dash.buildSecondaryTracksStatsSheet === 'function', 'يجب توفر دالة buildSecondaryTracksStatsSheet');
+
+  // عينة واقعية لطلاب الثانوي العام تطابق كود صفحة الطالب بدقة
+  const sampleStudents = [
+    {
+      code: '2001', name: 'أحمد محمود علي', nationalId: '30701010100019',
+      levelId: 1, studyTypeId: 1, registrationId: 1, divisionId: -1, disabilityId: 0
+    },
+    {
+      code: '2002', name: 'فاطمة إبراهيم حسن', nationalId: '30702020100028',
+      levelId: 1, studyTypeId: 2, registrationId: 1, divisionId: -1, disabilityId: 1 // دمج بصرية
+    },
+    {
+      code: '2003', name: 'محمد سمير يوسف', nationalId: '30603030100037',
+      levelId: 2, studyTypeId: 1, registrationId: 1, divisionId: 3 // علمي
+    },
+    {
+      code: '2004', name: 'مريم عادل مصطفى', nationalId: '30604040100046',
+      levelId: 2, studyTypeId: 1, registrationId: 2, divisionId: 2 // أدبي باق للإعادة
+    },
+    {
+      code: '2005', name: 'زياد طارق كمال', nationalId: '30605050100055',
+      levelId: 2, studyTypeId: 3, registrationId: 1, divisionId: 203 // بكالوريا مسار الطب وعلوم الحياة - خدمات
+    },
+    {
+      code: '2006', name: 'نور عمر سالم', nationalId: '30506060100064',
+      levelId: 3, studyTypeId: 1, registrationId: 9, divisionId: 204 // مسار الهندسة - تحويل مسار
+    }
+  ];
+
+  // اختبار توحيد السجلات
+  const norm1 = dash.normalizeStudentRecord(sampleStudents[0]);
+  assert.strictEqual(norm1.grade, 'الصف الأول الثانوي');
+  assert.strictEqual(norm1.mode, 'نظامي');
+  assert.strictEqual(norm1.status, 'ناجح ومنقول');
+  assert.strictEqual(norm1.gender, 'بنين');
+  assert.strictEqual(norm1.isIntegrated, false);
+
+  const norm2 = dash.normalizeStudentRecord(sampleStudents[1]);
+  assert.strictEqual(norm2.grade, 'الصف الأول الثانوي');
+  assert.strictEqual(norm2.mode, 'منازل');
+  assert.strictEqual(norm2.gender, 'بنات');
+  assert.strictEqual(norm2.isIntegrated, true);
+  assert.strictEqual(norm2.integrationType, 'إعاقة بصرية');
+
+  const norm5 = dash.normalizeStudentRecord(sampleStudents[4]);
+  assert.strictEqual(norm5.mode, 'خدمات');
+  assert.strictEqual(norm5.section, 'مسار الطب وعلوم الحياة');
+
+  // توليد ورقة العمل وفحص الأعمدة والمحتوى
+  const meta = { school: 'مدرسة المتفوقين الثانوية', year: '2026-2027', dir: 'القاهرة', admin: 'مصر الجديدة', affairs: 'أ/ محمد', principal: 'أ/ سمير' };
+  const ws = dash.buildSecondaryTracksStatsSheet(sampleStudents, meta);
+  assert(ws, 'يجب توليد كائن ورقة العمل');
+  assert(ws['!cols'] && ws['!cols'].length === 16, 'يجب أن تحتوي الورقة على 16 عموداً للماتريكس الشامل');
+  assert(ws['!merges'] && ws['!merges'].length >= 8, 'يجب دمج ترويسات نظام التعليم والإجمالي العام');
+});
+
+// 7. فحص زر ومحرك التحديث التلقائي لبرنامج سطح المكتب
+test('محرك التحديث: فحص مقارنة الإصدارات وقنوات IPC في main.js و preload-host.js', () => {
+  const mainCode = fs.readFileSync(path.join(__dirname, '../../desktop/src/main.js'), 'utf8');
+  assert(mainCode.includes('nep:checkUpdate'), 'يجب تسجيل قناة nep:checkUpdate في main.js');
+  assert(mainCode.includes('nep:downloadUpdate'), 'يجب تسجيل قناة nep:downloadUpdate في main.js');
+  assert(mainCode.includes('unified-school-tools-website.vercel.app'), 'يجب أن يربط التحديث بالموقع الرسمي');
+  assert(mainCode.includes('compareVersions'), 'يجب استخدام دالة مقارنة الإصدارات الدلالية');
+
+  const preloadCode = fs.readFileSync(path.join(__dirname, '../../desktop/src/preload-host.js'), 'utf8');
+  assert(preloadCode.includes('checkUpdate:'), 'يجب تصدير checkUpdate عبر contextBridge');
+  assert(preloadCode.includes('downloadUpdate:'), 'يجب تصدير downloadUpdate عبر contextBridge');
+
+  const hostHtml = fs.readFileSync(path.join(__dirname, '../../shared/host.html'), 'utf8');
+  assert(hostHtml.includes('btn-check-update'), 'يجب وجود زر فحص التحديث في شريط أدوات التطبيق');
+
+  const hostUi = fs.readFileSync(path.join(__dirname, '../../shared/host-ui.js'), 'utf8');
+  assert(hostUi.includes('btnCheckUpdate.onclick'), 'يجب ربط حدث النقر لزر التحديث في واجهة التطبيق');
+});
+
+// 8. فحص رسالة المساهمة من خلال الاشتراك السنوي للمدرسة
+test('رسالة الاشتراك السنوي: توفر النافذة والزر والدعوة الصريحة للاشتراك السنوي (30 جنيهاً)', () => {
+  const hostHtml = fs.readFileSync(path.join(__dirname, '../../shared/host.html'), 'utf8');
+  assert(hostHtml.includes('nepras-support-modal'), 'يجب وجود نافذة الاشتراك السنوي في host.html');
+  assert(hostHtml.includes('btn-support-project'), 'يجب وجود زر الاشتراك في شريط الأدوات');
+  assert(hostHtml.includes('30 جنيهاً'), 'يجب أن توضح الرسالة قيمة الاشتراك السنوي 30 جنيهاً');
+  assert(hostHtml.includes('01118209309'), 'يجب أن تحتوي الرسالة على رقم التحويل والواتساب 01118209309');
+
+  const hostCss = fs.readFileSync(path.join(__dirname, '../../shared/host.css'), 'utf8');
+  assert(hostCss.includes('.nep-modal-overlay'), 'يجب وجود تنسيقات نافذة الدعم في host.css');
+  assert(hostCss.includes('.nav-btn.support-btn'), 'يجب تنسيق زر الدعم بأناقة');
+
+  const popupHtml = fs.readFileSync(path.join(__dirname, '../popup.html'), 'utf8');
+  assert(popupHtml.includes('support-contribution-card'), 'يجب وجود بطاقة الاشتراك في نافذة الإضافة popup.html');
+  assert(popupHtml.includes('الاشتراك السنوي'), 'يجب أن تنص البطاقة على الاشتراك السنوي');
+  assert(popupHtml.includes('btn-popup-copy-phone'), 'يجب وجود زر نسخ رقم التحويل في الإضافة');
+
+  const popupJs = fs.readFileSync(path.join(__dirname, '../popup.js'), 'utf8');
+  assert(popupJs.includes('btnPopupCopyPhone'), 'يجب ربط نسخ رقم الدعم في popup.js');
+  assert(popupJs.includes('btn-sc-secondary-tracks'), 'يجب ربط زر إحصائية الثانوي في popup.js');
+});
+
 summary('attendance_and_lang');

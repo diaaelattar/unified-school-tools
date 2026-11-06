@@ -625,7 +625,7 @@ async function neprasAttendanceRunOp(req) {
 
   switch (op) {
     case "fill-zero": {
-      const n = setAllDays(0);
+      const n = await neprasAttendanceFillAllClassDaysWithScroll({ fixedVal: 0 });
       if (!n) { window.neprasDialog?.warning("لا يوجد جدول طلاب معروض. اختر الأسبوع والصف والفصل ثم اضغط عرض الطلاب.", { title: "لا توجد بيانات" }); return { ok: false, code: "no_table" }; }
       window.neprasNotice?.("تم تعبئة 0 يوم غياب لعدد " + n + " طالب.", "success", "تمت التعبئة");
       return { ok: true, count: n };
@@ -911,10 +911,25 @@ function getSaveButton() {
 }
 
 function getShowStudentsButton() {
-  const btns = Array.from(document.querySelectorAll("button, input[type='submit'], input[type='button'], a.btn, input.btn"));
+  const btns = Array.from(document.querySelectorAll("button, input[type='submit'], input[type='button'], a.btn, input.btn, a"));
+  // 1. أولوية قصوى لزر "عرض كل الطلبة" / "عرض كل الطلاب" الصريح
+  const showAll = btns.find(b => {
+    const txt = (b.innerText || b.value || b.textContent || "").trim();
+    return /عرض\s*كل\s*الطلبة|عرض\s*كل\s*الطلاب/i.test(txt);
+  });
+  if (showAll) return showAll;
+
+  // 2. أزرار عرض الطلبة / الطلاب / الفصل
+  const showStudents = btns.find(b => {
+    const txt = (b.innerText || b.value || b.textContent || "").trim();
+    return /عرض\s*الطلبة|عرض\s*الطلاب|عرض\s*الفصل/i.test(txt);
+  });
+  if (showStudents) return showStudents;
+
+  // 3. أزرار العرض العامة (عرض / بحث / عرض التقرير)
   return btns.find(b => {
-    const txt = (b.innerText || b.value || "").trim();
-    return /عرض\s*كل\s*الطلبة|عرض\s*الطلبة|عرض\s*الطلاب|عرض\s*الفصل|عرض\s*التقرير|عرض|بحث/i.test(txt);
+    const txt = (b.innerText || b.value || b.textContent || "").trim();
+    return /^(عرض|بحث)$/i.test(txt) || /عرض\s*التقرير/i.test(txt);
   });
 }
 
@@ -1012,6 +1027,244 @@ async function neprasAttendanceAskSpec({ title, message, note, okText } = {}) {
   return neprasAttendanceParseSpec(mode, raw).spec || null;
 }
 
+// ==========================================
+// مساعدات التمرير وتحديث حقول نماذج Angular
+// حل مشكلة اقتصار التسجيل على أول 5-6 طلاب في الفصل
+// ==========================================
+
+function neprasAttendanceSetNativeInputValue(input, val) {
+  if (!input) return;
+  const strVal = String(val == null ? "" : val);
+  try {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {}, "value")?.set;
+    if (setter) {
+      setter.call(input, strVal);
+    } else {
+      input.value = strVal;
+    }
+  } catch (_) {
+    input.value = strVal;
+  }
+  input.dispatchEvent(new Event("focus", { bubbles: true }));
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  try { input.dispatchEvent(new Event("blur", { bubbles: true })); } catch (_) {}
+}
+
+function neprasAttendanceExtractRowStudentCode(tr) {
+  if (!tr) return "";
+  const tds = tr.querySelectorAll("td, th");
+  for (let td of tds) {
+    const txt = (td.innerText || td.textContent || "").trim().replace(/\D/g, "");
+    if (txt.length >= 7 && txt.length <= 15) return txt;
+  }
+  return "";
+}
+
+function neprasAttendanceGetScrollContainer() {
+  const table = document.querySelector("table");
+  if (!table) return null;
+  let parent = table.parentElement;
+  while (parent && parent !== document.body && parent !== document.documentElement) {
+    const style = window.getComputedStyle ? window.getComputedStyle(parent) : {};
+    const overflowY = style.overflowY || style.overflow;
+    if ((overflowY === "auto" || overflowY === "scroll" || parent.classList?.contains("table-responsive")) && parent.scrollHeight > parent.clientHeight) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return document.querySelector(".table-responsive") || null;
+}
+
+async function neprasAttendanceWaitForTableLoad(maxWaitMs = 5000) {
+  const start = Date.now();
+  await new Promise(r => setTimeout(r, 400));
+  while (Date.now() - start < maxWaitMs) {
+    if (neprasAttendanceIsStopped()) return false;
+    const rows = document.querySelectorAll("table tbody tr");
+    if (rows.length > 0) {
+      const firstText = (rows[0].innerText || rows[0].textContent || "").trim();
+      if (!/لا توجد بيانات|No data|جاري التحميل|loading/i.test(firstText)) {
+        const inputsOrCells = rows[0].querySelectorAll("input, td");
+        if (inputsOrCells.length > 0) {
+          return true;
+        }
+      }
+    }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return false;
+}
+
+function neprasAttendanceShuffleArray(arr) {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+async function neprasAttendanceFillAllClassDaysWithScroll(options = {}) {
+  const { spec, fixedVal, studentsAbsenceMap, targetCodes } = options;
+  const targetCodesSet = targetCodes ? new Set(Array.from(targetCodes).map(c => String(c).trim())) : null;
+  const processedKeys = new Set();
+  const scrollContainer = neprasAttendanceGetScrollContainer();
+
+  let stuckCount = 0;
+  let lastProcessedCount = 0;
+  let totalFilledCount = 0;
+  let sum = 0, min = Infinity, max = -Infinity;
+
+  const maxSteps = 40;
+
+  for (let step = 0; step < maxSteps; step++) {
+    neprasAttendanceThrowIfStopped();
+
+    const rows = document.querySelectorAll("table tbody tr, table tr");
+    rows.forEach((tr, rowIdx) => {
+      const tds = tr.querySelectorAll("td");
+      if (tds.length < 2) return;
+
+      const code = neprasAttendanceExtractRowStudentCode(tr);
+      const rowKey = code || `row_${rowIdx}`;
+
+      if (processedKeys.has(rowKey)) return;
+
+      const allInputs = Array.from(tr.querySelectorAll("input"));
+      const input = allInputs.find(i => i.type !== "checkbox" && i.type !== "radio" && i.type !== "hidden" && i.type !== "submit" && i.type !== "button");
+      if (!input) return;
+
+      let daysToSet = null;
+
+      if (studentsAbsenceMap) {
+        if (code && studentsAbsenceMap[code] !== undefined) {
+          daysToSet = studentsAbsenceMap[code];
+        }
+      } else if (targetCodesSet) {
+        if (code && targetCodesSet.has(code)) {
+          daysToSet = 1;
+        } else {
+          daysToSet = 0;
+        }
+      } else if (spec) {
+        daysToSet = neprasAttendanceDaysFor(spec);
+      } else if (fixedVal !== undefined && fixedVal !== null) {
+        daysToSet = fixedVal;
+      }
+
+      if (daysToSet !== null && daysToSet !== undefined) {
+        neprasAttendanceSetNativeInputValue(input, daysToSet);
+        processedKeys.add(rowKey);
+        totalFilledCount++;
+        const numD = Number(daysToSet);
+        if (Number.isFinite(numD)) {
+          sum += numD;
+          if (numD < min) min = numD;
+          if (numD > max) max = numD;
+        }
+      }
+    });
+
+    if (processedKeys.size === lastProcessedCount) {
+      stuckCount++;
+      if (stuckCount >= 3) break;
+    } else {
+      stuckCount = 0;
+    }
+    lastProcessedCount = processedKeys.size;
+
+    // تمرير الحاوية والنافذة لأسفل لتحفيز ظهور الصفوف التالية
+    if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+      const prevScroll = scrollContainer.scrollTop;
+      scrollContainer.scrollTop += 600;
+      if (scrollContainer.scrollTop === prevScroll) {
+        stuckCount++;
+        if (stuckCount >= 2) break;
+      }
+    } else {
+      const prevScroll = window.scrollY || document.documentElement?.scrollTop || 0;
+      window.scrollBy(0, 600);
+      const currScroll = window.scrollY || document.documentElement?.scrollTop || 0;
+      if (currScroll === prevScroll && step > 0) {
+        break;
+      }
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+
+  // إعادة التمرير للأعلى بعد اكتمال تعبئة الفصل
+  if (scrollContainer) scrollContainer.scrollTop = 0;
+  window.scrollTo(0, 0);
+
+  if (spec && totalFilledCount > 0) {
+    window.__neprasLastFill = {
+      count: totalFilledCount,
+      spec,
+      min: min === Infinity ? 0 : min,
+      max: max === -Infinity ? 0 : max,
+      avg: Math.round((sum / totalFilledCount) * 10) / 10
+    };
+  }
+
+  return totalFilledCount;
+}
+
+async function neprasAttendanceCollectClassCodesWithScroll(maxWaitMs = 4000) {
+  await neprasAttendanceWaitForTableLoad(maxWaitMs);
+  const scrollContainer = neprasAttendanceGetScrollContainer();
+  const collectedCodes = [];
+  const seenCodes = new Set();
+  let stuckCount = 0;
+  let lastSize = 0;
+  const maxSteps = 40;
+
+  for (let step = 0; step < maxSteps; step++) {
+    neprasAttendanceThrowIfStopped();
+
+    const rows = document.querySelectorAll("table tbody tr, table tr");
+    rows.forEach(tr => {
+      const tds = tr.querySelectorAll("td");
+      if (tds.length < 2) return;
+      const code = neprasAttendanceExtractRowStudentCode(tr);
+      if (code && !seenCodes.has(code)) {
+        seenCodes.add(code);
+        collectedCodes.push(code);
+      }
+    });
+
+    if (seenCodes.size === lastSize) {
+      stuckCount++;
+      if (stuckCount >= 3) break;
+    } else {
+      stuckCount = 0;
+    }
+    lastSize = seenCodes.size;
+
+    if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+      const prev = scrollContainer.scrollTop;
+      scrollContainer.scrollTop += 600;
+      if (scrollContainer.scrollTop === prev) {
+        stuckCount++;
+        if (stuckCount >= 2) break;
+      }
+    } else {
+      const prev = window.scrollY || document.documentElement?.scrollTop || 0;
+      window.scrollBy(0, 600);
+      const curr = window.scrollY || document.documentElement?.scrollTop || 0;
+      if (curr === prev && step > 0) break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+
+  if (scrollContainer) scrollContainer.scrollTop = 0;
+  window.scrollTo(0, 0);
+
+  return collectedCodes;
+}
+
 function setAllDays(val) {
   const inputs = document.querySelectorAll("table tbody input[type='number'], table tbody input[type='text']");
   if (inputs.length === 0) return 0;
@@ -1019,9 +1272,7 @@ function setAllDays(val) {
   let count = 0, sum = 0, min = Infinity, max = -Infinity;
   inputs.forEach(input => {
     const d = spec ? neprasAttendanceDaysFor(spec) : val;
-    input.value = d;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    neprasAttendanceSetNativeInputValue(input, d);
     count++;
     if (spec) { sum += d; if (d < min) min = d; if (d > max) max = d; }
   });
@@ -1032,7 +1283,8 @@ function setAllDays(val) {
 async function promptAndSetDays(specArg) {
   const spec = specArg || await neprasAttendanceAskSpec({ title: "تعبئة أيام الغياب", message: "ستُعبّأ أيام الغياب لكل طلاب الجدول المعروض الآن.", okText: "تطبيق" });
   if (!spec) return;
-  const count = setAllDays(spec);
+  // التمرير التكراري لضمان تعبئة كامل طلاب الفصل حتى لو كان الجدول طويلاً أو داخل حاوية تمرير
+  const count = await neprasAttendanceFillAllClassDaysWithScroll({ spec });
   if (count > 0) {
     const f = window.__neprasLastFill || {};
     const extra = spec.mode === "range" ? "\nأقل قيمة: " + f.min + " — أكبر قيمة: " + f.max + " — المتوسط: " + f.avg : "";
@@ -1632,134 +1884,171 @@ async function neprasAttendanceDownloadTemplateLegacy(
           resolve =>
             setTimeout(
               resolve,
-              1500
+              1000
             )
         );
       }
 
-      const rows =
-        document.querySelectorAll(
-          "table tbody tr"
-        );
+      await neprasAttendanceWaitForTableLoad(3500);
+      const scrollContainer = neprasAttendanceGetScrollContainer();
+      let stuckCount = 0;
+      let lastSize = 0;
+      const maxSteps = 40;
 
-      rows.forEach(tr => {
-        const tds =
-          tr.querySelectorAll("td");
+      for (let step = 0; step < maxSteps; step++) {
+        neprasAttendanceThrowIfStopped();
 
-        if (tds.length < 2) {
-          return;
-        }
+        const rows =
+          document.querySelectorAll(
+            "table tbody tr, table tr"
+          );
 
-        let code = "";
-        let name = "";
+        rows.forEach(tr => {
+          const tds =
+            tr.querySelectorAll("td");
 
-        tds.forEach(
-          (td, idx) => {
-            const text =
+          if (tds.length < 2) {
+            return;
+          }
+
+          let code = "";
+          let name = "";
+
+          tds.forEach(
+            (td, idx) => {
+              const text =
+                (
+                  td.innerText ||
+                  td.textContent ||
+                  ""
+                ).trim();
+
+              if (
+                idx === 1 ||
+                (
+                  text.length >= 4 &&
+                  !isNaN(text)
+                )
+              ) {
+                code = text;
+              }
+
+              if (
+                idx === 2 ||
+                (
+                  isNaN(text) &&
+                  text.length > 3
+                )
+              ) {
+                name = text;
+              }
+            }
+          );
+
+          if (!code && tds[0]) {
+            code =
               (
-                td.innerText ||
-                td.textContent ||
+                tds[0].innerText ||
+                ""
+              ).trim();
+          }
+
+          if (!name && tds[1]) {
+            name =
+              (
+                tds[1].innerText ||
+                ""
+              ).trim();
+          }
+
+          code =
+            String(code || "")
+              .replace(/\t/g, "")
+              .trim();
+
+          name =
+            String(name || "")
+              .replace(
+                /[;\r\n]+/g,
+                " "
+              )
+              .replace(/"/g, "")
+              .trim();
+
+          if (
+            code &&
+            code.length >= 3
+          ) {
+            const gradeText =
+              (
+                gOpt.text ||
                 ""
               ).trim();
 
-            if (
-              idx === 1 ||
+            const classText =
               (
-                text.length >= 4 &&
-                !isNaN(text)
-              )
-            ) {
-              code = text;
+                cOpt.text ||
+                ""
+              ).trim();
+
+            const uniqueKey =
+              `${code}||${gradeText}||${classText}`;
+
+            let daysVal = 0;
+            const daysInput = tr.querySelector("input[type='number'], input.form-control");
+            if (daysInput && daysInput.value !== "") {
+              daysVal = parseInt(daysInput.value, 10) || 0;
+            } else if (tds[3]) {
+              daysVal = parseInt((tds[3].innerText || '').replace(/\D/g, ''), 10) || 0;
             }
 
             if (
-              idx === 2 ||
-              (
-                isNaN(text) &&
-                text.length > 3
+              !seen.has(
+                uniqueKey
               )
             ) {
-              name = text;
+              seen.add(
+                uniqueKey
+              );
+
+              allSchoolStudents.push([
+                code,
+                name,
+                gradeText,
+                classText,
+                daysVal
+              ]);
             }
           }
-        );
+        });
 
-        if (!code && tds[0]) {
-          code =
-            (
-              tds[0].innerText ||
-              ""
-            ).trim();
+        if (seen.size === lastSize) {
+          stuckCount++;
+          if (stuckCount >= 3) break;
+        } else {
+          stuckCount = 0;
         }
+        lastSize = seen.size;
 
-        if (!name && tds[1]) {
-          name =
-            (
-              tds[1].innerText ||
-              ""
-            ).trim();
-        }
-
-        code =
-          String(code || "")
-            .replace(/\t/g, "")
-            .trim();
-
-        name =
-          String(name || "")
-            .replace(
-              /[;\r\n]+/g,
-              " "
-            )
-            .replace(/"/g, "")
-            .trim();
-
-        if (
-          code &&
-          code.length >= 3
-        ) {
-          const gradeText =
-            (
-              gOpt.text ||
-              ""
-            ).trim();
-
-          const classText =
-            (
-              cOpt.text ||
-              ""
-            ).trim();
-
-          const uniqueKey =
-            `${code}||${gradeText}||${classText}`;
-
-          let daysVal = 0;
-          const daysInput = tr.querySelector("input[type='number'], input.form-control");
-          if (daysInput && daysInput.value !== "") {
-            daysVal = parseInt(daysInput.value, 10) || 0;
-          } else if (tds[3]) {
-            daysVal = parseInt((tds[3].innerText || '').replace(/\D/g, ''), 10) || 0;
+        if (scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+          const prevScroll = scrollContainer.scrollTop;
+          scrollContainer.scrollTop += 600;
+          if (scrollContainer.scrollTop === prevScroll) {
+            stuckCount++;
+            if (stuckCount >= 2) break;
           }
-
-          if (
-            !seen.has(
-              uniqueKey
-            )
-          ) {
-            seen.add(
-              uniqueKey
-            );
-
-            allSchoolStudents.push([
-              code,
-              name,
-              gradeText,
-              classText,
-              daysVal
-            ]);
-          }
+        } else {
+          const prev = window.scrollY || document.documentElement?.scrollTop || 0;
+          window.scrollBy(0, 600);
+          const curr = window.scrollY || document.documentElement?.scrollTop || 0;
+          if (curr === prev && step > 0) break;
         }
-      });
+
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+
+      if (scrollContainer) scrollContainer.scrollTop = 0;
+      window.scrollTo(0, 0);
     }
   }
 
@@ -3188,29 +3477,17 @@ async function startRandomAttendanceAuto() {
   let totalSchoolStudentsCount = 0;
 
   for (let cOpt of classOptions) {
+    neprasAttendanceThrowIfStopped();
     triggerSelectChange(classSelect, cOpt.value);
     await new Promise(r => setTimeout(r, 1000));
 
     const showBtn = getShowStudentsButton();
     if (showBtn) {
       clickButtonSafely(showBtn);
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise(r => setTimeout(r, 1000));
     }
 
-    let classCodes = [];
-    const rows = document.querySelectorAll("table tbody tr");
-    rows.forEach(tr => {
-      const tds = tr.querySelectorAll("td");
-      if (tds.length >= 2) {
-        let code = "";
-        tds.forEach((td) => {
-          let txt = td.innerText.trim().replace(/\t/g, '');
-          if (txt.length >= 4 && !isNaN(txt)) code = txt;
-        });
-        if (code) classCodes.push(code);
-      }
-    });
-
+    const classCodes = await neprasAttendanceCollectClassCodesWithScroll(4000);
     classStudentsMap[cOpt.value] = classCodes;
     totalSchoolStudentsCount += classCodes.length;
   }
@@ -3236,7 +3513,7 @@ async function startRandomAttendanceAuto() {
     let classShare = Math.round((codes.length / totalSchoolStudentsCount) * targetTotalAbsences);
     classShare = Math.min(classShare, codes.length, remainingAbsences);
     
-    let shuffledCodes = [...codes].sort(() => 0.5 - Math.random());
+    let shuffledCodes = neprasAttendanceShuffleArray(codes);
     selectedAbsentCodesByClass[cVal] = shuffledCodes.slice(0, classShare);
     remainingAbsences -= classShare;
   }
@@ -3274,7 +3551,21 @@ async function startRandomAttendanceAuto() {
   processNextStep();
 }
 
-function processNextStep() {
+let neprasAttendanceStepBusy = false;
+
+async function processNextStep() {
+  if (neprasAttendanceStepBusy) return;
+  neprasAttendanceStepBusy = true;
+  try {
+    await neprasAttendanceProcessStepCore();
+  } catch (err) {
+    console.error("Auto Process Error:", err);
+  } finally {
+    neprasAttendanceStepBusy = false;
+  }
+}
+
+async function neprasAttendanceProcessStepCore() {
   if (neprasAttendanceIsStopped()) {
     try { sessionStorage.removeItem("ATTENDANCE_AUTO_STATE"); } catch (_) {}
     removeStatusBanner();
@@ -3324,8 +3615,9 @@ function processNextStep() {
     "اختيار_الصف": "جاري تجهيز الصف",
     "تحميل_قائمة_الفصول": "جاري تجهيز الفصول",
     "اختيار_الفصل": "جاري تجهيز الفصل",
-    "ضغط_عرض_الطلبة": "جاري تحميل الطلاب",
-    "تعبئة_وحفظ": "جاري حفظ الغياب"
+    "ضغط_عرض_الطلبة": "جاري طلب عرض الطلاب",
+    "انتظار_تحميل_الطلبة": "جاري تحميل جدول الطلاب",
+    "تعبئة_وحفظ": "جاري تسجيل وحفظ الغياب"
   };
   const simplePhase = phaseLabels[state.phase] || "جاري التنفيذ";
   const parts = [currentWeekName, currentGradeName, currentClassName ? `الفصل ${currentClassName}` : "", simplePhase].filter(Boolean);
@@ -3393,7 +3685,7 @@ function processNextStep() {
     else if (state.phase === "تحميل_قائمة_الفصول") {
       const classSelect = getClassSelect();
       if (classSelect && classSelect.options) {
-        const opts = Array.from(classSelect.options).filter(o => o.value && o.value !== "0" && !o.text.includes("اختر"));
+        const opts = Array.from(classSelect.options).filter(o => o.value && o.value !== "0" && !opt.text.includes("اختر"));
         state.classes = opts.map(o => ({ val: o.value, text: o.text }));
         state.currentClassIdx = 0;
         state.phase = "اختيار_الفصل";
@@ -3446,63 +3738,35 @@ function processNextStep() {
       const showBtn = getShowStudentsButton();
       if (showBtn) {
         clickButtonSafely(showBtn);
-        state.phase = "تعبئة_وحفظ";
-        state.nextActionTime = Date.now() + 1500;
+        state.phase = "انتظار_تحميل_الطلبة";
+        state.nextActionTime = Date.now() + 1000;
       } else {
         state.nextActionTime = Date.now() + 1000;
       }
     }
+    else if (state.phase === "انتظار_تحميل_الطلبة") {
+      await neprasAttendanceWaitForTableLoad(3500);
+      state.phase = "تعبئة_وحفظ";
+      state.nextActionTime = Date.now() + 400;
+    }
     else if (state.phase === "تعبئة_وحفظ") {
       let count = 0;
       if (state.modeName === "رفع شيت ذكي شامل" && state.studentsAbsenceMap) {
-        const rows = document.querySelectorAll("table tbody tr");
-        rows.forEach(tr => {
-          const tds = tr.querySelectorAll("td");
-          if (tds.length >= 2) {
-            let code = "";
-            tds.forEach((td) => {
-              let txt = td.innerText.trim().replace(/\t/g, '');
-              if (txt.length >= 4 && !isNaN(txt)) code = txt;
-            });
-            if (code && state.studentsAbsenceMap[code] !== undefined) {
-              let inputField = tr.querySelector("input[type='number'], input[type='text']");
-              if (inputField) {
-                inputField.value = state.studentsAbsenceMap[code];
-                inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                inputField.dispatchEvent(new Event('change', { bubbles: true }));
-                count++;
-              }
-            }
-          }
+        count = await neprasAttendanceFillAllClassDaysWithScroll({
+          studentsAbsenceMap: state.studentsAbsenceMap
         });
       } else if (state.modeName === "توزيع عشوائي للفصول" && state.absentCodesByClass) {
-        setAllDays(0);
         let currentClassObj = state.classes[state.currentClassIdx];
         let targetCodes = state.absentCodesByClass[currentClassObj.val] || [];
-        
-        const rows = document.querySelectorAll("table tbody tr");
-        rows.forEach(tr => {
-          const tds = tr.querySelectorAll("td");
-          if (tds.length >= 2) {
-            let code = "";
-            tds.forEach((td) => {
-              let txt = td.innerText.trim().replace(/\t/g, '');
-              if (txt.length >= 4 && !isNaN(txt)) code = txt;
-            });
-            if (code && targetCodes.includes(code)) {
-              let inputField = tr.querySelector("input[type='number'], input[type='text']");
-              if (inputField) {
-                inputField.value = "1";
-                inputField.dispatchEvent(new Event('input', { bubbles: true }));
-                inputField.dispatchEvent(new Event('change', { bubbles: true }));
-                count++;
-              }
-            }
-          }
+        count = await neprasAttendanceFillAllClassDaysWithScroll({
+          targetCodes
         });
-        count = 1; 
       } else {
-        count = setAllDays(state.val);
+        const spec = state.val && typeof state.val === "object" ? neprasAttendanceNormalizeSpec(state.val) : null;
+        count = await neprasAttendanceFillAllClassDaysWithScroll({
+          spec: spec || undefined,
+          fixedVal: spec ? null : state.val
+        });
       }
 
       let saveBtn = getSaveButton();
@@ -3511,7 +3775,7 @@ function processNextStep() {
         state.saveAttempts = Number(state.saveAttempts || 0) + 1;
         state.currentClassIdx++;
         state.phase = "اختيار_الفصل";
-        state.nextActionTime = Date.now() + 2200; 
+        state.nextActionTime = Date.now() + 2800; 
       } else {
         state.currentClassIdx++;
         state.phase = "اختيار_الفصل";

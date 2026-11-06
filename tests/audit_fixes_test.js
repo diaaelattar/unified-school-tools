@@ -1444,5 +1444,76 @@ async function test(name, fn) {
     assert.strictEqual(sorted[3].code, "300", "Workers student follows homeschooling");
   });
 
+  // 32. School Code & Serial Auto-Aliasing and Active Paid Shield Regression Test
+  await test("desktop_license: auto-aliasing of school code and serial (130000031 <-> 29233), fuzzy name matching, and page title rejection", async () => {
+    const os = require("os");
+    const { DesktopLicenseManager, areSchoolNamesMatching, isGenericPageTitle } = require("../desktop/src/license-manager");
+
+    // A. Fuzzy name matching verification
+    assert.strictEqual(areSchoolNamesMatching("مدرسة ميت العز الثانوية", "ميت العز الثانوية المشتركة"), true, "Fuzzy match must identify variations of same school name");
+    assert.strictEqual(areSchoolNamesMatching("مدرسة الشهيد محمد سليمان سلامة ع بنين", "الشهيد محمد سليمان سلامة"), true);
+    assert.strictEqual(areSchoolNamesMatching("مدرسة النور الرسمية", "مدرسة غير مشتركة"), false, "Different schools must not match");
+
+    // B. Page title filtering verification
+    assert.strictEqual(isGenericPageTitle("تعديل بيان محدد لمجموعة طلاب"), true, "Generic EMIS page title must be rejected");
+    assert.strictEqual(isGenericPageTitle("بيانات التلميذ"), true);
+    assert.strictEqual(isGenericPageTitle("ميت العز الثانوية المشتركة"), false, "Legitimate school name must not be rejected");
+
+    // C. License Aliasing Simulation
+    const tmpDir = path.join(os.tmpdir(), "nepras-alias-test-" + Date.now());
+    fs.mkdirSync(tmpDir, { recursive: true });
+    try {
+      const { createSupabaseTicket } = require("../desktop/src/license-manager");
+      const lm = new DesktopLicenseManager({ storageDir: tmpDir });
+      const now = Date.now();
+      const expiresAt = now + (300 * 24 * 60 * 60 * 1000);
+
+      // School 130000031 was activated with an annual license
+      lm.state.ticketsBySchool["130000031"] = {
+        ticket: createSupabaseTicket("130000031", expiresAt, "active"),
+        verifiedAt: now,
+        expiresAt: expiresAt,
+        schoolName: "ميت العز الثانوية المشتركة",
+        status: "active"
+      };
+      lm.state.activeSchoolCode = "130000031";
+      lm.state.activeSchoolName = "ميت العز الثانوية المشتركة";
+
+      assert.strictEqual(lm.getStatus().locked, false);
+      assert.strictEqual(lm.getStatus().status, "ACTIVE");
+
+      // 1. Navigation to a page detecting 5-digit School Code 29233 with variation 'مدرسة ميت العز الثانوية'
+      await lm.onSchoolDetected({ schoolCode: "29233", schoolName: "مدرسة ميت العز الثانوية" });
+      const statusAfterAlias = lm.getStatus();
+      assert.strictEqual(statusAfterAlias.locked, false, "Must not lock when school code 29233 is detected for active serial 130000031");
+      assert.strictEqual(statusAfterAlias.status, "ACTIVE");
+
+      // 2. Navigation to a subpage sending generic page title as school name
+      await lm.onSchoolDetected({ schoolCode: "29233", schoolName: "تعديل بيان محدد لمجموعة طلاب" });
+      const statusAfterGeneric = lm.getStatus();
+      assert.strictEqual(statusAfterGeneric.locked, false, "Must not lock when generic page title is passed");
+      assert.strictEqual(statusAfterGeneric.schoolName, "ميت العز الثانوية المشتركة", "Must preserve genuine school name");
+
+      // 3. Background API request sending only school code 29233 without name
+      await lm.onSchoolDetected({ schoolCode: "29233", schoolName: "" });
+      const statusAfterApi = lm.getStatus();
+      assert.strictEqual(statusAfterApi.locked, false, "Must not lock during headless/background API calls");
+
+      // 4. A different school with expired trial must remain locked and not inherit 130000031's license
+      lm.state.ticketsBySchool["7776655"] = {
+        ticket: createSupabaseTicket("7776655", now - 1000, "trial"),
+        verifiedAt: now,
+        expiresAt: now - 1000,
+        schoolName: "مدرسة الأمل الابتدائية",
+        status: "trial"
+      };
+      const statusDifferentSchool = lm.getStatus("7776655");
+      assert.strictEqual(statusDifferentSchool.locked, true, "Different unsubscribed school must remain locked");
+      assert.strictEqual(statusDifferentSchool.status, "EXPIRED_TRIAL");
+    } finally {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);
 })();

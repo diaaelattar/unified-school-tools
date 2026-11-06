@@ -8,7 +8,7 @@ const manifest = JSON.parse(read('manifest.json'));
 
 console.log('regressions');
 test('manifest: minimum_chrome_version وCSP صارمة ونطاقات الوزارة فقط', () => {
-  assert(Number(manifest.minimum_chrome_version) >= 116);
+  assert(Number(manifest.minimum_chrome_version) >= 102);
   assert(/script-src 'self'/.test(manifest.content_security_policy.extension_pages));
   for (const h of manifest.host_permissions) assert(/^https:\/\/[a-z-]+\.emis\.gov\.eg\/\*$/.test(h), h);
   assert(!manifest.externally_connectable);

@@ -310,6 +310,13 @@ public class EmisBrowserPlugin extends Plugin {
 
                 String initialUrl = call.getString("url", "https://student.emis.gov.eg/");
                 emisWebView.loadUrl(initialUrl);
+            } else {
+                String requestedUrl = call.getString("url");
+                if (requestedUrl != null && !requestedUrl.isEmpty()) {
+                    emisWebView.loadUrl(requestedUrl);
+                }
+                boolean startVis = call.getBoolean("visible", true);
+                applyVisibility(startVis);
             }
             call.resolve();
         });

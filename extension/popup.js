@@ -95,6 +95,38 @@ document.addEventListener("DOMContentLoaded", async () => {
   btnToggleKeepOpen?.addEventListener("click", toggleKeepOpenSetting);
   btnSettingsKeepOpen?.addEventListener("click", toggleKeepOpenSetting);
 
+  const btnPopupCheckUpdate = document.getElementById("btn-check-extension-update");
+  if (btnPopupCheckUpdate) {
+    btnPopupCheckUpdate.addEventListener("click", () => {
+      showNeprasPopupNotice("جاري التحقق من التحديثات من الموقع الرسمي...", "info", "تحديث نبراس");
+      window.open("https://unified-school-tools-website.vercel.app/", "_blank");
+    });
+  }
+
+  const btnPopupCopyPhone = document.getElementById("btn-popup-copy-phone");
+  if (btnPopupCopyPhone) {
+    btnPopupCopyPhone.addEventListener("click", async () => {
+      const phone = "01118209309";
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(phone);
+        } else {
+          const input = document.createElement("input");
+          input.value = phone;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand("copy");
+          input.remove();
+        }
+        btnPopupCopyPhone.textContent = "تم النسخ!";
+        setTimeout(() => { btnPopupCopyPhone.textContent = "نسخ"; }, 2500);
+        showNeprasPopupNotice("تم نسخ رقم الدعم (01118209309) بنجاح. جزاكم الله خيراً 🌸", "success", "نسخ الرقم");
+      } catch (_) {
+        showNeprasPopupNotice("رقم فودافون كاش / إنستاباي: 01118209309", "info", "رقم الدعم");
+      }
+    });
+  }
+
   const btnExportDiagnostics = document.getElementById("btn-export-diagnostics");
   if (btnExportDiagnostics) {
     btnExportDiagnostics.addEventListener("click", () => {
@@ -1251,10 +1283,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function renderSchoolStats(stats) {
+    window.currentRenderedSchoolStats = stats || null;
     const has = !!(stats && Array.isArray(stats.grades) && stats.grades.length);
     if (schoolStatsEmpty) schoolStatsEmpty.hidden = has;
     if (schoolStatsContent) schoolStatsContent.hidden = !has;
-    if (btnSchoolStatsExport) NeprasButtons.disable(btnSchoolStatsExport, has ? null : "لا توجد بيانات للتصدير. حدّث إحصاء المدرسة أولًا.");
+    const hasStudents = Array.isArray(window.neprasCachedStudentsList) && window.neprasCachedStudentsList.length > 0;
+    const canExport = has || hasStudents;
+    if (btnSchoolStatsExport) NeprasButtons.disable(btnSchoolStatsExport, canExport ? null : "لا توجد بيانات للتصدير. حدّث إحصاء المدرسة أولًا.");
     if (!has) return;
 
     const setText = (id, value) => {
@@ -2479,7 +2514,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let schoolStatsRefreshClickLocked = false;
 
-  btnSchoolStatsRefresh?.addEventListener(
+    btnSchoolStatsRefresh?.addEventListener(
     "click",
     async () => {
 
@@ -2491,13 +2526,32 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
 
-      const stage =
-        stageSelect?.value || "";
+      let stage = stageSelect?.value || "";
+      if (!stage) {
+        const savedMeta = (await globalThis.NeprasSchoolManager?.loadSchoolMeta?.()) || {};
+        const savedStats = (await globalThis.NeprasSchoolManager?.loadSchoolStats?.())?.stats || {};
+        const fallbackStage = savedMeta.stage || savedStats.stage || (await loadSavedStage());
+        if (fallbackStage && stageSelect) {
+          stageSelect.value = fallbackStage;
+          stage = fallbackStage;
+          await setStage(fallbackStage);
+        }
+      }
 
       if (!stage) {
         NeprasUI.field.error(stageSelect, NeprasUI.msg("stage_required").title);
+        showNeprasPopupNotice("يرجى اختيار المرحلة الدراسية أولاً من القائمة العلوية (ابتدائي / إعدادي / ثانوي) للبدء في تحديث الإحصاء.", "warning", "المرحلة الدراسية مطلوبة");
+        stageSelect?.focus();
         return;
       }
+
+      try {
+        const tabs = await chrome.tabs.query({}).catch(() => []);
+        const emisTab = tabs.find(t => t?.url && /student\.emis\.gov\.eg/i.test(t.url));
+        if (!emisTab) {
+          showNeprasPopupNotice("تنبيه: يرجى التأكد من تسجيل الدخول إلى صفحة المدرسة بموقع الوزارة (student.emis.gov.eg) بالمتصفح ليتمكن نبراس من قراءة الإحصاء.", "info", "تسجيل الدخول لبوابة الوزارة");
+        }
+      } catch (_) {}
 
       schoolStatsRefreshClickLocked = true;
       NeprasButtons.busy(btnSchoolStatsRefresh, true, "جارٍ تحديث الإحصاء…");
@@ -2526,8 +2580,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           ]
         });
       } finally {
-        // قفل الواجهة فقط ضد النقر المزدوج السريع.
-        // القفل الحقيقي للعملية موجود في background v1.0.
         setTimeout(
           () => {
             schoolStatsRefreshClickLocked =
@@ -2540,15 +2592,62 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   );
 
-  btnSchoolStatsExport?.addEventListener("click", () => {
-    const run = async () => {
+  btnSchoolStatsExport?.addEventListener("click", async () => {
+    try {
+      const stats = window.currentRenderedSchoolStats || (await chrome.storage.local.get("neprasSchoolStatsV1"))?.neprasSchoolStatsV1;
+      const students = window.neprasCachedStudentsList || stats?.detailRows || [];
+      const meta = (typeof getStatsCenterSchoolMeta === "function" ? getStatsCenterSchoolMeta() : {}) || {};
+      meta.school = meta.school || stats?.schoolName || "المدرسة";
+
+      // 1. تصدير المصنف الإحصائي الشامل إذا كانت بيانات الطلاب متاحة بالذاكرة
+      if (globalThis.NeprasStatsDashboard?.buildMasterWorkbook && (students?.length || stats?.detailRows?.length)) {
+        NeprasButtons.busy(btnSchoolStatsExport, true, "جارٍ تجهيز ملف Excel…");
+        const rows = students.length ? students : stats.detailRows;
+        const wb = globalThis.NeprasStatsDashboard.buildMasterWorkbook(rows, meta, XLSX);
+        const safeName = (meta.school || "المدرسة").replace(/[^\u0600-\u06FFa-zA-Z0-9_-]/g, "_");
+        const filename = `احصاء_المدرسة_الشامل_${safeName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, filename);
+        showNeprasPopupNotice("تم تصدير ملف إحصاء المدرسة الشامل (Excel) بنجاح!", "success", "تصدير الإحصاء");
+        return;
+      }
+
+      // 2. تصدير إحصائية الصفوف والأعداد إن وُجد كائن stats
+      if (stats && Array.isArray(stats.grades) && stats.grades.length && typeof XLSX !== "undefined") {
+        NeprasButtons.busy(btnSchoolStatsExport, true, "جارٍ تجهيز ملف Excel…");
+        const statusNames = Object.keys(stats.statuses || {});
+        const headers = ["الصف", "إجمالي الطلاب", "بنين", "بنات", "عدد الفصول", "طلاب المنازل", "طلاب الدمج", ...statusNames];
+        const rows = stats.grades.map(g => [
+          g.grade, Number(g.total || 0), Number(g.boys || 0), Number(g.girls || 0),
+          Number(g.classes || 0), Number(g.homes || 0), Number(g.integrated || 0),
+          ...statusNames.map(s => Number(g.statuses?.[s] || 0))
+        ]);
+        rows.push([
+          "الإجمالي العام", Number(stats.total || 0), Number(stats.boys || 0), Number(stats.girls || 0),
+          Number(stats.classes || 0), Number(stats.homes || 0), Number(stats.integrated || 0),
+          ...statusNames.map(s => Number(stats.statuses?.[s] || 0))
+        ]);
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        ws["!views"] = [{ rightToLeft: true }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "إحصاء المدرسة");
+        const safeName = (stats.schoolName || meta.school || "المدرسة").replace(/[^\u0600-\u06FFa-zA-Z0-9_-]/g, "_");
+        const filename = `احصاء_المدرسة_${safeName}.xlsx`;
+        XLSX.writeFile(wb, filename);
+        showNeprasPopupNotice("تم تصدير ملف إحصاء المدرسة (Excel) بنجاح!", "success", "تصدير الإحصاء");
+        return;
+      }
+
+      // 3. محاولة الطلب من تبويب الموقع إن لم تتوفر بيانات بالذاكرة
       await navigateAndRun({
         targetUrl: "https://student.emis.gov.eg/student/list",
         siteHost: "student.emis.gov.eg",
         messages: [{ action: "EXPORT_SCHOOL_STATS_EXCEL" }]
       });
-    };
-    window.withButtonBusy ? window.withButtonBusy(btnSchoolStatsExport, run) : run();
+    } catch (err) {
+      showNeprasPopupNotice("تعذر تصدير ملف الإكسيل: " + (err?.message || err), "error", "تصدير الإحصاء");
+    } finally {
+      NeprasButtons.busy(btnSchoolStatsExport, false);
+    }
   });
 
   schoolStatsDetailClose?.addEventListener(
@@ -2905,6 +3004,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const btnRecordsAnemia = document.getElementById("btn-records-anemia");
   const btnRecordsHealthFollowup = document.getElementById("btn-records-health-followup");
+  const btnRecordsEyes = document.getElementById("btn-records-eyes");
   const btnRecordsMonthlyAbsence = document.getElementById("btn-records-monthly-absence");
   const btnRecordsSchoolBudget = document.getElementById("btn-records-school-budget");
   const btnRecordsBehavior5 = document.getElementById("btn-records-behavior-5");
@@ -2930,6 +3030,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRecordsHealthFollowup?.addEventListener("click", () => {
     window.withButtonBusy ? window.withButtonBusy(btnRecordsHealthFollowup, () => runRecordsAction("NEPRAS_RECORDS_HEALTH_FOLLOWUP")) : runRecordsAction("NEPRAS_RECORDS_HEALTH_FOLLOWUP");
+  });
+
+  btnRecordsEyes?.addEventListener("click", () => {
+    window.withButtonBusy ? window.withButtonBusy(btnRecordsEyes, () => runRecordsAction("NEPRAS_RECORDS_EYES")) : runRecordsAction("NEPRAS_RECORDS_EYES");
   });
 
   btnRecordsMonthlyAbsence?.addEventListener("click", () => {
@@ -2987,6 +3091,85 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRecordsWorkers?.addEventListener("click", () => {
     window.withButtonBusy ? window.withButtonBusy(btnRecordsWorkers, () => runRecordsAction("NEPRAS_RECORDS_WORKERS")) : runRecordsAction("NEPRAS_RECORDS_WORKERS");
+  });
+
+  // ===== استمارة الشهادة الإعدادية الإلكترونية (كشوف المسجلين والمتخلفين كاملة البيانات) =====
+  const btnG9ExportUnregistered = document.getElementById("btn-g9-export-unregistered");
+  const btnG9ExportRegistered = document.getElementById("btn-g9-export-registered");
+  const btnG9ExportMaster = document.getElementById("btn-g9-export-master");
+  const btnOpenG9ExamPage = document.getElementById("btn-open-g9-exam-page");
+
+  async function handleG9ExportClick(mode) {
+    let label = "الكشف الشامل الموحد";
+    if (mode === "UNREGISTERED") label = "كشف المتخلفين عن التسجيل";
+    else if (mode === "REGISTERED") label = "كشف المسجلين للاستمارة";
+
+    try {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
+      const onExamPage = activeTab?.url && activeTab.url.includes("/exams/followUpG9ExamReg");
+
+      if (!onExamPage) {
+        if (typeof showNeprasPopupNotice === "function") {
+          showNeprasPopupNotice(`جاري الانتقال لصفحة متابعة تسجيل استمارة الشهادة الإعدادية لاستخراج ${label}...`, "info", "استمارة الإعدادية");
+        }
+        await neprasNavigateStudentSpa({
+          targetUrl: "https://student.emis.gov.eg/exams/followUpG9ExamReg",
+          routeMatch: "/exams/followUpG9ExamReg"
+        });
+        if (typeof showNeprasPopupNotice === "function") {
+          showNeprasPopupNotice(`تم الانتقال لصفحة استمارة الإعدادية بنجاح! اضغط الآن على زر "${label}" في نافذة نبراس لتنزيل الإكسيل فوراً.`, "success", "استمارة الإعدادية");
+        }
+        return;
+      }
+
+      if (typeof showNeprasPopupNotice === "function") {
+        showNeprasPopupNotice(`جاري سحب وتدقيق ${label} وتنزيله كملف Excel كامل البيانات...`, "info", "استمارة الإعدادية");
+      }
+
+      // جلب كاش بيانات الطلاب (السحب الشامل) لدمجه فوراً وتعبئة الرقم القومي وتاريخ الميلاد والديانة
+      let cachedStudents = [];
+      try {
+        if (typeof getOrLoadStudents === "function") {
+          cachedStudents = await getOrLoadStudents();
+        }
+      } catch (_) {}
+
+      chrome.tabs.sendMessage(activeTab.id, {
+        action: "NEPRAS_G9_EXAM_EXPORT",
+        mode,
+        cachedStudents: cachedStudents || []
+      }, (resp) => {
+        if (chrome.runtime.lastError) {
+          if (typeof showNeprasPopupNotice === "function") {
+            showNeprasPopupNotice("تعذر إرسال الأمر للصفحة. يرجى إعادة تحديث صفحة متابعة الاستمارة بالمتصفح.", "error", "استمارة الإعدادية");
+          }
+          return;
+        }
+        if (resp && resp.ok) {
+          if (typeof showNeprasPopupNotice === "function") {
+            showNeprasPopupNotice(`تم استخراج ${label} وتنزيله كملف Excel بنجاح!`, "success", "استمارة الإعدادية");
+          }
+        } else {
+          if (typeof showNeprasPopupNotice === "function") {
+            showNeprasPopupNotice(resp?.message || "حدث خطأ أثناء استخراج الكشف.", "error", "استمارة الإعدادية");
+          }
+        }
+      });
+    } catch (err) {
+      if (typeof showNeprasPopupNotice === "function") {
+        showNeprasPopupNotice(err?.message || "حدث خطأ غير متوقع", "error", "استمارة الإعدادية");
+      }
+    }
+  }
+
+  btnG9ExportUnregistered?.addEventListener("click", () => handleG9ExportClick("UNREGISTERED"));
+  btnG9ExportRegistered?.addEventListener("click", () => handleG9ExportClick("REGISTERED"));
+  btnG9ExportMaster?.addEventListener("click", () => handleG9ExportClick("MASTER"));
+  btnOpenG9ExamPage?.addEventListener("click", async () => {
+    await neprasNavigateStudentSpa({
+      targetUrl: "https://student.emis.gov.eg/exams/followUpG9ExamReg",
+      routeMatch: "/exams/followUpG9ExamReg"
+    });
   });
 
   // ===== التنقل الذكي داخل موقع الوزارة (Angular SPA) بدون إعادة تحميل أو طلب تسجيل دخول من جديد =====
@@ -4397,19 +4580,59 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
         }
       } else {
-        // لا توجد مدرسة مفتوحة في التبويب الحالي ولا محددة
-        renderSchoolStats(null);
-        window.neprasCachedStudentsList = [];
-        if (schoolStatsEmpty) {
-          schoolStatsEmpty.textContent = "لا توجد مدرسة نشطة في التبويب الحالي. يرجى فتح صفحة المدرسة بموقع الوزارة.";
+        // فحص واسترجاع آخر مدرسة نشطة أو لقطة إحصاء محفوظة بالذاكرة لعرضها بدلاً من تفريغ الشاشة
+        let fallbackStats = null;
+        let fallbackStudents = [];
+        let fallbackMeta = null;
+        const savedActive = (await globalThis.NeprasSchoolManager?.getActiveCode?.()) || "";
+        const allSchools = (await globalThis.NeprasSchoolManager?.listSchools?.()) || [];
+        const candidateCode = savedActive || (allSchools[0]?.code) || "";
+        if (candidateCode) {
+          const loaded = await globalThis.NeprasSchoolManager.loadSchoolStats(candidateCode);
+          fallbackMeta = await globalThis.NeprasSchoolManager.loadSchoolMeta(candidateCode);
+          if (loaded && loaded.stats) {
+            fallbackStats = loaded.stats;
+            fallbackStudents = loaded.students || loaded.stats.detailRows || [];
+          }
         }
-        setMetaField("sc-meta-school", "");
-        setMetaField("sc-meta-dir", "");
-        setMetaField("sc-meta-admin", "");
-        setMetaField("sc-meta-affairs", "");
-        setMetaField("sc-meta-principal", "");
-        currentSchoolLogo = null;
-        updateSchoolLogoPreviewUI(null);
+        if (!fallbackStats) {
+          const raw = await chrome.storage.local.get(["neprasSchoolStatsV1", "neprasCachedStudentsList"]);
+          if (raw?.neprasSchoolStatsV1) {
+            fallbackStats = raw.neprasSchoolStatsV1;
+            fallbackStudents = Array.isArray(raw.neprasCachedStudentsList) ? raw.neprasCachedStudentsList : (fallbackStats.detailRows || []);
+          }
+        }
+        if (fallbackStats && fallbackStats.grades && fallbackStats.grades.length) {
+          renderSchoolStats(fallbackStats);
+          window.neprasCachedStudentsList = fallbackStudents;
+          if (stageSelect && fallbackStats.stage) {
+            stageSelect.value = fallbackStats.stage;
+            await setStage(fallbackStats.stage);
+          }
+          if (fallbackMeta) {
+            setMetaField("sc-meta-year", fallbackMeta.year || "2026-2027");
+            setMetaField("sc-meta-school", fallbackMeta.schoolName || fallbackStats.schoolName || "");
+            setMetaField("sc-meta-dir", fallbackMeta.directorate || fallbackStats.directorate || "");
+            setMetaField("sc-meta-admin", fallbackMeta.administration || fallbackStats.administration || "");
+            setMetaField("sc-meta-affairs", fallbackMeta.affairs || "");
+            setMetaField("sc-meta-principal", fallbackMeta.principal || "");
+            currentSchoolLogo = fallbackMeta.logo || null;
+            updateSchoolLogoPreviewUI(currentSchoolLogo);
+          }
+        } else {
+          renderSchoolStats(null);
+          window.neprasCachedStudentsList = [];
+          if (schoolStatsEmpty) {
+            schoolStatsEmpty.textContent = "لا توجد إحصائيات محفوظة بعد. يرجى فتح صفحة المدرسة بموقع الوزارة والضغط على «تحديث إحصاء المدرسة».";
+          }
+          setMetaField("sc-meta-school", "");
+          setMetaField("sc-meta-dir", "");
+          setMetaField("sc-meta-admin", "");
+          setMetaField("sc-meta-affairs", "");
+          setMetaField("sc-meta-principal", "");
+          currentSchoolLogo = null;
+          updateSchoolLogoPreviewUI(null);
+        }
       }
 
       await updateStatsCenterStatus();
@@ -4786,6 +5009,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       { id: "btn-sc-siblings", fn: "buildSiblingsStatsSheet", sheet: "الأشقاء والإخوة", prefix: "احصائية_الاشقاء_والاخوة" },
       { id: "btn-sc-demographics", fn: "buildDemographicsStatsSheet", sheet: "التوزيع الجغرافي", prefix: "التوزيع_الجغرافي_للمحافظات" },
       { id: "btn-sc-languages", fn: "buildLanguagesStatsSheet", sheet: "اللغات والشعب", prefix: "احصائية_اللغات_والشعب" },
+      { id: "btn-sc-secondary-tracks", fn: "buildSecondaryTracksStatsSheet", sheet: "الثانوي - مسارات وشعب", prefix: "احصائية_الثانوي_العام_مسارات_وشعب" },
       { id: "btn-sc-anomalies", fn: "buildAnomaliesStatsSheet", sheet: "مطابقة السن", prefix: "مطابقة_السن_القانوني" },
       { id: "btn-sc-quality", fn: "buildQualityStatsSheet", sheet: "جودة البيانات", prefix: "تقرير_جودة_البيانات_والنواقص" },
       { id: "btn-sc-mothernames", fn: "buildMotherNamesAnalysisSheet", sheet: "أسماء الأمهات", prefix: "تحليل_اسماء_الامهات" },
@@ -5134,6 +5358,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const warningsCountFirst = document.getElementById("warnings-count-first");
     const warningsCountSecond = document.getElementById("warnings-count-second");
     const warningsCountFinal = document.getElementById("warnings-count-final");
+    const selAbsenceMode = document.getElementById("sel-absence-mode");
+    const lblWarningFirst = document.getElementById("lbl-warning-first");
+    const lblWarningSecond = document.getElementById("lbl-warning-second");
+    const lblWarningThird = document.getElementById("lbl-warning-third");
+    const lblWarningFinal = document.getElementById("lbl-warning-final");
+    const warningsCountThird = document.getElementById("warnings-count-third");
+    const btnWarningsExpulsionDecision = document.getElementById("btn-warnings-expulsion-decision");
     const warningsStatusNote = document.getElementById("warnings-status-note");
 
     const absenceDetailModal = document.getElementById("absence-detail-modal");
@@ -5225,13 +5456,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       const list = await getAllStudentsForAbsence();
       if (!warningsTotalCached) return;
 
+      const currentMode = selAbsenceMode ? selAbsenceMode.value : "CONTINUOUS";
+      const isDiscontinuous = currentMode === "DISCONTINUOUS";
+
+      if (lblWarningFirst) lblWarningFirst.textContent = isDiscontinuous ? "إنذار 1 (7 أيام)" : "إنذار 1 (5 أيام)";
+      if (lblWarningSecond) lblWarningSecond.textContent = isDiscontinuous ? "إنذار 2 (14 يوم)" : "إنذار 2 (10 أيام)";
+      if (lblWarningThird) lblWarningThird.textContent = isDiscontinuous ? "إنذار 3 (21 يوم)" : "إنذار 3 (12 يوم)";
+      if (lblWarningFinal) lblWarningFinal.textContent = isDiscontinuous ? "فصل (30+ يوم)" : "فصل (15+ يوم)";
+
       const summary = window.NeprasAbsenceWarnings?.summarizeAbsence
-        ? window.NeprasAbsenceWarnings.summarizeAbsence(list)
-        : { total: list.length, withAbsence: 0, first: 0, second: 0, final: 0, eligibleCount: 0, maxDays: 0, eligibleList: [] };
+        ? window.NeprasAbsenceWarnings.summarizeAbsence(list, { mode: currentMode })
+        : { total: list.length, withAbsence: 0, first: 0, second: 0, third: 0, final: 0, eligibleCount: 0, maxDays: 0, eligibleList: [] };
 
       warningsTotalCached.textContent = `الطلاب: ${summary.total}`;
       if (warningsCountFirst) warningsCountFirst.textContent = summary.first;
       if (warningsCountSecond) warningsCountSecond.textContent = summary.second;
+      if (warningsCountThird) warningsCountThird.textContent = summary.third || 0;
       if (warningsCountFinal) warningsCountFinal.textContent = summary.final;
 
       const schoolNameInput = document.getElementById("sc-meta-school");
@@ -5241,16 +5481,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       if (warningsStatusNote) {
+        const minDays = isDiscontinuous ? 7 : 5;
         if (summary.total === 0) {
           warningsStatusNote.innerHTML = '<span style="color:#d97706;font-weight:700;">●</span> لا توجد بيانات طلاب محفوظة حاليًا للمدرسة. حدّث بيانات المدرسة أولاً.';
         } else if (summary.withAbsence === 0) {
-          warningsStatusNote.innerHTML = `<span style="color:#2563eb;font-weight:700;">ℹ️</span> تم تحميل <b>${summary.total}</b> طالب، ولكن كشف الوزارة الأساسي لا يتضمن أيام الغياب. اضغط «⚡ سحب وتحليل تقرير غياب الوزارة تلقائيًا (PDF)» أدناه لجلب الغياب وتفعيل الإنذارات فورًا.`;
+          warningsStatusNote.innerHTML = `<span style="color:#2563eb;font-weight:700;">ℹ️</span> تم تحميل <b>${summary.total}</b> طالب، ولكن كشف الوزارة الأساسي لا يتضمن أيام الغياب. اضغط «⚡ سحب وتحليل تقرير غياب الوزارة تلقائيًا (PDF)» أدناه لجلب الغياب وتفعيل الإنذارات فوراً.`;
         } else if (summary.eligibleCount === 0) {
-          warningsStatusNote.innerHTML = `<span style="color:#16a34a;font-weight:700;">✅</span> تم فحص غياب <b>${summary.withAbsence}</b> طالب، وأعلى غياب مسجل هو <b>${summary.maxDays}</b> أيام. لا يوجد أي طالب تجاوز حد الإنذار (5 أيام فأكثر).`;
+          warningsStatusNote.innerHTML = `<span style="color:#16a34a;font-weight:700;">✅</span> تم فحص غياب <b>${summary.withAbsence}</b> طالب، وأعلى غياب مسجل هو <b>${summary.maxDays}</b> أيام. لا يوجد أي طالب تجاوز حد الإنذار (${minDays} أيام فأكثر).`;
         } else {
-          warningsStatusNote.innerHTML = `<span style="color:#dc2626;font-weight:700;">⚠️</span> يوجد <b>${summary.eligibleCount}</b> طالب مستحق للإنذارات الرسمية (أول: ${summary.first} • ثانٍ: ${summary.second} • فصل: ${summary.final}) من إجمالي ${summary.total} طالب.`;
+          warningsStatusNote.innerHTML = `<span style="color:#dc2626;font-weight:700;">⚠️</span> يوجد <b>${summary.eligibleCount}</b> طالب مستحق للإنذارات الرسمية (أول: ${summary.first} • ثانٍ: ${summary.second} • ثالث: ${summary.third || 0} • فصل: ${summary.final}) من إجمالي ${summary.total} طالب.`;
         }
       }
+    }
+    if (selAbsenceMode) {
+      selAbsenceMode.addEventListener("change", () => {
+        updateAbsenceWarningsUI();
+      });
     }
     window.updateAbsenceWarningsUI = updateAbsenceWarningsUI;
 
@@ -5753,6 +5999,78 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
 
+    if (btnWarningsExpulsionDecision) {
+      btnWarningsExpulsionDecision.addEventListener("click", async () => {
+        const list = await getAllStudentsForAbsence();
+        if (!list.length) {
+          showNeprasPopupNotice("لا توجد بيانات طلاب مسجلة حاليًا بالمدرسة.", "info", "تنبيه");
+          return;
+        }
+
+        const currentMode = selAbsenceMode ? selAbsenceMode.value : "CONTINUOUS";
+        const summary = window.NeprasAbsenceWarnings?.summarizeAbsence
+          ? window.NeprasAbsenceWarnings.summarizeAbsence(list, { mode: currentMode })
+          : { eligibleList: [] };
+
+        const expelledList = summary.eligibleList.filter(s => s.level === 'إنذار بالفصل' || s.level === 'إخطار بالفصل');
+        if (!expelledList.length) {
+          const limitDays = currentMode === "DISCONTINUOUS" ? 30 : 15;
+          showNeprasPopupNotice(`لا يوجد أي طالب استنفد المدة القانونية المقررة للفصل (${limitDays} يوماً فأكثر بدون عذر).`, "info", "القرار الإداري بالفصل");
+          return;
+        }
+
+        const schoolInfo = await getSchoolHeaderContext();
+        const html = window.NeprasAbsenceWarnings.buildExpulsionDecisionHtml(expelledList, schoolInfo, { mode: currentMode });
+        const toolbarAndScript = `
+<style>
+  @media print { .nepras-print-toolbar { display: none !important; } }
+  .nepras-print-toolbar {
+    position: sticky; top: 0; z-index: 99999;
+    background: #7f1d1d; color: #fff; padding: 10px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2); margin-bottom: 12px;
+  }
+  .nepras-print-toolbar button {
+    background: #b91c1c; color: #fff; border: 0; border-radius: 6px;
+    padding: 7px 16px; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .nepras-print-toolbar button:hover { background: #991b1b; }
+</style>
+<div class="nepras-print-toolbar">
+  <div style="font-weight:700;font-size:14px;">⚖️ القرار الإداري بفصل الطلاب لتجاوز مدة الغياب القانونية (${expelledList.length} طالب)</div>
+  <button type="button" onclick="window.print()">🖨️ طباعة القرار الإداري الآن</button>
+</div>
+<script>
+  window.addEventListener("DOMContentLoaded", function() {
+    setTimeout(function() { window.print(); }, 350);
+  });
+</script>`;
+        const enhancedHtml = html.includes("<body")
+          ? html.replace(/<body[^>]*>/i, (m) => m + toolbarAndScript)
+          : (toolbarAndScript + html);
+
+        try {
+          const blob = new Blob([enhancedHtml], { type: "text/html;charset=utf-8" });
+          const blobUrl = URL.createObjectURL(blob);
+          if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+            chrome.tabs.create({ url: blobUrl });
+          } else {
+            const printFrame = document.createElement("iframe");
+            printFrame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+            document.body.appendChild(printFrame);
+            printFrame.srcdoc = html;
+            printFrame.onload = () => {
+              try { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); } catch (_) {}
+              setTimeout(() => printFrame.remove(), 60000);
+            };
+          }
+        } catch (err) {
+          showNeprasPopupNotice("تعذر فتح نافذة الطباعة: " + (err?.message || String(err)), "error", "خطأ");
+        }
+      });
+    }
+
     if (btnWarningsPrint) {
       btnWarningsPrint.addEventListener("click", async () => {
         const list = await getAllStudentsForAbsence();
@@ -5775,7 +6093,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const schoolInfo = await getSchoolHeaderContext();
-        const html = window.NeprasAbsenceWarnings.buildWarningsHtml(summary.eligibleList, schoolInfo);
+        const currentMode = selAbsenceMode ? selAbsenceMode.value : "CONTINUOUS";
+        const html = window.NeprasAbsenceWarnings.buildWarningsHtml(summary.eligibleList, schoolInfo, { mode: currentMode });
         const toolbarAndScript = `
 <style>
   @media print { .nepras-print-toolbar { display: none !important; } }
@@ -6843,6 +7162,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const selectSubject = document.getElementById("select-staff-subject");
       const btnExportMaster = document.getElementById("btn-staff-export-master");
+      const btnExportPerformanceReports = document.getElementById("btn-staff-export-performance-reports");
       const btnExportSingle = document.getElementById("btn-staff-export-single-subject");
       const fileInput = document.getElementById("staff-file-input");
       const btnStaffFetchAllComprehensive = document.getElementById("btn-staff-fetch-all-comprehensive");
@@ -6972,6 +7292,51 @@ document.addEventListener("DOMContentLoaded", async () => {
           await neprasUnifiedDownloadXlsx(outputWb, fileName, "سجل_العاملين", "تم تصدير سجل العاملين الشامل مقسماً بالتخصصات بنجاح.");
         } catch (err) {
           showNeprasPopupNotice("تعذر تصدير السجل: " + (err.message || String(err)), "error", "خطأ");
+        }
+      });
+
+      btnExportPerformanceReports?.addEventListener("click", async () => {
+        const staff = await getOrLoadStaff();
+        if (!staff || !staff.length) {
+          const ok = window.neprasDialog?.confirm
+            ? await window.neprasDialog.confirm(
+                "لا توجد بيانات عاملين محفوظة حالياً لإعداد تقارير الكفاية.\n\nهل ترغب في تنزيل وتحديث بيانات جميع العاملين (أساسي + منتدب + حصة) الآن من موقع الوزارة؟",
+                { title: "تنزيل بيانات العاملين مطلوب", okText: "تنزيل البيانات الشاملة الآن", cancelText: "إلغاء" }
+              )
+            : false;
+          if (ok) {
+            btnStaffFetchAllComprehensive?.click();
+          } else if (!window.neprasDialog?.confirm) {
+            showNeprasPopupNotice("لا توجد بيانات عاملين محفوظة بعد. اضغط على «⚡ تنزيل وتحديث بيانات العاملين الشاملة من الموقع» أعلاه.", "warning", "تنبيه");
+          }
+          return;
+        }
+
+        if (!window.NeprasStaffAnnualReports?.buildAnnualPerformanceZip) {
+          showNeprasPopupNotice("وحدة تقارير الكفاية وتقويم الأداء غير متوفرة.", "error", "خطأ");
+          return;
+        }
+
+        showNeprasPopupNotice("جاري إعداد تقارير تقويم الأداء السنوية (الكفاية) لكل فئة في ملف ZIP...", "info", "تقارير الكفاية السنوية");
+        const meta = typeof getStatsCenterMeta === "function" ? getStatsCenterMeta() : {};
+        try {
+          const schoolContext = {
+            schoolName: meta.schoolName || meta.safeName || "المدرسة",
+            administration: meta.administration || meta.edara || "",
+            directorate: meta.directorate || meta.modereya || ""
+          };
+
+          const zipBytes = await window.NeprasStaffAnnualReports.buildAnnualPerformanceZip(staff, schoolContext, {
+            onProgress: (cur, tot, name) => {
+              showNeprasPopupNotice(`جاري إعداد تقارير الكفاية: (${cur}/${tot}) - ${name}`, "info", "جاري المعالجة");
+            }
+          });
+
+          const zipBlob = new Blob([zipBytes], { type: "application/zip" });
+          const zipFileName = `تقارير_تقويم_الأداء_السنوية_الكفاية_${meta.safeName || "العاملين"}.zip`;
+          await neprasUnifiedDownload(zipBlob, zipFileName, "تقارير_الكفاية", "تم استخراج تقارير تقويم الأداء السنوية لجميع العاملين بنجاح.");
+        } catch (err) {
+          showNeprasPopupNotice("تعذر استخراج تقارير الكفاية: " + (err.message || String(err)), "error", "خطأ");
         }
       });
 

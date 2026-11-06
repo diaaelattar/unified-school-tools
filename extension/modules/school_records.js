@@ -172,11 +172,13 @@
       }
     } catch (_) {}
 
-    const headers = Array.from(document.querySelectorAll('h1, h2, h3, .breadcrumb, header, .school-name, #schoolName'));
-    for (const h of headers) {
-      const txt = cleanText(h.innerText);
-      if (txt.includes('مدرسة') && !sharedSchool) {
-        school = txt.replace(/^.*مدرسة\s*/i, 'مدرسة ').split(/[-–|]/)[0].trim();
+    if (typeof document !== 'undefined') {
+      const headers = Array.from(document.querySelectorAll('h1, h2, h3, .breadcrumb, header, .school-name, #schoolName'));
+      for (const h of headers) {
+        const txt = cleanText(h.innerText);
+        if (txt.includes('مدرسة') && !sharedSchool) {
+          school = txt.replace(/^.*مدرسة\s*/i, 'مدرسة ').split(/[-–|]/)[0].trim();
+        }
       }
     }
     if (sharedSchool) school = sharedSchool;
@@ -228,6 +230,100 @@
     return direct && direct !== 'غير مسجّل' ? direct : '';
   }
 
+  function resolveStudentMerge(r, raw) {
+    const obsIdRaw = raw?.obstacleId ?? raw?.disabilityId ?? r?.obstacleId ?? r?.disabilityId ?? '';
+    const obsId = Number(obsIdRaw);
+    const hasObsId = Number.isFinite(obsId) && obsId > 0;
+
+    const directText = cleanText(
+      r?.['الموقف من الدمج'] ||
+      r?.['نوع الدمج'] ||
+      r?.['حالة الدمج'] ||
+      r?.['حاله الدمج'] ||
+      r?.['الدمج'] ||
+      raw?.obstacleName ||
+      raw?.disabilityName ||
+      r?.merge_type ||
+      raw?.mergeType ||
+      r?.merge_status ||
+      raw?.mergeStatus ||
+      ''
+    );
+
+    const negatives = /^(لا يوجد|غير مدمج|ليس مدمج|ليس من طلاب الدمج|لا ينطبق|بدون دمج|لا|0|false|غير موجود|—|-)$/i;
+    const isPosText = Boolean(directText && !negatives.test(directText));
+    const isFlag = Boolean(
+      r?.is_merged ||
+      r?.__neprasStatsIntegrated === 'نعم' ||
+      raw?.isIntegrated === true ||
+      raw?.isIntegrated === 1 ||
+      raw?.isIntegrated === 'true'
+    );
+
+    const isMerged = Boolean(hasObsId || isPosText || isFlag);
+    let mergeType = isPosText ? directText : (cleanText(raw?.obstacleName || raw?.disabilityName || r?.merge_type || raw?.mergeType || ''));
+    if (isMerged && (!mergeType || /^(نعم|دمج|1|true)$/i.test(mergeType))) {
+      mergeType = 'دمج تعليمي';
+    }
+
+    const mergeDecision = cleanText(
+      r?.merge_decision ||
+      raw?.mergeDecision ||
+      raw?.decisionNumber ||
+      (isMerged ? 'قرار وزاري رقم 252 لسنة 2017' : '')
+    );
+
+    return { isMerged, mergeType, mergeDecision };
+  }
+
+  function resolveStudentSocialAndExemption(r, raw) {
+    const fatherStatus = cleanText(
+      raw?.fatherStatus ||
+      raw?.fatherStatusName ||
+      r?.fatherStatus ||
+      r?.['حالة الأب'] ||
+      r?.['حالة الاب'] ||
+      r?.['الاب'] ||
+      ''
+    );
+    const isOrphan = Boolean(
+      r?.is_orphan ||
+      raw?.isOrphan ||
+      /متوف/.test(fatherStatus) ||
+      /يتيم|يتامي|ايتام/.test(String(r?.social_status || r?.['الحالة الاجتماعية'] || raw?.socialStatus || raw?.socialStatusName || ''))
+    );
+
+    let socialStatus = cleanText(
+      r?.social_status ||
+      r?.['الحالة الاجتماعية'] ||
+      r?.['تصنيف الإعفاء'] ||
+      r?.['نوع الإعفاء'] ||
+      raw?.socialStatus ||
+      raw?.socialStatusName ||
+      raw?.exemptionType ||
+      raw?.exemptionName ||
+      raw?.excName ||
+      ''
+    );
+    if (!socialStatus && isOrphan) {
+      socialStatus = 'يتيم الأب';
+    }
+
+    const exemptionDoc = cleanText(
+      r?.exemption_doc ||
+      raw?.exemptionDoc ||
+      raw?.researchNumber ||
+      r?.['رقم البحث'] ||
+      r?.['المستند'] ||
+      ''
+    );
+
+    const excKeywords = /تكافل|كرامة|كرامه|معفى|معفاة|معفاه|إعفاء|اعفاء|ضمان|بحث اجتماعي|شهداء|مطلقة|مطلقه|معيلة|معيله|مهجورة|مهجوره|رعاية|رعايه|أيتام|ايتام|يتيم|يتامي/;
+    const isExempt = Boolean(isOrphan || excKeywords.test(socialStatus) || exemptionDoc);
+
+    return { isOrphan, socialStatus, exemptionDoc, isExempt };
+  }
+
   function studentFromApiRow(r, gradeText, index) {
     const raw = (r && r.__neprasApiRaw) || {};
     const nid = cleanDigits(r?.['الرقم القومي'] || r?.nationalId || r?.national_id || raw.nationalId);
@@ -261,6 +357,9 @@
     const classNum = rawClassCandidate && rawClassCandidate !== 'عام' ? rawClassCandidate : '';
     const className = classNum ? (classNum.includes('فصل') ? classNum : `فصل ${classNum}`) : 'عام';
 
+    const mergeInfo = resolveStudentMerge(r, raw);
+    const socialInfo = resolveStudentSocialAndExemption(r, raw);
+
     return {
       index,
       name: cleanText(r?.['اسم التلميذ'] || r?.['اسم الطالب'] || r?.name || raw.studentName),
@@ -279,12 +378,13 @@
       phone: cleanDigits(raw.phone || raw.mobile || raw.guardianMobile || r?.phone || ''),
       dob: parsedNid ? parsedNid.birthDateFormatted : (raw.birthDate || r?.dob || ''),
       gov: parsedNid ? parsedNid.governorate : (raw.governorate || r?.gov || ''),
-      is_merged: Boolean(r?.is_merged || r?.['دمج'] || String(r?.merge_status || raw.mergeStatus || '').includes('دمج')),
-      merge_type: cleanText(r?.merge_type || r?.['نوع الدمج'] || raw.mergeType || ''),
-      merge_decision: cleanText(r?.merge_decision || raw.mergeDecision || ''),
-      is_orphan: Boolean(r?.is_orphan || String(r?.social_status || r?.['الحالة الاجتماعية'] || '').includes('يتيم')),
-      social_status: cleanText(r?.social_status || r?.['الحالة الاجتماعية'] || r?.['تصنيف الإعفاء'] || ''),
-      exemption_doc: cleanText(r?.exemption_doc || ''),
+      is_merged: mergeInfo.isMerged,
+      merge_type: mergeInfo.mergeType,
+      merge_decision: mergeInfo.mergeDecision,
+      is_orphan: socialInfo.isOrphan,
+      social_status: socialInfo.socialStatus,
+      exemption_doc: socialInfo.exemptionDoc,
+      is_exempt: socialInfo.isExempt,
       guardian: cleanText(r?.guardian || r?.guardianName || raw.guardianName || ''),
       guardian_job: cleanText(r?.guardian_job || raw.guardianJob || ''),
       address: cleanText(r?.address || raw.address || ''),
@@ -428,15 +528,20 @@
   const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
   async function deliverNeprasBinary(arrayBuffer, defaultFilename, subfolder = '') {
-    const blob = new Blob([arrayBuffer], { type: XLSX_MIME });
-    if (window.neprasDialog?.triggerDownload) {
-      return window.neprasDialog.triggerDownload(blob, defaultFilename, {
+    const safeFilename = String(defaultFilename).replace(/[/\\:*?"<>|]/g, '_');
+    const dialog = (typeof window !== 'undefined' && window.neprasDialog) || (typeof globalThis !== 'undefined' && globalThis.neprasDialog);
+    if (dialog?.triggerDownload) {
+      const blob = typeof Blob !== 'undefined' ? new Blob([arrayBuffer], { type: XLSX_MIME }) : arrayBuffer;
+      return dialog.triggerDownload(blob, safeFilename, {
         folder: subfolder,
         title: 'تم إنشاء ملف Excel بنجاح',
         message: 'تم حفظ الملف بنجاح.'
       });
     }
-    const safeFilename = String(defaultFilename).replace(/[/\\:*?"<>|]/g, '_');
+    if (typeof document === 'undefined') {
+      return { finalFileName: safeFilename, downloadId: null, method: 'mock' };
+    }
+    const blob = new Blob([arrayBuffer], { type: XLSX_MIME });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = safeFilename; a.style.display = 'none';
@@ -1346,6 +1451,36 @@
     }
   }
 
+  // (1.2) كشف فحص عيوب الإبصار (مبادرة عيون أطفالنا مستقبلنا للتأمين الصحي)
+  async function runEyesHealthExport(passedStudents = null, sortMode = 'gender_boys') {
+    setRunning('eyes', 'جاري تجهيز كشوف فحص عيوب الإبصار (مبادرة عيون أطفالنا مستقبلنا)...');
+    try {
+      const list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
+      if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة. تأكد من تسجيل الدخول لموقع الوزارة.');
+
+      const ctx = await loadSchoolContext(list);
+      if (globalThis.NeprasHealthRecords?.buildHealthRecordsWorkbook) {
+        reportStatus('🩺 جاري ملء القالب الرسمي المعتمد للتأمين الصحي...');
+        const wb = await globalThis.NeprasHealthRecords.buildHealthRecordsWorkbook(list, {
+          schoolName: ctx.school,
+          administration: ctx.administration,
+          academicYear: ctx.academicYear
+        }, { mode: 'EYES' });
+        const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const filename = `كشوف_فحص_الإبصار_عيون_أطفالنا_${ctx.school}_${NeprasEgypt.todayStamp()}.xlsx`;
+        await deliverNeprasBinary(arrayBuffer, filename, 'الصحة المدرسية');
+        reportStatus(`✅ تم تصدير كشوف فحص الإبصار بنجاح (${list.length} طالب).`);
+        return { ok: true, count: list.length, filename };
+      }
+      throw new Error('وحدة سجلات الصحة غير متوفرة.');
+    } catch (err) {
+      reportFailure(err);
+      throw err;
+    } finally {
+      clearRunning();
+    }
+  }
+
   // (1.1) سجل متابعة حالات الأنيميا والتقزم بالعيادة وتوقيع ولي الأمر (مقسم للفصول، 35 طالباً بالصفحة)
   async function runHealthFollowupExport(passedStudents = null, sortMode = 'gender_boys') {
     setRunning('health_followup', 'جاري تجهيز سجل متابعة العيادة وتوقيع ولي الأمر...');
@@ -1968,6 +2103,59 @@
     try {
       const list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
       if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة.');
+
+      // تدقيق ومطابقة بيانات الإعفاءات من سجلات المصروفات إن وُجدت في التخزين المحلي
+      try {
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+          const stored = await chrome.storage.local.get('neprasExpensesAnalysisV1');
+          const expData = stored?.neprasExpensesAnalysisV1;
+          const expRows = Array.isArray(expData?.rows) ? expData.rows : [];
+          if (expRows.length) {
+            const expByCode = new Map();
+            const expByNid = new Map();
+            expRows.forEach(er => {
+              if (er.code) expByCode.set(String(er.code).trim(), er);
+              if (er.nationalId) expByNid.set(String(er.nationalId).trim(), er);
+            });
+            for (const st of list) {
+              const er = expByCode.get(String(st.code).trim()) || expByNid.get(String(st.national_id).trim());
+              if (er && er.exemptionClass && er.exemptionClass !== 'none') {
+                st.is_exempt = true;
+                if (!st.social_status || st.social_status === 'عادي') {
+                  st.social_status = er.exemptionType && er.exemptionType !== '—' ? er.exemptionType : (er.exemptionLabel || 'معفى وفق القرار');
+                }
+                if (/يتيم|يتام/.test(String(er.exemptionType || ''))) st.is_orphan = true;
+                if (er.exemptionPercent != null) st.exemption_percent = `${er.exemptionPercent}%`;
+                if (!st.exemption_doc && er.exemptionType && er.exemptionType !== '—') st.exemption_doc = er.exemptionType;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      const actualCases = list.filter(st =>
+        st.is_orphan ||
+        st.is_exempt ||
+        (st.social_status && !/^(عادي|لا يوجد|غير معفى|مسدد|سليم|لا|—|-)$/i.test(st.social_status.trim())) ||
+        Boolean(st.exemption_doc)
+      );
+
+      if (!actualCases.length) {
+        const msg = '⚠️ لم يتم العثور على أي حالات أيتام أو إعفاءات مسجلة بالمدرسة في البيانات الحالية.';
+        reportStatus(msg);
+        try {
+          if (window.neprasDialog && typeof window.neprasDialog.open === 'function') {
+            window.neprasDialog.open({
+              type: 'warning',
+              title: 'كشف الأيتام والإعفاءات',
+              message: 'لم يتم العثور على أي حالات أيتام أو إعفاءات مسجلة في بيانات المدرسة الحالية.\n\nتأكد من تنزيل تقرير المصروفات والإعفاءات من قسم المصروفات أو تحديث بيانات الطلاب.',
+              okText: 'حسناً'
+            });
+          }
+        } catch (_) {}
+        return { ok: true, count: 0, message: msg };
+      }
+
       const ctx = await loadSchoolContext(list);
 
       const headers = [
@@ -1976,44 +2164,81 @@
         'المستند الرسمي / رقم البحث', 'نسبة الإعفاء', 'ملاحظات الأخصائي'
       ];
 
-      const actualCases = list.filter(st => st.is_orphan || st.social_status || st.exemption_doc);
-      const targetList = actualCases.length ? actualCases : list;
-      const classGroups = groupStudentsByClass(targetList, sortMode);
+      const classGroups = groupStudentsByClass(actualCases, sortMode);
 
-      const sheetSpecs = classGroups.map((group) => ({
-        name: group.shortSheetName(1, 1),
-        title: `سجل حصر الطلاب الأيتام والحالات المعفاة من المصروفات — ${group.groupName}`,
-        infoLines: reportInfoLines(ctx, `الفصل: ${group.groupName} — عدد السجلات: ${group.students.length} طالباً`),
-        headers,
-        rows: group.students.map((st, idx) => [
-          idx + 1,
-          st.code || '',
-          st.name,
-          st.national_id || '',
-          st.grade || '',
-          st.class_name || '',
-          st.social_status || (st.is_orphan ? 'يتيم الأب' : ''),
-          st.guardian || '',
-          st.phone || '',
-          st.exemption_doc || '',
-          st.is_orphan || st.social_status ? 'إعفاء 100%' : '',
-          ''
-        ]),
-        recordCount: group.students.length,
-        countLabel: 'إجمالي طلاب الكشف',
-        printFit: true,
-        orientation: 'landscape',
-        repeatRows: '1:4',
-        numericCols: [0],
-        footerSigners: ['الأخصائي الاجتماعي', 'مسئول شؤون الطلاب', 'يعتمد / مدير المدرسة']
-      }));
+      // الورقة الأولى: كشف شامل لجميع الحالات بالمدرسة
+      const masterRows = actualCases.map((st, idx) => [
+        idx + 1,
+        st.code || '',
+        st.name,
+        st.national_id || '',
+        st.grade || '',
+        st.class_name || '',
+        st.social_status || (st.is_orphan ? 'يتيم الأب' : 'معفى وفق القرار'),
+        st.guardian || '',
+        st.phone || '',
+        st.exemption_doc || '',
+        st.exemption_percent || (st.is_orphan || st.social_status ? 'إعفاء 100%' : 'معفى'),
+        ''
+      ]);
+
+      const sheetSpecs = [
+        {
+          name: 'الأيتام والإعفاءات - شامل',
+          title: `سجل حصر الطلاب الأيتام والحالات المعفاة من المصروفات (كشف شامل) — ${ctx.school}`,
+          infoLines: reportInfoLines(ctx, `إجمالي الحالات المعفاة بالمدرسة: ${actualCases.length} طالباً`),
+          headers,
+          rows: masterRows,
+          recordCount: actualCases.length,
+          countLabel: 'إجمالي الحالات المعفاة',
+          printFit: true,
+          orientation: 'landscape',
+          repeatRows: '1:4',
+          numericCols: [0],
+          footerSigners: ['الأخصائي الاجتماعي', 'مسئول شؤون الطلاب', 'يعتمد / مدير المدرسة']
+        }
+      ];
+
+      // أوراق الفصول: فقط للفصول التي بها حالات فعلية
+      if (classGroups.length > 1 || (classGroups.length === 1 && classGroups[0].students.length < actualCases.length)) {
+        classGroups.forEach((group) => {
+          if (!group.students || !group.students.length) return;
+          sheetSpecs.push({
+            name: group.shortSheetName(1, 1),
+            title: `سجل حصر الطلاب الأيتام والحالات المعفاة — ${group.groupName}`,
+            infoLines: reportInfoLines(ctx, `الفصل: ${group.groupName} — عدد الحالات: ${group.students.length} طالباً`),
+            headers,
+            rows: group.students.map((st, idx) => [
+              idx + 1,
+              st.code || '',
+              st.name,
+              st.national_id || '',
+              st.grade || '',
+              st.class_name || '',
+              st.social_status || (st.is_orphan ? 'يتيم الأب' : 'معفى وفق القرار'),
+              st.guardian || '',
+              st.phone || '',
+              st.exemption_doc || '',
+              st.exemption_percent || (st.is_orphan || st.social_status ? 'إعفاء 100%' : 'معفى'),
+              ''
+            ]),
+            recordCount: group.students.length,
+            countLabel: 'إجمالي حالات الفصل',
+            printFit: true,
+            orientation: 'landscape',
+            repeatRows: '1:4',
+            numericCols: [0],
+            footerSigners: ['الأخصائي الاجتماعي', 'مسئول شؤون الطلاب', 'يعتمد / مدير المدرسة']
+          });
+        });
+      }
 
       if (isAborted()) throw new Error('تم إلغاء العملية.');
 
       const filename = `سجل_الأيتام_وحالات_الإعفاء_${ctx.school}_${NeprasEgypt.todayStamp()}.xlsx`;
       await deliverNeprasWorkbook(sheetSpecs, filename, 'التربية الاجتماعية');
-      reportStatus(`✅ تم إنشاء سجل الأيتام والإعفاءات بنجاح (${targetList.length} طالب في ${classGroups.length} فصل).`);
-      return { ok: true, count: targetList.length, classesCount: classGroups.length, filename };
+      reportStatus(`✅ تم إنشاء سجل الأيتام والإعفاءات بنجاح (${actualCases.length} حالة مسجلة في ${classGroups.length} فصل).`);
+      return { ok: true, count: actualCases.length, classesCount: classGroups.length, filename };
     } finally {
       clearRunning();
     }
@@ -2025,6 +2250,25 @@
     try {
       const list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
       if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة.');
+
+      const mergedStudents = list.filter(s => s.is_merged);
+
+      if (!mergedStudents.length) {
+        const msg = '⚠️ لم يتم العثور على أي طلاب مسجلين كدمج تعليمي أو تربية خاصة في هذه المدرسة.';
+        reportStatus(msg);
+        try {
+          if (window.neprasDialog && typeof window.neprasDialog.open === 'function') {
+            window.neprasDialog.open({
+              type: 'warning',
+              title: 'طلاب الدمج والتربية الخاصة',
+              message: 'لم يتم العثور على أي طلاب مسجلين كدمج تعليمي أو تربية خاصة في هذه المدرسة.',
+              okText: 'حسناً'
+            });
+          }
+        } catch (_) {}
+        return { ok: true, count: 0, message: msg };
+      }
+
       const ctx = await loadSchoolContext(list);
 
       const headers = [
@@ -2033,43 +2277,79 @@
         'التيسيرات الامتحانية المقررة', 'ملاحظات'
       ];
 
-      const mergedStudents = list.filter(s => s.is_merged || (s.merge_status && s.merge_status !== 'غير مدمج'));
-      const targetList = mergedStudents.length ? mergedStudents : list;
-      const classGroups = groupStudentsByClass(targetList, sortMode);
+      const classGroups = groupStudentsByClass(mergedStudents, sortMode);
 
-      const sheetSpecs = classGroups.map((group) => ({
-        name: group.shortSheetName(1, 1),
-        title: `كشف حصر ومتابعة طلاب الدمج والتربية الخاصة — ${group.groupName}`,
-        infoLines: reportInfoLines(ctx, `الفصل: ${group.groupName} — عدد السجلات: ${group.students.length} طالباً`),
-        headers,
-        rows: group.students.map((st, idx) => [
-          idx + 1,
-          st.code || '',
-          st.name,
-          st.national_id || '',
-          st.grade || '',
-          st.class_name || '',
-          st.merge_type || (st.is_merged ? 'دمج تعليمي' : ''),
-          st.merge_decision || (st.is_merged ? 'قرار وزاري رقم 252' : ''),
-          [st.guardian, st.phone].filter(Boolean).join(' - '),
-          st.is_merged ? 'امتحان موضوعي وتوفير بيئة مناسبة' : '',
-          ''
-        ]),
-        recordCount: group.students.length,
-        countLabel: 'إجمالي طلاب الكشف',
-        printFit: true,
-        orientation: 'landscape',
-        repeatRows: '1:4',
-        numericCols: [0],
-        footerSigners: ['مسئول الدمج / الأخصائي النفسي', 'وكيل شؤون الطلاب', 'يعتمد / مدير المدرسة']
-      }));
+      // الورقة الأولى: كشف شامل لجميع طلاب الدمج والتربية الخاصة بالمدرسة
+      const masterRows = mergedStudents.map((st, idx) => [
+        idx + 1,
+        st.code || '',
+        st.name,
+        st.national_id || '',
+        st.grade || '',
+        st.class_name || '',
+        st.merge_type || 'دمج تعليمي',
+        st.merge_decision || 'قرار وزاري رقم 252 لسنة 2017',
+        [st.guardian, st.phone].filter(Boolean).join(' - '),
+        'امتحان موضوعي وتوفير بيئة مناسبة',
+        ''
+      ]);
+
+      const sheetSpecs = [
+        {
+          name: 'طلاب الدمج - كشف شامل',
+          title: `كشف حصر ومتابعة طلاب الدمج والتربية الخاصة (شامل المدرسة) — ${ctx.school}`,
+          infoLines: reportInfoLines(ctx, `إجمالي طلاب الدمج بالمدرسة: ${mergedStudents.length} طالباً`),
+          headers,
+          rows: masterRows,
+          recordCount: mergedStudents.length,
+          countLabel: 'إجمالي طلاب الدمج',
+          printFit: true,
+          orientation: 'landscape',
+          repeatRows: '1:4',
+          numericCols: [0],
+          footerSigners: ['مسئول الدمج / الأخصائي النفسي', 'وكيل شؤون الطلاب', 'يعتمد / مدير المدرسة']
+        }
+      ];
+
+      // أوراق الفصول: فقط للفصول التي بها طلاب دمج
+      if (classGroups.length > 1 || (classGroups.length === 1 && classGroups[0].students.length < mergedStudents.length)) {
+        classGroups.forEach((group) => {
+          if (!group.students || !group.students.length) return;
+          sheetSpecs.push({
+            name: group.shortSheetName(1, 1),
+            title: `كشف حصر ومتابعة طلاب الدمج والتربية الخاصة — ${group.groupName}`,
+            infoLines: reportInfoLines(ctx, `الفصل: ${group.groupName} — عدد طلاب الدمج: ${group.students.length} طالباً`),
+            headers,
+            rows: group.students.map((st, idx) => [
+              idx + 1,
+              st.code || '',
+              st.name,
+              st.national_id || '',
+              st.grade || '',
+              st.class_name || '',
+              st.merge_type || 'دمج تعليمي',
+              st.merge_decision || 'قرار وزاري رقم 252 لسنة 2017',
+              [st.guardian, st.phone].filter(Boolean).join(' - '),
+              'امتحان موضوعي وتوفير بيئة مناسبة',
+              ''
+            ]),
+            recordCount: group.students.length,
+            countLabel: 'إجمالي دمج الفصل',
+            printFit: true,
+            orientation: 'landscape',
+            repeatRows: '1:4',
+            numericCols: [0],
+            footerSigners: ['مسئول الدمج / الأخصائي النفسي', 'وكيل شؤون الطلاب', 'يعتمد / مدير المدرسة']
+          });
+        });
+      }
 
       if (isAborted()) throw new Error('تم إلغاء العملية.');
 
       const filename = `كشف_طلاب_الدمج_والتربية_الخاصة_${ctx.school}_${NeprasEgypt.todayStamp()}.xlsx`;
       await deliverNeprasWorkbook(sheetSpecs, filename, 'التربية الخاصة');
-      reportStatus(`✅ تم إنشاء كشف طلاب الدمج والتربية الخاصة بنجاح (${targetList.length} طالب في ${classGroups.length} فصل).`);
-      return { ok: true, count: targetList.length, classesCount: classGroups.length, filename };
+      reportStatus(`✅ تم إنشاء كشف طلاب الدمج والتربية الخاصة بنجاح (${mergedStudents.length} طالب دمج في ${classGroups.length} فصل).`);
+      return { ok: true, count: mergedStudents.length, classesCount: classGroups.length, filename };
     } finally {
       clearRunning();
     }
@@ -2548,6 +2828,7 @@
   const MESSAGE_HANDLERS = {
     NEPRAS_RECORDS_ANEMIA: (r) => runAnemiaHealthExport(r.students, r.sortMode),
     NEPRAS_RECORDS_HEALTH_FOLLOWUP: (r) => runHealthFollowupExport(r.students, r.sortMode),
+    NEPRAS_RECORDS_EYES: (r) => runEyesHealthExport(r.students, r.sortMode),
     NEPRAS_RECORDS_MONTHLY_ABSENCE: (r) => runMonthlyAbsenceExport(r.students, r.sortMode),
     NEPRAS_RECORDS_SCHOOL_BUDGET: (r) => runSchoolBudgetStatsExport(r.students),
     NEPRAS_RECORDS_BEHAVIOR_5: (r) => runBehaviorRegisterExport(r.students, r.sortMode),
@@ -2591,6 +2872,8 @@
     calculateAgeOnOct1,
     evaluateBMI,
     evaluateAnemia,
+    resolveStudentMerge,
+    resolveStudentSocialAndExemption,
     studentFromApiRow,
     groupStudentsByClass,
     TEMPLATE_DEFINITIONS,
@@ -2603,6 +2886,7 @@
     fetchAllSchoolStudents,
     runAnemiaHealthExport,
     runHealthFollowupExport,
+    runEyesHealthExport,
     runMonthlyAbsenceExport,
     runSchoolBudgetStatsExport,
     build100MillionSurveySheet,

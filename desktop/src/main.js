@@ -46,6 +46,7 @@ let lastPdfDownload = {
 const EMIS_DETECTOR_SCRIPT = `(function() {
   try {
     var schoolCode = "";
+    var schoolSerial = "";
     var schoolName = "";
     var stage = "";
 
@@ -54,7 +55,15 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
       var ar = "٠١٢٣٤٥٦٧٨٩";
       var str = String(s).replace(/[٠-٩]/g, function(d) { return String(ar.indexOf(d)); }).trim();
       var digits = str.replace(/\\D/g, "");
-      return (/^\\d{4,12}$/.test(digits)) ? digits : "";
+      // كود المدرسة أو المسلسل الرسمي يجب ألا يقل عن 5 أرقام لمنع الخلط مع أكواد المراحل (مثل 276)
+      return (/^\\d{5,12}$/.test(digits)) ? digits : "";
+    };
+
+    var isBadName = function(n) {
+      if (!n || typeof n !== "string") return true;
+      var s = n.trim();
+      if (s.length < 3 || /^\\d+$/.test(s) || /^مدرسة \\d+$/.test(s)) return true;
+      return /تعديل بيان|مجموعة طلاب|بيانات التلميذ|بيانات المعلم|طباعة|قوائم|استمارة|بوابة الخدمات/.test(s);
     };
 
     var inspectObj = function(obj, depth) {
@@ -70,7 +79,10 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
           if (!schoolCode && (lk.indexOf("schoolcode") >= 0 || lk === "schoolid" || lk === "schcode" || lk === "sc") && norm(sv)) {
             schoolCode = norm(sv);
           }
-          if (!schoolName && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname" || lk === "school_name") && sv.length >= 3 && !/^\\d+$/.test(sv)) {
+          if (!schoolSerial && (lk.indexOf("schoolserial") >= 0 || lk.indexOf("serial") >= 0) && norm(sv)) {
+            schoolSerial = norm(sv);
+          }
+          if (!schoolName && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname" || lk === "school_name") && sv.length >= 3 && !/^\\d+$/.test(sv) && !isBadName(sv)) {
             schoolName = sv;
           }
           if (!stage && (lk.indexOf("schoolstage") >= 0 || lk.indexOf("stagecode") >= 0 || lk === "stage")) {
@@ -101,7 +113,10 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
         if (!schoolCode && (lk.indexOf("schoolcode") >= 0 || lk === "schoolid" || lk === "schcode" || lk === "sc") && norm(cleanVal)) {
           schoolCode = norm(cleanVal);
         }
-        if (!schoolName && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname") && cleanVal.length >= 3 && !/^\\d+$/.test(cleanVal)) {
+        if (!schoolSerial && (lk.indexOf("schoolserial") >= 0 || lk.indexOf("serial") >= 0) && norm(cleanVal)) {
+          schoolSerial = norm(cleanVal);
+        }
+        if (!schoolName && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname") && cleanVal.length >= 3 && !/^\\d+$/.test(cleanVal) && !isBadName(cleanVal)) {
           schoolName = cleanVal;
         }
         if (val.indexOf("{") >= 0 || val.indexOf("[") >= 0) {
@@ -131,17 +146,22 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
         if (!bTxt) continue;
 
         if (!schoolCode) {
-          var mMail = bTxt.match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
+          var mMail = bTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
           if (mMail) schoolCode = norm(mMail[1]);
           var mCode = bTxt.match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([٠-٩0-9]{5,12})/);
           if (!schoolCode && mCode) schoolCode = norm(mCode[1]);
+        }
+
+        if (!schoolSerial) {
+          var mSerial = bTxt.match(/(?:الرقم\\s*المسلسل|مسلسل\\s*المدرسة|مسلسل)\\s*[:\\-]?\\s*([٠-٩0-9]{7,12})/);
+          if (mSerial) schoolSerial = norm(mSerial[1]);
         }
 
         if (!schoolName) {
           var mSch = bTxt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);
           if (mSch) {
             var candName = mSch[1].replace(/المرحل[ةه].*$/, "").replace(/التبعي[ةه].*$/, "").replace(/الرقم\\s*المسلسل.*$/, "").trim();
-            if (candName.length >= 3 && !/^\\d+$/.test(candName) && /[\\u0600-\\u06FF]/.test(candName)) {
+            if (candName.length >= 3 && !/^\\d+$/.test(candName) && /[\\u0600-\\u06FF]/.test(candName) && !isBadName(candName)) {
               schoolName = candName;
             }
           }
@@ -161,22 +181,31 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
       if ((!schoolCode || !schoolName) && document.body) {
         var fullTxt = (document.body.innerText || "").slice(0, 8000);
         if (!schoolCode) {
-          var fbMail = fullTxt.match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
+          var fbMail = fullTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
           if (fbMail) schoolCode = norm(fbMail[1]);
           var fbCode = fullTxt.match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([٠-٩0-9]{5,12})/);
           if (!schoolCode && fbCode) schoolCode = norm(fbCode[1]);
+        }
+        if (!schoolSerial) {
+          var fbSerial = fullTxt.match(/(?:الرقم\\s*المسلسل|مسلسل\\s*المدرسة|مسلسل)\\s*[:\\-]?\\s*([٠-٩0-9]{7,12})/);
+          if (fbSerial) schoolSerial = norm(fbSerial[1]);
         }
         if (!schoolName) {
           var fbName = fullTxt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([\\u0600-\\u06FF0-9\\s]{3,40})/);
           if (fbName) {
             var fn = fbName[1].trim();
-            if (fn.length >= 3 && !/^\\d+$/.test(fn)) schoolName = fn;
+            if (fn.length >= 3 && !/^\\d+$/.test(fn) && !isBadName(fn)) schoolName = fn;
           }
         }
       }
     } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
 
-    return (schoolCode || schoolName) ? { schoolCode: schoolCode || "", schoolName: schoolName || (schoolCode ? ("مدرسة " + schoolCode) : ""), stage: stage || "" } : null;
+    return (schoolCode || schoolSerial || schoolName) ? {
+      schoolCode: schoolCode || "",
+      schoolSerial: schoolSerial || "",
+      schoolName: isBadName(schoolName) ? "" : (schoolName || (schoolCode ? ("مدرسة " + schoolCode) : "")),
+      stage: stage || ""
+    } : null;
   } catch (_) {
     return null;
   }
@@ -207,14 +236,16 @@ async function inspectAndEnforceWebContents(contents, forceActive = false) {
     const mergedCode = (prev && prev.fromHeader && prev.schoolCode)
       ? prev.schoolCode
       : ((detected && detected.schoolCode) || (prev && prev.schoolCode) || "");
+    const mergedSerial = (detected && detected.schoolSerial) || (prev && prev.schoolSerial) || "";
     const mergedName = (detected && detected.schoolName && !/^مدرسة \d+$/.test(detected.schoolName))
       ? detected.schoolName
       : ((prev && prev.schoolName) || (mergedCode ? `مدرسة ${mergedCode}` : ""));
     const mergedStage = (detected && detected.stage) || (prev && prev.stage) || "";
 
-    if (mergedCode) {
+    if (mergedCode || mergedSerial) {
       const finalInfo = {
-        schoolCode: mergedCode,
+        schoolCode: mergedCode || mergedSerial,
+        schoolSerial: mergedSerial,
         schoolName: mergedName,
         stage: mergedStage,
         fromHeader: !!(prev && prev.fromHeader)
@@ -682,3 +713,93 @@ ipcMain.handle("nep:license:activateKey", (_e, opts) => licenseMgr ? licenseMgr.
 ipcMain.handle("nep:license:reportSchool", (_e, opts) => licenseMgr ? licenseMgr.onSchoolDetected(opts || {}) : null);
 ipcMain.handle("nep:license:reportLogout", () => licenseMgr ? licenseMgr.onSchoolLoggedOut() : null);
 ipcMain.handle("nep:license:setServerUrl", (_e, url) => licenseMgr ? licenseMgr.setServerUrl(url) : null);
+
+// ---- Update & External Browser Navigation
+function compareVersions(v1, v2) {
+  const p1 = String(v1 || "0").split(".").map(n => parseInt(n, 10) || 0);
+  const p2 = String(v2 || "0").split(".").map(n => parseInt(n, 10) || 0);
+  const len = Math.max(p1.length, p2.length);
+  for (let i = 0; i < len; i++) {
+    const a = p1[i] || 0;
+    const b = p2[i] || 0;
+    if (a > b) return 1;
+    if (a < b) return -1;
+  }
+  return 0;
+}
+
+ipcMain.handle("nep:openExternal", async (_e, url) => {
+  if (url && typeof url === "string" && /^https?:\/\//i.test(url)) {
+    await shell.openExternal(url);
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle("nep:downloadUpdate", async (_e, url) => {
+  const target = (url && typeof url === "string" && /^https?:\/\//i.test(url))
+    ? url
+    : "https://unified-school-tools-website.vercel.app/";
+  await shell.openExternal(target);
+  return true;
+});
+
+ipcMain.handle("nep:checkUpdate", async () => {
+  const currentVersion = app.getVersion();
+  const websiteUrl = "https://unified-school-tools-website.vercel.app/";
+  const endpoints = [
+    "https://unified-school-tools-website.vercel.app/version.json",
+    "https://unified-school-tools-website.vercel.app/api/version"
+  ];
+
+  const fetchUrl = (targetUrl) => {
+    return new Promise((resolve, reject) => {
+      try {
+        const req = net.request({ url: targetUrl, method: "GET" });
+        req.on("response", (res) => {
+          let body = "";
+          res.on("data", (chunk) => { body += chunk.toString(); });
+          res.on("end", () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                resolve(JSON.parse(body));
+              } catch (e) {
+                reject(e);
+              }
+            } else {
+              reject(new Error("HTTP " + res.statusCode));
+            }
+          });
+          res.on("error", reject);
+        });
+        req.on("error", reject);
+        req.end();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
+  let remoteData = null;
+  for (const ep of endpoints) {
+    try {
+      remoteData = await fetchUrl(ep);
+      if (remoteData) break;
+    } catch (_) {}
+  }
+
+  const latestVersion = remoteData?.version || remoteData?.desktopVersion || null;
+  const downloadUrl = remoteData?.downloadUrl || remoteData?.desktopDownloadUrl || websiteUrl;
+  const releaseNotes = remoteData?.notes || remoteData?.releaseNotes || "";
+  const hasUpdate = latestVersion ? (compareVersions(latestVersion, currentVersion) > 0) : false;
+
+  return {
+    success: true,
+    currentVersion,
+    latestVersion: latestVersion || currentVersion,
+    hasUpdate,
+    downloadUrl,
+    releaseNotes,
+    websiteUrl
+  };
+});

@@ -162,4 +162,106 @@ test('neprasBuildMultiSheetWorkbook: يدعم التوجيه والتوقيعا�
   assert(sheetMatches[0].length <= 31 && sheetMatches[1].length <= 31);
 });
 
+test('تقارير الدمج والأيتام: دقة تصنيف الحالات وعدم تنزيل كامل فصول المدرسة عند عدم وجود حالات', async () => {
+  // 1. فحص كشف طلاب الدمج من حقول الوزارة المختلفة
+  const normalStudent = win.NeprasRecords.studentFromApiRow({
+    studentName: 'محمد سعيد أحمد',
+    studentCode: '101',
+    nationalId: '31201012101111',
+    classRoom: '1/1',
+    gradeName: 'الصف الأول الإعدادي',
+    __neprasApiRaw: { obstacleId: 0, obstacleName: 'لا يوجد' }
+  }, '', 1);
+  assert.strictEqual(normalStudent.is_merged, false);
+  assert.strictEqual(normalStudent.is_orphan, false);
+
+  const mergeStudent1 = win.NeprasRecords.studentFromApiRow({
+    studentName: 'محمود خالد حسن',
+    studentCode: '102',
+    nationalId: '31201012102222',
+    classRoom: '1/1',
+    gradeName: 'الصف الأول الإعدادي',
+    __neprasApiRaw: { obstacleId: 5, obstacleName: 'إعاقة بصرية' }
+  }, '', 2);
+  assert.strictEqual(mergeStudent1.is_merged, true);
+  assert.strictEqual(mergeStudent1.merge_type, 'إعاقة بصرية');
+
+  const mergeStudent2 = win.NeprasRecords.studentFromApiRow({
+    studentName: 'يوسف إبراهيم',
+    studentCode: '103',
+    nationalId: '31201012103333',
+    classRoom: '1/2',
+    gradeName: 'الصف الأول الإعدادي',
+    'الموقف من الدمج': 'دمج تعليمي - بطء تعلم'
+  }, '', 3);
+  assert.strictEqual(mergeStudent2.is_merged, true);
+  assert.strictEqual(mergeStudent2.merge_type, 'دمج تعليمي - بطء تعلم');
+
+  // 2. فحص كشف الأيتام والإعفاءات
+  const orphanStudent = win.NeprasRecords.studentFromApiRow({
+    studentName: 'علي عادل كمال',
+    studentCode: '104',
+    nationalId: '31201012104444',
+    classRoom: '1/1',
+    gradeName: 'الصف الأول الإعدادي',
+    __neprasApiRaw: { fatherStatusName: 'متوفى' }
+  }, '', 4);
+  assert.strictEqual(orphanStudent.is_orphan, true);
+  assert.strictEqual(orphanStudent.social_status, 'يتيم الأب');
+  assert.strictEqual(orphanStudent.is_exempt, true);
+
+  const takafolStudent = win.NeprasRecords.studentFromApiRow({
+    studentName: 'فاطمة عمر حسين',
+    studentCode: '105',
+    nationalId: '31201012105555',
+    classRoom: '1/3',
+    gradeName: 'الصف الأول الإعدادي',
+    'الحالة الاجتماعية': 'تكافل وكرامة',
+    'رقم البحث': 'بحث رقم 8892'
+  }, '', 5);
+  assert.strictEqual(takafolStudent.is_exempt, true);
+  assert.strictEqual(takafolStudent.social_status, 'تكافل وكرامة');
+
+  // 3. التحقق من تصدير الحالات الفعلية المخصصة فقط وليس كامل فصول المدرسة
+  let capturedWb = null;
+  win.neprasStudentBuildMultiSheetXlsx = (sheets) => {
+    capturedWb = sheets;
+    return new Uint8Array([1, 2, 3]);
+  };
+  win.neprasDialog = {
+    triggerDownload: async () => ({ finalFileName: 'test.xlsx' }),
+    open: () => {}
+  };
+
+  // أ) مدرسة بها طلاب عاديون فقط ولا يوجد دمج
+  const noMergeSchool = [normalStudent, orphanStudent];
+  const resNoMerge = await win.NeprasRecords.runSpecialNeedsMergeExport(noMergeSchool);
+  assert.strictEqual(resNoMerge.ok, true);
+  assert.strictEqual(resNoMerge.count, 0); // لا يتم تنزيل الفصول
+
+  // ب) مدرسة بها طلاب عاديون فقط ولا يوجد أيتام
+  const noOrphanSchool = [normalStudent, mergeStudent1];
+  const resNoOrphan = await win.NeprasRecords.runOrphansExemptionsExport(noOrphanSchool);
+  assert.strictEqual(resNoOrphan.ok, true);
+  assert.strictEqual(resNoOrphan.count, 0); // لا يتم تنزيل الفصول
+
+  // ج) مدرسة بها حالات مخصصة: يجب أن يحتوي الملف على كشف شامل + أوراق الفصول التي بها حالات فقط
+  const schoolStudents = [normalStudent, mergeStudent1, mergeStudent2, orphanStudent, takafolStudent];
+  capturedWb = null;
+  const resMergeSuccess = await win.NeprasRecords.runSpecialNeedsMergeExport(schoolStudents);
+  assert.strictEqual(resMergeSuccess.ok, true);
+  assert.strictEqual(resMergeSuccess.count, 2); // طالبان دمج فقط
+  assert(capturedWb && capturedWb.length >= 2, 'يجب أن يحتوي الملف على الكشف الشامل والفصول المخصصة');
+  assert.strictEqual(capturedWb[0].name, 'طلاب الدمج - كشف شامل');
+  assert.strictEqual(capturedWb[0].rows.length, 2); // الحالتان فقط
+
+  capturedWb = null;
+  const resOrphanSuccess = await win.NeprasRecords.runOrphansExemptionsExport(schoolStudents);
+  assert.strictEqual(resOrphanSuccess.ok, true);
+  assert.strictEqual(resOrphanSuccess.count, 2); // حالتان فقط (يتيم + تكافل)
+  assert(capturedWb && capturedWb.length >= 2, 'يجب أن يحتوي الملف على الكشف الشامل والفصول المخصصة');
+  assert.strictEqual(capturedWb[0].name, 'الأيتام والإعفاءات - شامل');
+  assert.strictEqual(capturedWb[0].rows.length, 2); // الحالتان فقط
+});
+
 summary('records_and_print');

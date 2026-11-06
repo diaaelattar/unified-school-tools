@@ -642,6 +642,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === "NEPRAS_G9_EXAM_EXPORT") {
+    (async () => {
+      try {
+        if (!window.NeprasG9ExamForms) {
+          sendResponse({ ok: false, message: "وحدة استمارات الشهادة الإعدادية غير محقونة بالصفحة." });
+          return;
+        }
+        const mode = request.mode === "MASTER"
+          ? window.NeprasG9ExamForms.MODES.MASTER
+          : (request.mode === "REGISTERED"
+              ? window.NeprasG9ExamForms.MODES.REGISTERED
+              : window.NeprasG9ExamForms.MODES.UNREGISTERED);
+        const ok = await window.NeprasG9ExamForms.runG9ExamExport(mode, {
+          cachedStudents: request.cachedStudents || null
+        });
+        sendResponse({ ok });
+      } catch (e) {
+        sendResponse({ ok: false, message: e?.message || String(e) });
+      }
+    })();
+    return true;
+  }
+
   if (request.action === "REFRESH_STUDENT_TOOLBARS") {
     try { if (typeof window.injectPageToolbars === "function") window.injectPageToolbars(); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
     sendResponse({ ok: true });
@@ -5814,5 +5837,6 @@ const __neprasStaffPanelTimer = setInterval(() => {
       neprasEnsureStaffChoicePanel();
     }
     neprasSchedulePrep12DWidget();
+    neprasScheduleG9ExamToolbar();
   } catch (_) { clearInterval(__neprasStaffPanelTimer); }
 }, 1500);

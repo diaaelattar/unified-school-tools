@@ -229,6 +229,47 @@
 
     const raw = (row.__neprasApiRaw && typeof row.__neprasApiRaw === 'object') ? row.__neprasApiRaw : {};
 
+    // خريطة تحويل معرفات الوزارة الرقمية الرسمية (بوابة التلميذ student.emis.gov.eg)
+    const STUDY_TYPE_MAP = { 1: 'نظامي', 2: 'منازل', 3: 'خدمات', '1': 'نظامي', '2': 'منازل', '3': 'خدمات' };
+    const REGISTRATION_STATUS_MAP = {
+      1: 'ناجح ومنقول', 2: 'راسب وباق للاعادة', 8: 'استبعاد للوفاه',
+      9: 'تحويل مسار', 10: 'سحب ملف', 12: 'فصل لتعدى نسبة الغياب',
+      '1': 'ناجح ومنقول', '2': 'راسب وباق للاعادة', '8': 'استبعاد للوفاه',
+      '9': 'تحويل مسار', '10': 'سحب ملف', '12': 'فصل لتعدى نسبة الغياب'
+    };
+    const DIVISION_MAP = {
+      2: 'أدبي', 3: 'علمي',
+      203: 'مسار الطب وعلوم الحياة',
+      204: 'مسار الهندسة وعلوم الحاسب',
+      205: 'مسار الأعمال',
+      206: 'مسار الآداب والفنون',
+      '2': 'أدبي', '3': 'علمي',
+      '203': 'مسار الطب وعلوم الحياة',
+      '204': 'مسار الهندسة وعلوم الحاسب',
+      '205': 'مسار الأعمال',
+      '206': 'مسار الآداب والفنون'
+    };
+    const SPECIALIZATION_MAP = {
+      676: 'مسار الطب وعلوم الحياة',
+      '676': 'مسار الطب وعلوم الحياة'
+    };
+    const DISABILITY_MAP = {
+      0: 'لا يوجد', 1: 'إعاقة بصرية', 2: 'إعاقة سمعية', 3: 'إعاقة ذهنية',
+      4: 'شلل دماغي', 5: 'توحد', 6: 'متلازمة داون', 7: 'إعاقة حركية', 8: 'بطء التعلم',
+      '0': 'لا يوجد', '1': 'إعاقة بصرية', '2': 'إعاقة سمعية', '3': 'إعاقة ذهنية',
+      '4': 'شلل دماغي', '5': 'توحد', '6': 'متلازمة داون', '7': 'إعاقة حركية', '8': 'بطء التعلم'
+    };
+    const LANGUAGE_MAP = {
+      1: 'لغة إنجليزية', 2: 'لغة فرنسية', 3: 'لغة ألمانية', 4: 'لغة إيطالية',
+      5: 'لغة إسبانية', 6: 'لغة صينية', 7: 'معفى', 8: 'لغة روسية', 9: 'لغة يابانية',
+      '1': 'لغة إنجليزية', '2': 'لغة فرنسية', '3': 'لغة ألمانية', '4': 'لغة إيطالية',
+      '5': 'لغة إسبانية', '6': 'لغة صينية', '7': 'معفى', '8': 'لغة روسية', '9': 'لغة يابانية'
+    };
+    const LEVEL_MAP = {
+      1: 'الصف الأول الثانوي', 2: 'الصف الثاني الثانوي', 3: 'الصف الثالث الثانوي',
+      '1': 'الصف الأول الثانوي', '2': 'الصف الثاني الثانوي', '3': 'الصف الثالث الثانوي'
+    };
+
     let code = firstNonEmpty(
       row['كود التلميذ'], row['كود الطالب'], row['الكود'], row['كود'],
       row.code, row.studentCode, row.stdStudentId, raw.studentCode, raw.stdStudentId
@@ -249,29 +290,39 @@
       row.nationalId, row.national_id, row.nid, raw.nationalId
     );
 
+    const rawLevelId = row.levelId ?? raw.levelId ?? '';
     let grade = firstNonEmpty(
       row['الصف'], row['الصف الدراسي'],
-      row.grade, row.gradeName, row.stage, row.__neprasGrade, raw.className
+      row.grade, row.gradeName, row.stage, row.__neprasGrade, raw.className,
+      LEVEL_MAP[rawLevelId]
     ) || 'غير محدد';
 
     let rawCls = firstNonEmpty(
       row['الفصل'], row['الفصل الدراسي'], row['اسم الفصل'], row['رقم الفصل'],
       row.className, row.classRoom, row.class_number, row.classNumber, row.class_name, row.class,
-      raw.classNumber
+      row.classId, raw.classNumber, raw.classId
     );
 
+    const rawStudyTypeId = row.studyTypeId ?? raw.studyTypeId ?? '';
     let mode = firstNonEmpty(
       row['نوع التعليم'], row['نوعية التعليم'], row['نظام التعليم'], row['نوعيه التعليم'],
       row.mode, row.eduSystem, row.studyType, row.study_type, row.__neprasStatsMode,
-      raw.studyTypeName
+      raw.studyTypeName, STUDY_TYPE_MAP[rawStudyTypeId]
     );
+
+    // توحيد نظام التعليم
+    if (/خدمات/i.test(mode)) mode = 'خدمات';
+    else if (/منازل|منزل/i.test(mode)) mode = 'منازل';
+    else if (/نظام/i.test(mode)) mode = 'نظامي';
 
     const isHome = /منازل|منزل|منزلي/.test(mode);
     const cls = isHome ? '' : normalizeClassName(rawCls);
 
+    const rawRegId = row.registrationId ?? raw.registrationId ?? '';
     let status = firstNonEmpty(
       row['حالة القيد'], row['حاله القيد'], row['حالة قيد الطالب'], row['الموقف من القيد'], row['الحالة'],
-      row.status, row.enrollStatus, row.__neprasStatsStatus, raw.status
+      row.status, row.enrollStatus, row.__neprasStatsStatus, raw.status,
+      REGISTRATION_STATUS_MAP[rawRegId]
     );
 
     let mother = firstNonEmpty(
@@ -295,14 +346,18 @@
       row.birthGov, row.governorate
     );
 
+    const rawLang1Id = row.languageId1 ?? raw.languageId1 ?? '';
     let lang1 = firstNonEmpty(
       row['اللغة الأجنبية الأولى'], row['اللغة الاجنبية الاولى'], row['اللغة الاجنبية الأولى'], row['اللغة الأولى'],
-      row.lang1, row.firstLanguage, raw.firstLanguageName, raw.lang1Name
+      row.lang1, row.firstLanguage, raw.firstLanguageName, raw.lang1Name,
+      LANGUAGE_MAP[rawLang1Id]
     );
 
+    const rawLang2Id = row.languageId2 ?? raw.languageId2 ?? '';
     let lang2 = firstNonEmpty(
       row['اللغة الأجنبية الثانية'], row['اللغة الاجنبية الثانية'], row['اللغة الثانية'],
-      row.lang2, row.secondLanguage, raw.secondLanguageName, raw.lang2Name
+      row.lang2, row.secondLanguage, raw.secondLanguageName, raw.lang2Name,
+      LANGUAGE_MAP[rawLang2Id]
     );
 
     // توحيد مسمى اللغة الثانية ومنع أي كلمات إنجليزية مثل not allowed واستبدالها بالصياغة الرسمية "معفى"
@@ -313,14 +368,20 @@
       }
     }
 
+    const rawDivId = row.divisionId ?? raw.divisionId ?? '';
     let section = firstNonEmpty(
       row['الشعبة'], row['الشعبة الدراسية'], row['الشعبه'],
-      row.section, raw.generalName
+      row.section, raw.generalName, DIVISION_MAP[rawDivId]
     );
+    // إزالة كلمة بكالوريا إذا كانت موجودة لتوحيد اسم المسار
+    if (section) {
+      section = section.replace(/^بكالوريا\s*/i, '').trim();
+    }
 
+    const rawSpecId = row.specializationId ?? raw.specializationId ?? '';
     let specialization = firstNonEmpty(
       row['التخصص'], row['التخصص الدراسي'],
-      row.specialization, raw.specialName
+      row.specialization, raw.specialName, SPECIALIZATION_MAP[rawSpecId]
     );
 
     // fallback مرن لأي مفتاح مخصص في ملفات الإكسيل المستوردة
@@ -388,7 +449,11 @@
     }
 
     // تحديد الموقف من الدمج ونوع الإعاقة
+    const rawDisabilityId = row.disabilityId ?? raw.disabilityId ?? '';
+    const disabilityNameFromId = (rawDisabilityId && Number(rawDisabilityId) > 0) ? (DISABILITY_MAP[rawDisabilityId] || '') : '';
+
     const rawDamg = firstNonEmpty(
+      disabilityNameFromId,
       row['نوع الدمج'], row['الموقف من الدمج'], row['الدمج'], row['حالة الدمج'], row['حاله الدمج'],
       row.integrationType, row.damg, raw.obstacleName
     );
@@ -403,7 +468,8 @@
         .trim();
       return ['لا', 'لا يوجد', 'لايوجد', '-', '—', '--', 'غير مدمج', 'ليس مدمج', 'عادي', 'عادي', '0', 'بدون', 'false', 'غير محدد'].includes(n);
     };
-    const hasObstacleId = raw.obstacleId !== undefined && raw.obstacleId !== null && Number(raw.obstacleId) > 0;
+    const hasObstacleId = (raw.obstacleId !== undefined && raw.obstacleId !== null && Number(raw.obstacleId) > 0) ||
+                          (rawDisabilityId !== '' && Number(rawDisabilityId) > 0);
     const isIntegrated =
       rawIntegratedFlag === 'نعم' ||
       row.integrated === true ||
@@ -1374,6 +1440,412 @@
     return ws;
   }
 
+  /**
+   * إحصائية الثانوي العام المفصلة المعتمدة للإدارات التعليمية:
+   * توزيع مسارات وشعب الثانوي ونظام التعليم (نظامي - منازل - خدمات) والنوع (بنين - بنات - جملة)
+   * مع حصر دقيق لحالات القيد والدمج واللغات.
+   */
+  function buildSecondaryTracksStatsSheet(data, meta) {
+    const xlsxLib = global.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
+    const list = Array.isArray(data) ? data : [];
+
+    const isSecRecord = (st, rawRow) => {
+      const g = String(st.grade || '').toLowerCase();
+      if (/ثانو|ثانوي/.test(g)) return true;
+      if (st.section || st.specialization) return true;
+      const rawDiv = rawRow?.divisionId ?? rawRow?.__neprasApiRaw?.divisionId;
+      if (rawDiv && Number(rawDiv) > 0) return true;
+      const rawLvl = rawRow?.levelId ?? rawRow?.__neprasApiRaw?.levelId;
+      if (rawLvl && [1, 2, 3, '1', '2', '3'].includes(rawLvl)) return true;
+      if (/الصف الأول|الصف الاول|الصف الثاني|الصف الثانى|الصف الثالث/.test(st.grade)) return true;
+      return false;
+    };
+
+    let secStudents = [];
+    list.forEach(rawRow => {
+      const st = normalizeStudentRecord(rawRow);
+      if (isSecRecord(st, rawRow)) {
+        secStudents.push({ st, rawRow });
+      }
+    });
+
+    if (secStudents.length === 0 && list.length > 0) {
+      secStudents = list.map(rawRow => ({ st: normalizeStudentRecord(rawRow), rawRow }));
+    }
+
+    const normalizeSecGrade = (g) => {
+      const s = String(g || '').trim();
+      if (/اول|الاول|\b1\b/.test(s)) return 'الصف الأول الثانوي';
+      if (/ثاني|الثاني|الثانى|\b2\b/.test(s)) return 'الصف الثاني الثانوي';
+      if (/ثالث|الثالث|\b3\b/.test(s)) return 'الصف الثالث الثانوي';
+      return s || 'الصف الأول الثانوي';
+    };
+
+    const matrix = {};
+    const statusCounts = {};
+    const disabilityCounts = {};
+
+    let totalStudentsCount = 0;
+
+    secStudents.forEach(({ st, rawRow }) => {
+      const grade = normalizeSecGrade(st.grade);
+      let track = st.section || st.specialization || '';
+      if (!track) {
+        if (grade === 'الصف الأول الثانوي') track = 'عام / مشترك';
+        else track = 'عام';
+      }
+
+      const isMale = (st.gender === 'بنين');
+      let modeKey = 'regular';
+      if (st.mode === 'منازل' || st.isHome) modeKey = 'home';
+      else if (st.mode === 'خدمات') modeKey = 'services';
+      else modeKey = 'regular';
+
+      if (!matrix[grade]) matrix[grade] = {};
+      if (!matrix[grade][track]) {
+        matrix[grade][track] = {
+          regular: { male: 0, female: 0, total: 0 },
+          home: { male: 0, female: 0, total: 0 },
+          services: { male: 0, female: 0, total: 0 },
+          total: { male: 0, female: 0, total: 0 }
+        };
+      }
+
+      const cell = matrix[grade][track];
+      if (isMale) {
+        cell[modeKey].male++;
+        cell.total.male++;
+      } else {
+        cell[modeKey].female++;
+        cell.total.female++;
+      }
+      cell[modeKey].total++;
+      cell.total.total++;
+      totalStudentsCount++;
+
+      const stStatus = st.status || 'غير محدد';
+      if (!statusCounts[grade]) statusCounts[grade] = {};
+      if (!statusCounts[grade][stStatus]) statusCounts[grade][stStatus] = { male: 0, female: 0, total: 0 };
+      if (isMale) statusCounts[grade][stStatus].male++;
+      else statusCounts[grade][stStatus].female++;
+      statusCounts[grade][stStatus].total++;
+
+      if (st.isIntegrated) {
+        const disType = st.integrationType || 'دمج تربوي';
+        if (!disabilityCounts[grade]) disabilityCounts[grade] = {};
+        if (!disabilityCounts[grade][disType]) disabilityCounts[grade][disType] = { male: 0, female: 0, total: 0 };
+        if (isMale) disabilityCounts[grade][disType].male++;
+        else disabilityCounts[grade][disType].female++;
+        disabilityCounts[grade][disType].total++;
+      }
+    });
+
+    const numCols = 16;
+    let sheet = createSheetHeader(
+      `إحصائية الثانوي العام المفصلة (مسارات وشعب ونظام التعليم والنوع) — ${meta.school} (${meta.year})`,
+      numCols, meta.year, meta.school, meta.dir, meta.admin
+    );
+
+    const rStartHeader = sheet.startRow;
+    const h1 = [
+      { v: 'م', s: sHead },
+      { v: 'الصف الدراسي', s: sHead },
+      { v: 'الشعبة والمسار', s: sHead },
+      { v: 'نظام التعليم (نظامي)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'نظام التعليم (منازل)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'نظام التعليم (خدمات)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'الإجمالي العام الشامل', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'النسبة %', s: sHead }
+    ];
+    sheet.aoa.push(h1);
+    sheet.rowHeights.push({ hpt: 26 });
+    sheet.merges.push({ s: { r: rStartHeader, c: 0 }, e: { r: rStartHeader + 1, c: 0 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 1 }, e: { r: rStartHeader + 1, c: 1 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 2 }, e: { r: rStartHeader + 1, c: 2 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 3 }, e: { r: rStartHeader, c: 5 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 6 }, e: { r: rStartHeader, c: 8 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 9 }, e: { r: rStartHeader, c: 11 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 12 }, e: { r: rStartHeader, c: 14 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 15 }, e: { r: rStartHeader + 1, c: 15 } });
+
+    const h2 = [
+      { v: '', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
+      { v: '', s: sHead }
+    ];
+    sheet.aoa.push(h2);
+    sheet.rowHeights.push({ hpt: 24 });
+    sheet.startRow += 2;
+
+    const sSubTotal = {
+      font: { name: 'Cairo', sz: 11, bold: true, color: { rgb: '854D0E' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      fill: { fgColor: { rgb: 'FEF9C3' } },
+      border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
+    };
+
+    const sSecHeader = {
+      font: { name: 'Cairo', sz: 12, bold: true, color: { rgb: '1E3A8A' } },
+      alignment: { horizontal: 'right', vertical: 'center' },
+      fill: { fgColor: { rgb: 'DBEAFE' } },
+      border: { top: { style: 'medium' }, bottom: { style: 'medium' }, left: { style: 'medium' }, right: { style: 'medium' } }
+    };
+
+    let rowIndex = 1;
+    const sortedGrades = Object.keys(matrix).sort(sortGrades);
+
+    let grandTotals = {
+      regular: { male: 0, female: 0, total: 0 },
+      home: { male: 0, female: 0, total: 0 },
+      services: { male: 0, female: 0, total: 0 },
+      total: { male: 0, female: 0, total: 0 }
+    };
+
+    sortedGrades.forEach(grade => {
+      const tracks = matrix[grade];
+      let gradeSubTotals = {
+        regular: { male: 0, female: 0, total: 0 },
+        home: { male: 0, female: 0, total: 0 },
+        services: { male: 0, female: 0, total: 0 },
+        total: { male: 0, female: 0, total: 0 }
+      };
+
+      Object.keys(tracks).forEach(trackName => {
+        const c = tracks[trackName];
+        ['regular', 'home', 'services', 'total'].forEach(k => {
+          gradeSubTotals[k].male += c[k].male;
+          gradeSubTotals[k].female += c[k].female;
+          gradeSubTotals[k].total += c[k].total;
+          grandTotals[k].male += c[k].male;
+          grandTotals[k].female += c[k].female;
+          grandTotals[k].total += c[k].total;
+        });
+
+        const pct = totalStudentsCount > 0 ? ((c.total.total / totalStudentsCount) * 100).toFixed(1) + '%' : '0%';
+        sheet.aoa.push([
+          { v: rowIndex++, t: 'n', s: sData },
+          { v: grade, s: sData },
+          { v: trackName, s: sData },
+          { v: c.regular.male, t: 'n', s: sData },
+          { v: c.regular.female, t: 'n', s: sData },
+          { v: c.regular.total, t: 'n', s: sData },
+          { v: c.home.male, t: 'n', s: sData },
+          { v: c.home.female, t: 'n', s: sData },
+          { v: c.home.total, t: 'n', s: sData },
+          { v: c.services.male, t: 'n', s: sData },
+          { v: c.services.female, t: 'n', s: sData },
+          { v: c.services.total, t: 'n', s: sData },
+          { v: c.total.male, t: 'n', s: sData },
+          { v: c.total.female, t: 'n', s: sData },
+          { v: c.total.total, t: 'n', s: sData },
+          { v: pct, s: sData }
+        ]);
+        sheet.rowHeights.push({ hpt: 24 });
+        sheet.startRow++;
+      });
+
+      const subPct = totalStudentsCount > 0 ? ((gradeSubTotals.total.total / totalStudentsCount) * 100).toFixed(1) + '%' : '0%';
+      const subRow = [
+        { v: '', s: sSubTotal },
+        { v: `إجمالي ${grade}`, s: sSubTotal },
+        { v: '—', s: sSubTotal },
+        { v: gradeSubTotals.regular.male, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.regular.female, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.regular.total, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.home.male, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.home.female, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.home.total, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.services.male, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.services.female, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.services.total, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.total.male, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.total.female, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.total.total, t: 'n', s: sSubTotal },
+        { v: subPct, s: sSubTotal }
+      ];
+      sheet.aoa.push(subRow);
+      sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: 2 } });
+      sheet.rowHeights.push({ hpt: 26 });
+      sheet.startRow++;
+    });
+
+    const gRow = [
+      { v: 'الإجمالي العام لجميع صفوف ومسارات الثانوي', s: sTotal },
+      { v: '', s: sTotal },
+      { v: '', s: sTotal },
+      { v: grandTotals.regular.male, t: 'n', s: sTotal },
+      { v: grandTotals.regular.female, t: 'n', s: sTotal },
+      { v: grandTotals.regular.total, t: 'n', s: sTotal },
+      { v: grandTotals.home.male, t: 'n', s: sTotal },
+      { v: grandTotals.home.female, t: 'n', s: sTotal },
+      { v: grandTotals.home.total, t: 'n', s: sTotal },
+      { v: grandTotals.services.male, t: 'n', s: sTotal },
+      { v: grandTotals.services.female, t: 'n', s: sTotal },
+      { v: grandTotals.services.total, t: 'n', s: sTotal },
+      { v: grandTotals.total.male, t: 'n', s: sTotal },
+      { v: grandTotals.total.female, t: 'n', s: sTotal },
+      { v: grandTotals.total.total, t: 'n', s: sTotal },
+      { v: '100%', s: sTotal }
+    ];
+    sheet.aoa.push(gRow);
+    sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: 2 } });
+    sheet.rowHeights.push({ hpt: 30 });
+    sheet.startRow++;
+
+    // فاصل جمالي
+    sheet.aoa.push(Array(numCols).fill({ v: '', s: sEmpty }));
+    sheet.rowHeights.push({ hpt: 16 });
+    sheet.startRow++;
+
+    // جدول حالات القيد بالثانوي
+    const sec2Header = Array(numCols).fill({ v: '', s: sSecHeader });
+    sec2Header[0] = { v: 'ثانياً: إحصائية الموقف وحالات القيد لطلاب الثانوي العام (ناجح ومنقول - باق للإعادة - تحويل مسار - فصل لتعدي الغياب - سحب ملف)', s: sSecHeader };
+    sheet.aoa.push(sec2Header);
+    sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: numCols - 1 } });
+    sheet.rowHeights.push({ hpt: 28 });
+    sheet.startRow++;
+
+    const statusHeaders = [
+      { v: 'م', s: sHead }, { v: 'الصف الدراسي', s: sHead }, { v: 'حالة القيد', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'الجملة', s: sHead }
+    ];
+    const sHRow = Array(numCols).fill({ v: '', s: sEmpty });
+    for (let i = 0; i < statusHeaders.length; i++) sHRow[i] = statusHeaders[i];
+    sheet.aoa.push(sHRow);
+    sheet.rowHeights.push({ hpt: 24 });
+    sheet.startRow++;
+
+    let sIdx = 1;
+    let grandStatusTotal = { male: 0, female: 0, total: 0 };
+    sortedGrades.forEach(grade => {
+      const stObj = statusCounts[grade] || {};
+      Object.keys(stObj).forEach(stName => {
+        const sc = stObj[stName];
+        grandStatusTotal.male += sc.male;
+        grandStatusTotal.female += sc.female;
+        grandStatusTotal.total += sc.total;
+        const rData = Array(numCols).fill({ v: '', s: sEmpty });
+        rData[0] = { v: sIdx++, t: 'n', s: sData };
+        rData[1] = { v: grade, s: sData };
+        rData[2] = { v: stName, s: sData };
+        rData[3] = { v: sc.male, t: 'n', s: sData };
+        rData[4] = { v: sc.female, t: 'n', s: sData };
+        rData[5] = { v: sc.total, t: 'n', s: sData };
+        sheet.aoa.push(rData);
+        sheet.rowHeights.push({ hpt: 22 });
+        sheet.startRow++;
+      });
+    });
+
+    const statusTotRow = Array(numCols).fill({ v: '', s: sEmpty });
+    statusTotRow[0] = { v: 'إجمالي حالات القيد', s: sSubTotal };
+    statusTotRow[1] = { v: '', s: sSubTotal };
+    statusTotRow[2] = { v: '', s: sSubTotal };
+    statusTotRow[3] = { v: grandStatusTotal.male, t: 'n', s: sSubTotal };
+    statusTotRow[4] = { v: grandStatusTotal.female, t: 'n', s: sSubTotal };
+    statusTotRow[5] = { v: grandStatusTotal.total, t: 'n', s: sSubTotal };
+    sheet.aoa.push(statusTotRow);
+    sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: 2 } });
+    sheet.rowHeights.push({ hpt: 24 });
+    sheet.startRow++;
+
+    // فاصل جمالي
+    sheet.aoa.push(Array(numCols).fill({ v: '', s: sEmpty }));
+    sheet.rowHeights.push({ hpt: 16 });
+    sheet.startRow++;
+
+    // جدول طلاب الدمج والتربية الخاصة
+    const sec3Header = Array(numCols).fill({ v: '', s: sSecHeader });
+    sec3Header[0] = { v: 'ثالثاً: حصر طلاب الدمج والتربية الخاصة بالثانوي العام حسب نوع الإعاقة', s: sSecHeader };
+    sheet.aoa.push(sec3Header);
+    sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: numCols - 1 } });
+    sheet.rowHeights.push({ hpt: 28 });
+    sheet.startRow++;
+
+    const disHeaders = [
+      { v: 'م', s: sHead }, { v: 'الصف الدراسي', s: sHead }, { v: 'نوع الإعاقة / الدمج', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'الجملة', s: sHead }
+    ];
+    const dHRow = Array(numCols).fill({ v: '', s: sEmpty });
+    for (let i = 0; i < disHeaders.length; i++) dHRow[i] = disHeaders[i];
+    sheet.aoa.push(dHRow);
+    sheet.rowHeights.push({ hpt: 24 });
+    sheet.startRow++;
+
+    let dIdx = 1;
+    let hasDisabilityData = false;
+    let grandDisTotal = { male: 0, female: 0, total: 0 };
+    sortedGrades.forEach(grade => {
+      const dObj = disabilityCounts[grade] || {};
+      Object.keys(dObj).forEach(dName => {
+        hasDisabilityData = true;
+        const dc = dObj[dName];
+        grandDisTotal.male += dc.male;
+        grandDisTotal.female += dc.female;
+        grandDisTotal.total += dc.total;
+        const rData = Array(numCols).fill({ v: '', s: sEmpty });
+        rData[0] = { v: dIdx++, t: 'n', s: sData };
+        rData[1] = { v: grade, s: sData };
+        rData[2] = { v: dName, s: sData };
+        rData[3] = { v: dc.male, t: 'n', s: sData };
+        rData[4] = { v: dc.female, t: 'n', s: sData };
+        rData[5] = { v: dc.total, t: 'n', s: sData };
+        sheet.aoa.push(rData);
+        sheet.rowHeights.push({ hpt: 22 });
+        sheet.startRow++;
+      });
+    });
+
+    if (!hasDisabilityData) {
+      const emptyDis = Array(numCols).fill({ v: '', s: sEmpty });
+      emptyDis[0] = { v: 'لا يوجد طلاب دمج مسجلين بصفوف الثانوي العام بالمدرسة.', s: sData };
+      sheet.aoa.push(emptyDis);
+      sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: 5 } });
+      sheet.rowHeights.push({ hpt: 24 });
+      sheet.startRow++;
+    } else {
+      const disTotRow = Array(numCols).fill({ v: '', s: sEmpty });
+      disTotRow[0] = { v: 'إجمالي طلاب الدمج', s: sSubTotal };
+      disTotRow[1] = { v: '', s: sSubTotal };
+      disTotRow[2] = { v: '', s: sSubTotal };
+      disTotRow[3] = { v: grandDisTotal.male, t: 'n', s: sSubTotal };
+      disTotRow[4] = { v: grandDisTotal.female, t: 'n', s: sSubTotal };
+      disTotRow[5] = { v: grandDisTotal.total, t: 'n', s: sSubTotal };
+      sheet.aoa.push(disTotRow);
+      sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: 2 } });
+      sheet.rowHeights.push({ hpt: 24 });
+      sheet.startRow++;
+    }
+
+    sheet = appendSheetFooter(sheet.aoa, sheet.merges, sheet.rowHeights, sheet.startRow, numCols, meta.affairs, meta.principal);
+    const ws = xlsxLib.utils.aoa_to_sheet(sheet.aoa);
+    ws['!merges'] = sheet.merges;
+    ws['!rows'] = sheet.rowHeights;
+    ws['!views'] = [{ rightToLeft: true }];
+    ws['!cols'] = [
+      { wch: 6 },  // م
+      { wch: 22 }, // الصف الدراسي
+      { wch: 28 }, // الشعبة والمسار
+      { wch: 9 },  // نظامي بنين
+      { wch: 9 },  // نظامي بنات
+      { wch: 10 }, // نظامي جملة
+      { wch: 9 },  // منازل بنين
+      { wch: 9 },  // منازل بنات
+      { wch: 10 }, // منازل جملة
+      { wch: 9 },  // خدمات بنين
+      { wch: 9 },  // خدمات بنات
+      { wch: 10 }, // خدمات جملة
+      { wch: 10 }, // إجمالي بنين
+      { wch: 10 }, // إجمالي بنات
+      { wch: 12 }, // إجمالي جملة
+      { wch: 10 }  // النسبة %
+    ];
+    return ws;
+  }
+
   function buildLanguagesStatsSheet(data, meta) {
     const xlsxLib = global.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
     const stats = {};
@@ -2027,6 +2499,7 @@
     xlsxLib.utils.book_append_sheet(wb, buildQualityStatsSheet(rows, meta), 'جودة البيانات');
     xlsxLib.utils.book_append_sheet(wb, buildMotherNamesAnalysisSheet(rows, meta), 'أسماء الأمهات');
     xlsxLib.utils.book_append_sheet(wb, buildLanguagesStatsSheet(rows, meta), 'اللغات والشعب');
+    xlsxLib.utils.book_append_sheet(wb, buildSecondaryTracksStatsSheet(rows, meta), 'الثانوي - مسارات وشعب');
 
     return wb;
   }
@@ -2174,6 +2647,7 @@
           <button type="button" id="btn-stats-mothernames" class="nepras-stats-btn" disabled>تحليل أسماء الأمهات</button>
           <button type="button" id="btn-stats-demographics" class="nepras-stats-btn" disabled>التوزيع الجغرافي للمحافظات</button>
           <button type="button" id="btn-stats-languages" class="nepras-stats-btn" disabled>إحصائية اللغات والشعب</button>
+          <button type="button" id="btn-stats-secondary" class="nepras-stats-btn" style="background:#f0fdf4;border-color:#86efac;color:#166534;" disabled>📊 إحصائية الثانوي (مسارات وشعب)</button>
           <button type="button" id="btn-stats-anomalies" class="nepras-stats-btn" disabled>مطابقة السن القانوني</button>
           <button type="button" id="btn-stats-quality" class="nepras-stats-btn" disabled>جودة واكتمال البيانات</button>
         </div>
@@ -2261,8 +2735,9 @@
     const buttonsToEnable = [
       'btn-stats-master', 'btn-stats-gender', 'btn-stats-enrollment', 'btn-stats-age',
       'btn-stats-religion', 'btn-stats-integration', 'btn-stats-quality', 'btn-stats-density',
-      'btn-stats-siblings', 'btn-stats-demographics', 'btn-stats-languages', 'btn-stats-anomalies',
-      'btn-stats-dataguard', 'btn-stats-birthmonths', 'btn-stats-mothernames', 'btn-stats-dashsheet'
+      'btn-stats-siblings', 'btn-stats-demographics', 'btn-stats-languages', 'btn-stats-secondary',
+      'btn-stats-anomalies', 'btn-stats-dataguard', 'btn-stats-birthmonths', 'btn-stats-mothernames',
+      'btn-stats-dashsheet'
     ];
 
     const applyDataLoaded = (data, sourceTitle) => {
@@ -2384,6 +2859,11 @@
     document.getElementById('btn-stats-languages').onclick = () => {
       const meta = getMeta();
       exportSingleSheetWorkbook(buildLanguagesStatsSheet(globalStatsData, meta), 'اللغات والشعب', `احصائية_اللغات_والشعب_${meta.safeName}.xlsx`);
+    };
+
+    document.getElementById('btn-stats-secondary').onclick = () => {
+      const meta = getMeta();
+      exportSingleSheetWorkbook(buildSecondaryTracksStatsSheet(globalStatsData, meta), 'الثانوي - مسارات وشعب', `احصائية_الثانوي_العام_مسارات_وشعب_${meta.safeName}.xlsx`);
     };
 
     document.getElementById('btn-stats-anomalies').onclick = () => {
@@ -2529,7 +3009,8 @@
     buildDataGuardStatsSheet,
     buildBirthMonthsStatsSheet,
     buildMotherNamesAnalysisSheet,
-    buildPrincipalDashboardSheet
+    buildPrincipalDashboardSheet,
+    buildSecondaryTracksStatsSheet
   });
 
   global.neprasShowStatsDashboardModal = showStatsDashboardModal;

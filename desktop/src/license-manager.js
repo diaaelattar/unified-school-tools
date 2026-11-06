@@ -35,20 +35,97 @@ const WARN_DAYS = 10; // التنبيه قبل انتهاء الاشتراك ا�
 const MACHINE_SALT = "NEPRAS_HMAC_SEC_v1.3.2_EMIS_2027";
 const MAX_CLOCK_DRIFT_MS = 15 * 60 * 1000; // 15 دقيقة فقط كحد أقصى مسموح به لانحراف أو تراجع ساعة الجهاز
 
+const BANNED_PAGE_TITLES = [
+  "تعديل بيان",
+  "مجموعة طلاب",
+  "بيانات التلميذ",
+  "بيانات المعلم",
+  "طباعة التقارير",
+  "قوائم الفصول",
+  "استمارة التلميذ",
+  "بوابة الخدمات",
+  "الإدارة المركزية",
+  "وزارة التربية والتعليم",
+  "تسجيل الدخول",
+  "كلمة المرور"
+];
+
+function isGenericPageTitle(name) {
+  if (!name || typeof name !== "string") return true;
+  const s = name.trim();
+  if (s.length < 3 || /^\d+$/.test(s) || /^مدرسة \d+$/.test(s)) return true;
+  for (const b of BANNED_PAGE_TITLES) {
+    if (s.includes(b)) return true;
+  }
+  return false;
+}
+
+function normalizeSchoolName(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  let s = String(raw).trim();
+  if (isGenericPageTitle(s)) return "";
+
+  // توحيد الحروف العربية والهمزات والتشكيل
+  s = s
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/[ةه]\b/g, "ه")
+    .replace(/ى\b/g, "ي")
+    .replace(/عبد\s+/g, "عبد")
+    .replace(/^مدرس[ةه]\s+/gi, "")
+    .replace(/^مؤسس[ةه]\s+/gi, "")
+    .replace(/^ادار[ةه]\s+/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return s;
+}
+
+function areSchoolNamesMatching(nameA, nameB) {
+  const normA = normalizeSchoolName(nameA);
+  const normB = normalizeSchoolName(nameB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  // توافق ذكي (Fuzzy Matching): استيعاب الأسماء المقتطعة أو المضاف إليها المرحلة (مثل ميت العز الثانوية vs ميت العز الثانوية المشتركة)
+  if (normA.length >= 5 && normB.length >= 5) {
+    if (normA.includes(normB) || normB.includes(normA)) return true;
+    const wordsA = normA.split(" ").filter((w) => w.length > 2);
+    const wordsB = normB.split(" ").filter((w) => w.length > 2);
+    const common = wordsA.filter((w) => wordsB.includes(w));
+    if (common.length >= 2 || (common.length >= 1 && (wordsA.length <= 2 || wordsB.length <= 2))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function getMachineFingerprint() {
   try {
     const host = os.hostname() || "localhost";
-    const user = os.userInfo ? os.userInfo().username : "user";
     const plat = os.platform();
     const arch = os.arch();
-    return crypto.createHash("sha256").update(`${host}|${user}|${plat}|${arch}|${MACHINE_SALT}`).digest("hex");
+    // هوية مستقرة للجهاز تمنع الخطأ عند التبديل بين حساب المستخدم وحساب المسؤول (Administrator)
+    return crypto.createHash("sha256").update(`${host}|${plat}|${arch}|${MACHINE_SALT}`).digest("hex");
   } catch (_) {
     return crypto.createHash("sha256").update(`fallback|${MACHINE_SALT}`).digest("hex");
   }
 }
 
-function computeTicketHmac(schoolCode, expiresAt, status) {
-  const fp = getMachineFingerprint();
+function computeTicketHmac(schoolCode, expiresAt, status, legacy = false) {
+  let fp = "";
+  if (legacy) {
+    try {
+      const host = os.hostname() || "localhost";
+      const user = os.userInfo ? os.userInfo().username : "user";
+      const plat = os.platform();
+      const arch = os.arch();
+      fp = crypto.createHash("sha256").update(`${host}|${user}|${plat}|${arch}|${MACHINE_SALT}`).digest("hex");
+    } catch (_) {
+      fp = crypto.createHash("sha256").update(`fallback|${MACHINE_SALT}`).digest("hex");
+    }
+  } else {
+    fp = getMachineFingerprint();
+  }
   const data = `NEPRAS_TICKET:${normalizeSchoolCode(schoolCode)}:${Number(expiresAt)}:${String(status || "active").toLowerCase()}:${fp}`;
   return crypto.createHmac("sha256", fp).update(data).digest("hex");
 }
@@ -76,10 +153,18 @@ function verifySupabaseTicket(ticket, schoolCode, expiresAt, status) {
     if (String(tStatus).toLowerCase() !== cleanStatus) return false;
     const expected = computeTicketHmac(normCode, expNum, cleanStatus);
     try {
-      return crypto.timingSafeEqual(Buffer.from(tHmac, "hex"), Buffer.from(expected, "hex"));
-    } catch (_) {
-      return false;
-    }
+      if (crypto.timingSafeEqual(Buffer.from(tHmac, "hex"), Buffer.from(expected, "hex"))) {
+        return true;
+      }
+    } catch (_) {}
+    // دعم التوافق الرجعي مع التذاكر القديمة التي تضمنت اسم المستخدم
+    const legacyExpected = computeTicketHmac(normCode, expNum, cleanStatus, true);
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(tHmac, "hex"), Buffer.from(legacyExpected, "hex"))) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
   // الترقية التلقائية من التذاكر القديمة المكونة من 3 مقاطع عند التطابق
   if (parts.length === 3 && parts[0] === "SUPABASE_VERIFIED") {
@@ -197,7 +282,8 @@ function extractSchoolFromEmisHeaders(requestHeaders) {
     if (!val) continue;
     if (lower === "schoolcode" || lower === "sc") {
       const norm = normalizeSchoolCode(val);
-      if (/^\d{4,12}$/.test(norm)) schoolCode = norm;
+      // كود المدرسة أو المسلسل الرسمي يجب ألا يقل عن 5 أرقام لمنع الخلط مع أكواد المراحل (مثل 276)
+      if (/^\d{5,12}$/.test(norm)) schoolCode = norm;
     } else if (lower === "authorization") {
       authHeader = val;
     }
@@ -221,7 +307,7 @@ function extractSchoolFromEmisHeaders(requestHeaders) {
             "";
           if (!schoolCode && candCode) {
             const norm = normalizeSchoolCode(candCode);
-            if (/^\d{4,12}$/.test(norm)) schoolCode = norm;
+            if (/^\d{5,12}$/.test(norm)) schoolCode = norm;
           }
           const candName =
             claims.schoolName ||
@@ -229,7 +315,9 @@ function extractSchoolFromEmisHeaders(requestHeaders) {
             claims.school_name ||
             claims.ArabicSchoolName ||
             "";
-          if (candName) schoolName = String(candName).trim();
+          if (candName && !isGenericPageTitle(candName)) {
+            schoolName = String(candName).trim();
+          }
         }
       }
     } catch (_) {}
@@ -277,39 +365,62 @@ class DesktopLicenseManager {
           if (raw.ticketsBySchool && typeof raw.ticketsBySchool === "object") {
             this.state.ticketsBySchool = raw.ticketsBySchool;
           }
-          // تنظيف أي رقم مسلسل تجريبي مكرر لنفس المدرسة التي تملك اشتراكاً سنوياً مفعّلاً
+
           let cleanedDuplicates = false;
-          // ترقية أي تذاكر قديمة إلى النمط المشفر ببصمة الجهاز (Machine-Bound HMAC)
+          // ترقية أي تذاكر قديمة إلى النمط المشفر ببصمة الجهاز المحدثة
           for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
             if (entry && String(entry.ticket || "").startsWith("SUPABASE_VERIFIED.") && entry.ticket.split(".").length === 3) {
               entry.ticket = createSupabaseTicket(code, entry.expiresAt, entry.status || "active");
               cleanedDuplicates = true;
             }
           }
+
           const activePaidByName = new Map();
           for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
             if (entry && String(entry.status || "").toLowerCase() === "active" && entry.schoolName) {
               activePaidByName.set(String(entry.schoolName).trim(), code);
             }
           }
+
+          // البحث عن أي اشتراك سنوي مفعّل ساري على هذا الجهاز
+          let primaryActiveCode = "";
+          let primaryActiveName = "";
           for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
-            const sName = entry && entry.schoolName ? String(entry.schoolName).trim() : "";
-            if (sName && activePaidByName.has(sName) && activePaidByName.get(sName) !== code && String(entry.status || "").toLowerCase() !== "active") {
-              delete this.state.ticketsBySchool[code];
-              if (!this.state.activeSchoolCode || this.state.activeSchoolCode === code) {
-                this.state.activeSchoolCode = activePaidByName.get(sName);
-                this.state.activeSchoolName = sName;
+            if (entry && String(entry.status || "").toLowerCase() === "active" && Number(entry.expiresAt || 0) > Date.now()) {
+              primaryActiveCode = code;
+              primaryActiveName = entry.schoolName || "";
+              break;
+            }
+          }
+
+          // إذا وجد اشتراك سنوي مفعّل، نقوم بتنظيف أي كود تجريبي وهمي مكرر لنفس المدرسة وحماية التفعيل
+          if (primaryActiveCode) {
+            for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
+              if (code !== primaryActiveCode && String(entry.status || "").toLowerCase() !== "active") {
+                const sName = entry && entry.schoolName ? String(entry.schoolName).trim() : "";
+                if (!sName || areSchoolNamesMatching(sName, primaryActiveName) || isGenericPageTitle(sName)) {
+                  delete this.state.ticketsBySchool[code];
+                  cleanedDuplicates = true;
+                }
+              }
+            }
+            // ضمان أن الكود النشط يشير دائماً للاشتراك السنوي المفعل
+            const currentEntry = this.state.ticketsBySchool[this.state.activeSchoolCode];
+            if (!this.state.activeSchoolCode || !currentEntry || String(currentEntry.status || "").toLowerCase() !== "active") {
+              this.state.activeSchoolCode = primaryActiveCode;
+              if (primaryActiveName && !isGenericPageTitle(primaryActiveName)) {
+                this.state.activeSchoolName = primaryActiveName;
               }
               cleanedDuplicates = true;
             }
           }
-          // إذا لم يكن هناك كود نشط حالي ويوجد اشتراك مفعّل واحد على الأقل، نعتمد الاشتراك المفعّل افتراضياً
-          if (!this.state.activeSchoolCode && activePaidByName.size > 0) {
-            const [firstName, firstCode] = activePaidByName.entries().next().value;
-            this.state.activeSchoolCode = firstCode;
-            this.state.activeSchoolName = firstName;
+
+          // تنظيف اسم المدرسة إذا كان يحمل عنوان صفحة فرعية عشوائياً
+          if (isGenericPageTitle(this.state.activeSchoolName)) {
+            this.state.activeSchoolName = primaryActiveName && !isGenericPageTitle(primaryActiveName) ? primaryActiveName : "";
             cleanedDuplicates = true;
           }
+
           // إذا كان الرابط المخزن مخالفاً أو تم تنظيف تكرار، نحفظ فوراً على القرص
           if (raw.serverUrl !== this.state.serverUrl || cleanedDuplicates) {
             this._save();
@@ -364,8 +475,11 @@ class DesktopLicenseManager {
    * حساب حالة الترخيص الحالية للمدرسة النشطة
    */
   getStatus(customSchoolCode) {
-    const schoolCode = normalizeSchoolCode(customSchoolCode || this.state.activeSchoolCode);
-    const schoolName = this.state.activeSchoolName || "";
+    let schoolCode = normalizeSchoolCode(customSchoolCode || this.state.activeSchoolCode);
+    let entry = schoolCode ? this.state.ticketsBySchool[schoolCode] : null;
+    let schoolName = (customSchoolCode && entry && entry.schoolName)
+      ? entry.schoolName
+      : (this.state.activeSchoolName || (entry ? entry.schoolName : ""));
 
     if (this._isClockTampered()) {
       return {
@@ -379,6 +493,36 @@ class DesktopLicenseManager {
         expiresAt: 0,
         message: "⚠️ تم اكتشاف تراجع أو تعديل غير صحيح في تاريخ وساعة جهاز الكمبيوتر. يرجى ضبط الساعة والتاريخ الصحيحين لتفعيل الاشتراك."
       };
+    }
+
+    // درع الحماية الذهبي: التحقق هل يمتلك الجهاز بالفعل ترخيصاً سنوياً مفعّلاً وسارياً
+    let activePaidCode = "";
+    let activePaidEntry = null;
+    for (const [code, cand] of Object.entries(this.state.ticketsBySchool)) {
+      if (cand && String(cand.status || "").toLowerCase() === "active" && Number(cand.expiresAt || 0) > Date.now()) {
+        activePaidCode = code;
+        activePaidEntry = cand;
+        break;
+      }
+    }
+
+    // إذا كان كود المدرسة الحالي غير مفعل، ولكن الجهاز يمتلك مدرسة مفعلة بنفس الاسم أو في نفس الجلسة
+    const entryIsActive = entry && String(entry.status || "").toLowerCase() === "active" && Number(entry.expiresAt || 0) > Date.now();
+
+    if (!entryIsActive && activePaidEntry) {
+      const activeName = activePaidEntry.schoolName || "";
+      const matchesName = (schoolName && areSchoolNamesMatching(schoolName, activeName)) || (!schoolName && isGenericPageTitle(schoolName));
+      if (matchesName) {
+        schoolCode = activePaidCode;
+        entry = activePaidEntry;
+        if (!customSchoolCode) {
+          this.state.activeSchoolCode = activePaidCode;
+          if (activeName && !isGenericPageTitle(activeName)) {
+            this.state.activeSchoolName = activeName;
+            schoolName = activeName;
+          }
+        }
+      }
     }
 
     if (!schoolCode) {
@@ -395,7 +539,6 @@ class DesktopLicenseManager {
       };
     }
 
-    const entry = this.state.ticketsBySchool[schoolCode];
     if (!entry || !entry.ticket) {
       return {
         platform: "desktop",
@@ -415,7 +558,8 @@ class DesktopLicenseManager {
     let resolvedSchoolName = schoolName || entry.schoolName || `مدرسة ${schoolCode}`;
 
     if (String(entry.ticket || "").startsWith("SUPABASE_VERIFIED.")) {
-      const isValidHmac = verifySupabaseTicket(entry.ticket, schoolCode, entry.expiresAt, entry.status);
+      const verifyCode = entry.aliasedFrom || schoolCode;
+      const isValidHmac = verifySupabaseTicket(entry.ticket, verifyCode, entry.expiresAt, entry.status) || verifySupabaseTicket(entry.ticket, schoolCode, entry.expiresAt, entry.status);
       if (!isValidHmac) {
         return {
           platform: "desktop",
@@ -438,7 +582,8 @@ class DesktopLicenseManager {
       };
     } else {
       const verified = verifyTicketSignature(entry.ticket);
-      if (!verified.valid || normalizeSchoolCode(verified.payload?.schoolCode) !== schoolCode) {
+      const ticketCode = normalizeSchoolCode(verified.payload?.schoolCode);
+      if (!verified.valid || (ticketCode !== schoolCode && ticketCode !== normalizeSchoolCode(entry.aliasedFrom))) {
         return {
           platform: "desktop",
           locked: true,
@@ -532,20 +677,48 @@ class DesktopLicenseManager {
   /**
    * يُستدعى تلقائياً عند التقاط كود المدرسة من صفحة بيانات التلميذ والمعلم
    */
-  async onSchoolDetected({ schoolCode, schoolName } = {}) {
+  async onSchoolDetected({ schoolCode, schoolName, schoolSerial } = {}) {
     let normCode = normalizeSchoolCode(schoolCode);
-    const cleanName = String(schoolName || "").trim();
+    const normSerial = normalizeSchoolCode(schoolSerial);
+    let cleanName = String(schoolName || "").trim();
+    if (isGenericPageTitle(cleanName)) cleanName = "";
 
-    // إذا كان اسم المدرسة مطابقاً لمدرسة مفعّلة باشتراك سنوي نشط في الذاكرة بينما الكود الملتقط هو رقم مسلسل فرعي، نعتمد الكود الرسمي المفعّل
-    if (cleanName && !/^مدرسة \d+$/.test(cleanName)) {
-      const currentEntry = normCode ? this.state.ticketsBySchool[normCode] : null;
-      const currentIsActive = currentEntry && String(currentEntry.status || "").toLowerCase() === "active";
-      if (!currentIsActive) {
-        for (const [cKey, entry] of Object.entries(this.state.ticketsBySchool)) {
-          if (entry && String(entry.status || "").toLowerCase() === "active" && String(entry.schoolName || "").trim() === cleanName) {
-            normCode = cKey;
-            break;
-          }
+    // 1. درع الحماية الأمني: التحقق أولاً هل يمتلك الجهاز ترخيصاً سنوياً مفعّلاً وسارياً
+    let activePaidCode = "";
+    let activePaidEntry = null;
+    for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
+      if (entry && String(entry.status || "").toLowerCase() === "active" && Number(entry.expiresAt || 0) > Date.now()) {
+        activePaidCode = code;
+        activePaidEntry = entry;
+        break;
+      }
+    }
+
+    // 2. إذا كان الكود الملتقط يطابق بالفعل مدرسة مفعّلة في الذاكرة
+    const directEntry = normCode ? this.state.ticketsBySchool[normCode] : null;
+    const directIsActive = directEntry && String(directEntry.status || "").toLowerCase() === "active" && Number(directEntry.expiresAt || 0) > Date.now();
+
+    if (!directIsActive && activePaidEntry) {
+      const activeName = activePaidEntry.schoolName || "";
+      const isSameByName = cleanName && areSchoolNamesMatching(cleanName, activeName);
+      const isSameBySerial = (normSerial && normSerial === activePaidCode) || (normCode && normCode === activePaidCode);
+      const isSameSessionSubcode = (!cleanName || isGenericPageTitle(schoolName)) && (normCode || normSerial);
+
+      if (isSameByName || isSameBySerial || isSameSessionSubcode) {
+        // ربط الكود الفرعي أو المسلسل بالترخيص السنوي المفعل فوراً وتوريث التفعيل
+        if (normCode && normCode !== activePaidCode) {
+          this.state.ticketsBySchool[normCode] = {
+            ticket: createSupabaseTicket(normCode, activePaidEntry.expiresAt, "active"),
+            verifiedAt: Date.now(),
+            expiresAt: activePaidEntry.expiresAt,
+            schoolName: activePaidEntry.schoolName || cleanName,
+            status: "active",
+            aliasedFrom: activePaidCode
+          };
+        }
+        normCode = activePaidCode;
+        if (activeName && !isGenericPageTitle(activeName)) {
+          cleanName = activeName;
         }
       }
     }
@@ -554,10 +727,12 @@ class DesktopLicenseManager {
 
     const changed =
       normCode !== this.state.activeSchoolCode ||
-      (schoolName && schoolName !== this.state.activeSchoolName);
+      (cleanName && cleanName !== this.state.activeSchoolName);
 
     this.state.activeSchoolCode = normCode;
-    if (schoolName) this.state.activeSchoolName = String(schoolName).trim();
+    if (cleanName && !isGenericPageTitle(cleanName)) {
+      this.state.activeSchoolName = cleanName;
+    }
     if (changed) {
       this._save();
       this.onUpdate(this.getStatus());
@@ -604,7 +779,7 @@ class DesktopLicenseManager {
 
     if (!background || !this.state.activeSchoolCode) {
       this.state.activeSchoolCode = normCode;
-      if (schoolName) this.state.activeSchoolName = String(schoolName).trim();
+      if (schoolName && !isGenericPageTitle(schoolName)) this.state.activeSchoolName = String(schoolName).trim();
     }
 
     if (this._checkInFlight.has(normCode)) {
@@ -626,7 +801,7 @@ class DesktopLicenseManager {
             },
             body: JSON.stringify({
               p_school_code: normCode,
-              p_school_name: this.state.activeSchoolName || ""
+              p_school_name: isGenericPageTitle(this.state.activeSchoolName) ? "" : (this.state.activeSchoolName || "")
             })
           }, 7000);
           data = await res.json();
@@ -652,7 +827,8 @@ class DesktopLicenseManager {
 
         if (data?.ok && data?.subscribed) {
           const expiresAt = new Date(data.expires_at || data.expiresAt || 0).getTime();
-          const resolvedSchoolName = data.school_name || data.schoolName || this.state.activeSchoolName || `مدرسة ${normCode}`;
+          const serverSchoolName = isGenericPageTitle(data.school_name || data.schoolName) ? "" : (data.school_name || data.schoolName);
+          const resolvedSchoolName = serverSchoolName || this.state.activeSchoolName || `مدرسة ${normCode}`;
           const isTrial = String(data.status || "").toUpperCase() === "TRIAL";
 
           const prevEntry = this.state.ticketsBySchool[normCode];
@@ -685,15 +861,47 @@ class DesktopLicenseManager {
             };
           }
 
-          if (resolvedSchoolName) this.state.activeSchoolName = resolvedSchoolName;
+          if (resolvedSchoolName && !isGenericPageTitle(resolvedSchoolName)) {
+            this.state.activeSchoolName = resolvedSchoolName;
+          }
           this._save();
           const statusObj = this.getStatus(normCode);
           this.onUpdate(statusObj);
           return { ok: true, status: statusObj, message: data.message || statusObj.message };
         }
 
-        // إذا أكد السيرفر أن المدرسة غير مشتركة أو موقوفة أو منتهية، نمسح التذكرة المحلية
+        // إذا أكد السيرفر أن المدرسة غير مشتركة أو موقوفة أو منتهية:
         if (data && data.subscribed === false) {
+          // درع الحماية: قبل مسح التذكرة، نتأكد هل هذا الجهاز يمتلك بالفعل اشتراكاً سنوياً مفعّلاً لمدرسة مطابقة
+          let activePaidEntry = null;
+          let activePaidCode = null;
+          for (const [cKey, entry] of Object.entries(this.state.ticketsBySchool)) {
+            if (cKey !== normCode && entry && String(entry.status || "").toLowerCase() === "active" && Number(entry.expiresAt || 0) > Date.now()) {
+              if (areSchoolNamesMatching(entry.schoolName, this.state.activeSchoolName) || areSchoolNamesMatching(entry.schoolName, data.school_name)) {
+                activePaidEntry = entry;
+                activePaidCode = cKey;
+                break;
+              }
+            }
+          }
+
+          if (activePaidEntry) {
+            this.state.ticketsBySchool[normCode] = {
+              ticket: createSupabaseTicket(normCode, activePaidEntry.expiresAt, "active"),
+              verifiedAt: Date.now(),
+              expiresAt: activePaidEntry.expiresAt,
+              schoolName: activePaidEntry.schoolName,
+              status: "active",
+              aliasedFrom: activePaidCode
+            };
+            this.state.activeSchoolCode = activePaidCode;
+            this.state.activeSchoolName = activePaidEntry.schoolName;
+            this._save();
+            const statusObj = this.getStatus(activePaidCode);
+            this.onUpdate(statusObj);
+            return { ok: true, status: statusObj, message: statusObj.message };
+          }
+
           delete this.state.ticketsBySchool[normCode];
           this._save();
           const statusObj = this.getStatus(normCode);
@@ -847,7 +1055,7 @@ class DesktopLicenseManager {
           }
         } else if (isSupabase) {
           this.state.ticketsBySchool[normCode] = {
-            ticket: `SUPABASE_VERIFIED.${normCode}.${expiresAt}`,
+            ticket: createSupabaseTicket(normCode, expiresAt, "active"),
             verifiedAt: Date.now(),
             expiresAt,
             schoolName: resolvedSchoolName,
@@ -885,6 +1093,9 @@ class DesktopLicenseManager {
 module.exports = {
   DesktopLicenseManager,
   normalizeSchoolCode,
+  normalizeSchoolName,
+  areSchoolNamesMatching,
+  isGenericPageTitle,
   verifyTicketSignature,
   signTicket,
   extractSchoolFromEmisHeaders,
