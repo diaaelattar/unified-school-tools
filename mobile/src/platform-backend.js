@@ -469,6 +469,15 @@
     return cA === cB || cA.includes(cB) || cB.includes(cA);
   }
 
+    const KNOWN_SCHOOL_ALIASES = {
+    "972133": "21024219",
+    "21024219": "972133"
+  };
+  function resolveSchoolAlias(c) {
+    const norm = normalizeSchoolCode(c);
+    return KNOWN_SCHOOL_ALIASES[norm] || norm;
+  }
+
   function normalizeSchoolCode(raw) {
     const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
     const str = String(raw || "")
@@ -626,6 +635,7 @@
 
   async function checkMobileSchoolLicense({ schoolCode, serverUrl }) {
     const code = normalizeSchoolCode(schoolCode);
+    const aliasCode = resolveSchoolAlias(code);
     if (!code) throw new Error("كود المدرسة مطلوب");
     const srv = (serverUrl || SUPABASE_LICENSE_URL).replace(/\/+$/, "");
 
@@ -653,12 +663,16 @@
           const exp = new Date(data.expires_at || data.expiresAt || 0).getTime() || (Date.now() + 365 * DAY_MS);
           const isTrial = String(data.status || "").toUpperCase() === "TRIAL";
           store.schools = store.schools || {};
-          store.schools[code] = {
+          const licObj = {
             status: isTrial ? "TRIAL" : "ACTIVE",
             startsAt: Date.now(),
             expiresAt: exp,
             schoolName: data.school_name || data.schoolName || store.activeSchoolName || ""
           };
+          store.schools[code] = licObj;
+          if (aliasCode && aliasCode !== code) {
+            store.schools[aliasCode] = { ...licObj, aliasedFrom: code };
+          }
           saveMobileLicenseStore(store);
           const st = getMobileLicenseStatus(code);
           notifyLicenseUpdate(st);
