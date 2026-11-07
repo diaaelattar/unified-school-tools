@@ -440,19 +440,21 @@ public class EmisBrowserPlugin extends Plugin {
                 "    if (!window.__neprasAuthScannerActive) {\n" +
                 "      window.__neprasAuthScannerActive = true;\n" +
                 "      var lastSentAuth = '';\n" +
+                "      var lastSentScode = '';\n" +
                 "      var scanAndReportAuth = function() {\n" +
                 "        try {\n" +
                 "          var jwtRe = /eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}/;\n" +
-                "          var auth = '', scode = '', sstage = '', utype = '0';\n" +
+                "          var auth = '', scode = '', sname = '', sstage = '', utype = '0';\n" +
                 "          var scanObj = function(obj, d) {\n" +
-                "            if (!obj || typeof obj !== 'object' || d > 4) return;\n" +
+                "            if (!obj || typeof obj !== 'object' || d > 5) return;\n" +
                 "            Object.keys(obj).forEach(function(k) {\n" +
                 "              var v = obj[k]; if (v == null) return;\n" +
                 "              var lk = String(k).toLowerCase().replace(/[_-]/g, '');\n" +
                 "              if (typeof v === 'string' || typeof v === 'number') {\n" +
                 "                var sv = String(v).trim();\n" +
                 "                if (!auth && jwtRe.test(sv)) auth = 'Bearer ' + sv.match(jwtRe)[0];\n" +
-                "                if (!scode && (lk === 'schoolcode' || lk === 'schoolid' || lk === 'schcode' || lk === 'sc') && /^\\d{3,12}$/.test(sv)) scode = sv;\n" +
+                "                if (!scode && (lk === 'schoolcode' || lk === 'schoolid' || lk === 'schcode' || lk === 'sc' || lk === 'school_code') && /^\\d{4,12}$/.test(sv)) scode = sv;\n" +
+                "                if (!sname && (lk === 'schoolname' || lk === 'arabicschoolname' || lk === 'school_name') && sv.length >= 3 && !/^\\d+$/.test(sv)) sname = sv;\n" +
                 "                if (!sstage && (lk === 'schoolstage' || lk === 'stagecode' || lk === 'stageid' || lk === 'stage') && /^\\d{1,3}$/.test(sv)) sstage = sv;\n" +
                 "                if (utype === '0' && (lk === 'usertype' || lk === 'usertypeid') && /^\\d{1,3}$/.test(sv)) utype = sv;\n" +
                 "              } else if (typeof v === 'object') scanObj(v, d + 1);\n" +
@@ -466,13 +468,13 @@ public class EmisBrowserPlugin extends Plugin {
                 "              if (!auth && jwtRe.test(raw)) auth = 'Bearer ' + raw.match(jwtRe)[0];\n" +
                 "              var lk = k.toLowerCase().replace(/[_-]/g, '');\n" +
                 "              var cv = raw.replace(/^[\"']|[\"']$/g, '');\n" +
-                "              if (!scode && (lk.indexOf('schoolcode') !== -1 || lk === 'schoolid' || lk === 'sc') && /^\\d{3,12}$/.test(cv)) scode = cv;\n" +
+                "              if (!scode && (lk.indexOf('schoolcode') !== -1 || lk === 'schoolid' || lk === 'sc' || lk === 'school_code') && /^\\d{4,12}$/.test(cv)) scode = cv;\n" +
+                "              if (!sname && (lk.indexOf('schoolname') !== -1 || lk === 'arabicschoolname') && cv.length >= 3 && !/^\\d+$/.test(cv)) sname = cv;\n" +
                 "              if (!sstage && (lk.indexOf('schoolstage') !== -1 || lk.indexOf('stagecode') !== -1 || lk === 'stageid') && /^\\d{1,3}$/.test(cv)) sstage = cv;\n" +
                 "              if (raw.charAt(0) === '{' || raw.charAt(0) === '[') { try { scanObj(JSON.parse(raw), 0); } catch(_) {} }\n" +
                 "            }\n" +
                 "          });\n" +
-                "          if (auth && auth !== lastSentAuth) {\n" +
-                "            lastSentAuth = auth;\n" +
+                "          if (auth) {\n" +
                 "            try {\n" +
                 "              var m = auth.match(jwtRe);\n" +
                 "              if (m) {\n" +
@@ -481,13 +483,37 @@ public class EmisBrowserPlugin extends Plugin {
                 "                scanObj(claims, 0);\n" +
                 "              }\n" +
                 "            } catch(_) {}\n" +
+                "          }\n" +
+                "          var normArD = function(str){ return String(str||'').replace(/[٠-٩]/g, function(d){ return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }); };\n" +
+                "          var domNodes = document.querySelectorAll('.badge, .badge-pill, header span, header div, nav span, nav div, .navbar span, .navbar div, b, strong, h1, h2, h3, h4, p, label, a, .dropdown-menu, .dropdown-item');\n" +
+                "          for (var di = 0; di < domNodes.length; di++) {\n" +
+                "            var dt = (domNodes[di].textContent || '').trim();\n" +
+                "            if (!scode) {\n" +
+                "              var mSc = normArD(dt).match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || normArD(dt).match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([0-9]{4,12})/);\n" +
+                "              if (mSc) scode = mSc[1];\n" +
+                "            }\n" +
+                "            if (!sname) {\n" +
+                "              var mSn = dt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);\n" +
+                "              if (mSn && mSn[1].trim().length >= 3 && !/^\\d+$/.test(mSn[1].trim())) {\n" +
+                "                sname = mSn[1].replace(/المرحل[ةه].*$/, '').replace(/التبعي[ةه].*$/, '').replace(/الرقم\\s*المسلسل.*$/, '').trim();\n" +
+                "              }\n" +
+                "            }\n" +
+                "          }\n" +
+                "          var authChanged = (auth && auth !== lastSentAuth);\n" +
+                "          var scodeChanged = (scode && scode !== lastSentScode);\n" +
+                "          if (authChanged || scodeChanged) {\n" +
+                "            if (auth) lastSentAuth = auth;\n" +
+                "            if (scode) lastSentScode = scode;\n" +
                 "            window.__neprasLastEmisHeaders = window.__neprasLastEmisHeaders || {};\n" +
-                "            window.__neprasLastEmisHeaders.authorization = auth;\n" +
+                "            if (auth) window.__neprasLastEmisHeaders.authorization = auth;\n" +
                 "            if (scode) window.__neprasLastEmisHeaders.schoolcode = scode;\n" +
+                "            if (sname) window.__neprasLastEmisHeaders.schoolname = sname;\n" +
                 "            if (sstage) window.__neprasLastEmisHeaders.schoolstage = sstage;\n" +
                 "            window.__neprasLastEmisHeaders.usertype = utype;\n" +
-                "            var hdrs = [{ name: 'Authorization', value: auth }, { name: 'usertype', value: utype }];\n" +
+                "            var hdrs = [{ name: 'usertype', value: utype }];\n" +
+                "            if (auth) hdrs.push({ name: 'Authorization', value: auth });\n" +
                 "            if (scode) hdrs.push({ name: 'schoolcode', value: scode });\n" +
+                "            if (sname) hdrs.push({ name: 'schoolname', value: sname });\n" +
                 "            if (sstage) hdrs.push({ name: 'schoolstage', value: sstage });\n" +
                 "            var targetUrl = (location.hostname.indexOf('teacher.emis.gov.eg') !== -1)\n" +
                 "              ? 'https://professopi.emis.gov.eg/api/auto'\n" +
@@ -958,6 +984,61 @@ public class EmisBrowserPlugin extends Plugin {
         final String finalPath = savedPath;
         mainHandler.post(() -> Toast.makeText(getContext(), "✅ تم حفظ الملف في التنزيلات:\n" + finalPath, Toast.LENGTH_LONG).show());
         return savedPath;
+    }
+
+    @PluginMethod
+    public void saveAppState(PluginCall call) {
+        final String state = call.getString("state", "");
+        ioPool.execute(() -> {
+            try {
+                File dir = getContext().getFilesDir();
+                File target = new File(dir, "nepras_mobile_state.json");
+                File tmp = new File(dir, "nepras_mobile_state.json.tmp");
+                try (FileOutputStream fos = new FileOutputStream(tmp)) {
+                    fos.write(state.getBytes(StandardCharsets.UTF_8));
+                    fos.flush();
+                }
+                if (tmp.renameTo(target) || (target.delete() && tmp.renameTo(target))) {
+                    JSObject ret = new JSObject();
+                    ret.put("ok", true);
+                    ret.put("bytes", state.length());
+                    call.resolve(ret);
+                } else {
+                    call.reject("RENAME_FAILED");
+                }
+            } catch (Exception e) {
+                call.reject("SAVE_APP_STATE_FAILED: " + e.getMessage());
+            }
+        });
+    }
+
+    @PluginMethod
+    public void loadAppState(PluginCall call) {
+        ioPool.execute(() -> {
+            try {
+                File target = new File(getContext().getFilesDir(), "nepras_mobile_state.json");
+                if (!target.exists() || target.length() == 0) {
+                    JSObject ret = new JSObject();
+                    ret.put("state", (String) null);
+                    call.resolve(ret);
+                    return;
+                }
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                try (InputStream fis = new java.io.FileInputStream(target)) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = fis.read(buf)) != -1) {
+                        baos.write(buf, 0, n);
+                    }
+                }
+                String state = baos.toString("UTF-8");
+                JSObject ret = new JSObject();
+                ret.put("state", state);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("LOAD_APP_STATE_FAILED: " + e.getMessage());
+            }
+        });
     }
 
     @PluginMethod

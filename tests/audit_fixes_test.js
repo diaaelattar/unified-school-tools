@@ -1700,5 +1700,169 @@ async function test(name, fn) {
     assert.strictEqual(agg.detailRows[1].motherFullName, "ماري حنا", "detailRows must preserve deep fields like motherFullName");
   });
 
+  // 36. Mobile Platform Backend Storage Engine (Large-scale State & Zero-Quota-Exceeded)
+  await test("mobile_platform: large-scale state persistence with native plugin / IndexedDB fallback exceeding 5MB localStorage limit", async () => {
+    const mobileBackendSrc = fs.readFileSync(path.resolve(__dirname, "../mobile/src/platform-backend.js"), "utf8");
+    
+    // Simulate Android WebView environment
+    let nativeSavedState = null;
+    const mockPlugin = {
+      saveAppState: async ({ state }) => {
+        nativeSavedState = state;
+        return { ok: true, bytes: state.length };
+      },
+      loadAppState: async () => ({ state: nativeSavedState }),
+      addListener: () => {}
+    };
+
+    let lsStorage = {};
+    const mockWindow = {
+      Capacitor: {
+        registerPlugin: () => mockPlugin,
+        Plugins: { EmisBrowser: mockPlugin }
+      },
+      localStorage: {
+        getItem: (k) => lsStorage[k] || null,
+        setItem: (k, v) => {
+          if (typeof v === "string" && v.length > 5000000) {
+            throw new Error("QuotaExceededError: DOMException");
+          }
+          lsStorage[k] = String(v);
+        }
+      },
+      indexedDB: null,
+      console
+    };
+    mockWindow.window = mockWindow;
+    mockWindow.globalThis = mockWindow;
+
+    const scope = {
+      window: mockWindow,
+      globalThis: mockWindow,
+      console,
+      setTimeout: (fn) => 1,
+      clearTimeout: () => {},
+      setInterval: (fn) => 1,
+      clearInterval: () => {},
+      Date,
+      Math,
+      Array,
+      Object,
+      String,
+      Number,
+      Boolean,
+      RegExp,
+      JSON
+    };
+    vm.createContext(scope);
+    vm.runInContext(mobileBackendSrc, scope);
+
+    const backend = scope.window.NeprasBackend;
+    assert(backend, "NeprasBackend must be exposed on window");
+
+    // Generate large 6MB payload simulating thousands of deep student records with all 24 fields
+    const deepStudentTemplate = {
+      code: "12345678",
+      name: "طالب تجريبي ذو اسم رباعي كامل للتأكد من حجم السجل",
+      nationalId: "31201010101234",
+      grade: "الصف الأول الثانوي العام",
+      religion: "مسلم",
+      enrollStatus: "مستجد",
+      fatherFullName: "ولي أمر الطالب التجريبي بالاسم الرباعي الكامل",
+      motherFullName: "والدة الطالب التجريبي بالاسم الرباعي الكامل",
+      address: "جمهورية مصر العربية محافظة الجيزة قسم أول إمبابة شارع التحرير",
+      mobile: "01012345678",
+      phone: "0233445566",
+      specialization: "علمي علوم",
+      section: "عام",
+      eduSystem: "رسمي",
+      damg: "لا يوجد دمج أو تربية خاصة",
+      lang1: "اللغة العربية الأولى",
+      lang2: "اللغة الفرنسية الثانية",
+      notes: "بيانات إضافية موسعة لضمان تجاوز سقف التخزين الافتراضي لـ localStorage"
+    };
+    const largeDummyArray = Array.from({ length: 15000 }, (_, i) => ({ ...deepStudentTemplate, code: `S${100000 + i}` }));
+    const largeStateString = JSON.stringify({
+      local: {
+        neprasCachedStudentsList: largeDummyArray,
+        neprasSchoolStatsV1: { total: 15000, boys: 7500, girls: 7500 }
+      }
+    });
+
+    assert(largeStateString.length > 5000000, `Simulated state payload must exceed 5MB localStorage quota (actual: ${largeStateString.length} bytes)`);
+
+    // 1) Test saving large state: must NOT throw QuotaExceededError and must save via native plugin
+    await backend.saveState(largeStateString);
+    assert.strictEqual(nativeSavedState, largeStateString, "Must save full large state via native plugin without truncation");
+
+    // 2) Test loading large state: must return the exact 8MB state string
+    const loaded = await backend.loadState();
+    assert.strictEqual(loaded, largeStateString, "Must load complete large state string without loss");
+    const parsed = JSON.parse(loaded);
+    assert.strictEqual(parsed.local.neprasCachedStudentsList.length, 15000, "All 15,000 students must be preserved in state");
+  });
+
+  // 37. Mobile School Code Extraction & Multi-Source Detection
+  await test("mobile_platform: extractSchoolFromHeaderList handles Arabic digits, alternative headers, and JWT claims accurately", () => {
+    const mobileBackendSrc = fs.readFileSync(path.resolve(__dirname, "../mobile/src/platform-backend.js"), "utf8");
+    const scope = {
+      window: { localStorage: { getItem: () => null, setItem: () => {} } },
+      globalThis: {},
+      console,
+      setTimeout: (fn) => 1,
+      clearTimeout: () => {},
+      setInterval: (fn) => 1,
+      clearInterval: () => {},
+      Date,
+      Math,
+      Array,
+      Object,
+      String,
+      Number,
+      Boolean,
+      RegExp,
+      JSON,
+      atob: (s) => Buffer.from(s, "base64").toString("binary"),
+      decodeURIComponent,
+      escape
+    };
+    scope.window.window = scope.window;
+    scope.globalThis = scope.window;
+    vm.createContext(scope);
+    vm.runInContext(mobileBackendSrc, scope);
+
+    // Test extraction from EmisBrowserPlugin Java code regex & platform-backend
+    const javaSrc = fs.readFileSync(path.resolve(__dirname, "../mobile/android/app/src/main/java/eg/gov/nepras/app/EmisBrowserPlugin.java"), "utf8");
+    assert(javaSrc.includes("lastSentScode"), "EmisBrowserPlugin must track lastSentScode to prevent missed school code detection");
+    assert(javaSrc.includes("saveAppState"), "EmisBrowserPlugin must define saveAppState plugin method");
+    assert(javaSrc.includes("loadAppState"), "EmisBrowserPlugin must define loadAppState plugin method");
+
+    // Simulate headers with Arabic digits: "٢١٠٢٤٢١٩" -> "21024219"
+    const fnMatch = mobileBackendSrc.match(/function extractSchoolFromHeaderList\(hdrList\)\s*\{[\s\S]*?\n  \}/);
+    assert(fnMatch, "extractSchoolFromHeaderList must be defined");
+    const extractFn = vm.runInContext("(" + fnMatch[0] + ")", scope);
+
+    const ext1 = extractFn([
+      { name: "schoolcode", value: "٢١٠٢٤٢١٩" },
+      { name: "schoolname", value: "مدرسة المتفوقين التجريبية" }
+    ]);
+    assert.strictEqual(ext1.schoolCode, "21024219");
+    assert.strictEqual(ext1.schoolName, "مدرسة المتفوقين التجريبية");
+
+    // Simulate alternative header key "sc" with whitespace
+    const ext2 = extractFn([
+      { name: "sc", value: " 9876543 " }
+    ]);
+    assert.strictEqual(ext2.schoolCode, "9876543");
+
+    // Simulate JWT token containing SchoolCode and ArabicSchoolName
+    const jwtPayload = Buffer.from(JSON.stringify({ SchoolCode: "5556667", ArabicSchoolName: "مدرسة النيل الحديثة" })).toString("base64url");
+    const ext3 = extractFn([
+      { name: "Authorization", value: `Bearer eyJhbGciOiJIUzI1NiJ9.${jwtPayload}.sig` }
+    ]);
+    assert.strictEqual(ext3.schoolCode, "5556667");
+    assert.strictEqual(ext3.schoolName, "مدرسة النيل الحديثة");
+  });
+
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);
 })();

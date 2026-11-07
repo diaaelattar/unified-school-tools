@@ -27,13 +27,18 @@
     let schoolCode = "";
     let schoolName = "";
     let authVal = "";
+    const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+    const norm = (s) => String(s || "").replace(/[٠-٩]/g, (d) => String(arabicDigits.indexOf(d))).replace(/\D/g, "");
+
     for (const h of hdrList) {
       if (!h || !h.name) continue;
-      const lk = String(h.name).toLowerCase();
+      const lk = String(h.name).toLowerCase().replace(/[_-]/g, "");
       const val = String(h.value || "").trim();
       if (!val) continue;
-      if ((lk === "schoolcode" || lk === "sc") && /^\d{5,12}$/.test(val)) {
-        schoolCode = val;
+      if ((lk === "schoolcode" || lk === "sc" || lk === "schoolid" || lk === "schcode") && /^\d{4,12}$/.test(norm(val))) {
+        schoolCode = norm(val);
+      } else if ((lk === "schoolname" || lk === "arabicschoolname") && val.length >= 3 && !/^\d+$/.test(val)) {
+        schoolName = val;
       } else if (lk === "authorization") {
         authVal = val;
       }
@@ -47,15 +52,74 @@
           const pad = b64 + "===".slice((b64.length + 3) % 4);
           const claims = JSON.parse(decodeURIComponent(escape(atob(pad))));
           if (claims && typeof claims === "object") {
-            const candCode = String(claims.schoolcode || claims.SchoolCode || claims.school_code || claims.sc || claims.SchoolId || claims.schoolId || "").trim();
-            if (!schoolCode && /^\d{5,12}$/.test(candCode)) schoolCode = candCode;
-            const candName = String(claims.schoolName || claims.SchoolName || claims.school_name || claims.ArabicSchoolName || "").trim();
-            if (candName.length >= 3 && !/^\d+$/.test(candName)) schoolName = candName;
+            const candCode = norm(claims.schoolcode || claims.SchoolCode || claims.school_code || claims.sc || claims.SchoolId || claims.schoolId || claims.school_id || "");
+            if (!schoolCode && /^\d{4,12}$/.test(candCode)) schoolCode = candCode;
+            const candName = String(claims.schoolName || claims.SchoolName || claims.school_name || claims.ArabicSchoolName || claims.arabicSchoolName || "").trim();
+            if (!schoolName && candName.length >= 3 && !/^\d+$/.test(candName)) schoolName = candName;
           }
         }
       } catch (_) {}
     }
     return schoolCode ? { schoolCode, schoolName } : null;
+  }
+
+  // -------------------------------------------------------------------------
+  // 💾 محرك التخزين المستمر فائق السعة للموبايل (IndexedDB + Native App Storage)
+  // يحل نهائياً مشكلة سقف 5MB في localStorage لضمان عدم ضياع أي سجل طلابي
+  // -------------------------------------------------------------------------
+  const IDB_NAME = "nepras_mobile_db";
+  const IDB_STORE = "app_state";
+  function openStateDb() {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined" || !window.indexedDB) return resolve(null);
+      try {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) {
+            db.createObjectStore(IDB_STORE);
+          }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => resolve(null);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+  async function idbGetState() {
+    try {
+      const db = await openStateDb();
+      if (!db) return null;
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(IDB_STORE, "readonly");
+          const store = tx.objectStore(IDB_STORE);
+          const req = store.get("state");
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        } catch (_) {
+          resolve(null);
+        }
+      });
+    } catch (_) { return null; }
+  }
+  async function idbSetState(val) {
+    try {
+      const db = await openStateDb();
+      if (!db) return false;
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(IDB_STORE, "readwrite");
+          const store = tx.objectStore(IDB_STORE);
+          const req = store.put(val, "state");
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      });
+    } catch (_) { return false; }
   }
 
   function ensureListeners() {
@@ -82,21 +146,69 @@
           setTimeout(() => {
             backend.exec(activeTabId, `(function(){
               try {
+                var arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+                var norm = function(s){ return String(s||"").replace(/[٠-٩]/g, function(d){ return String(arabicDigits.indexOf(d)); }).replace(/\\D/g, ""); };
+                var sc = "", sn = "";
                 var h = window.__neprasLastEmisHeaders || {};
-                var sc = String(h.schoolcode || h.sc || "").trim();
-                var sn = "";
-                var badges = document.querySelectorAll(".badge, .badge-pill, header span, nav span, b, strong");
-                for (var i = 0; i < badges.length; i++) {
-                  var t = (badges[i].textContent || "").trim();
-                  if (!sc) {
-                    var m = t.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || t.match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([0-9]{5,12})/);
-                    if (m) sc = m[1];
-                  }
-                  if (!sn) {
-                    var ms = t.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);
-                    if (ms && ms[1].trim().length >= 3) sn = ms[1].replace(/المرحل[ةه].*$/, "").trim();
+                if (h.schoolcode && norm(h.schoolcode)) sc = norm(h.schoolcode);
+                if (h.schoolname && String(h.schoolname).trim().length >= 3) sn = String(h.schoolname).trim();
+
+                // 1. Storage scan (localStorage + sessionStorage)
+                if (!sc || !sn) {
+                  var stores = [window.localStorage, window.sessionStorage];
+                  for (var s = 0; s < stores.length; s++) {
+                    var st = stores[s];
+                    if (!st) continue;
+                    for (var i = 0; i < st.length; i++) {
+                      var key = st.key(i) || "";
+                      var val = st.getItem(key) || "";
+                      if (!val) continue;
+                      var lk = key.toLowerCase().replace(/[_-]/g, "");
+                      var cleanVal = val.trim().replace(/^["']|["']$/g, "");
+                      if (!sc && (lk.indexOf("schoolcode") >= 0 || lk === "schoolid" || lk === "schcode" || lk === "sc" || lk === "school_code") && norm(cleanVal)) {
+                        sc = norm(cleanVal);
+                      }
+                      if (!sn && (lk.indexOf("schoolname") >= 0 || lk === "arabicschoolname" || lk === "school_name") && cleanVal.length >= 3 && !/^\\d+$/.test(cleanVal)) {
+                        sn = cleanVal;
+                      }
+                      if (val.indexOf("eyJ") >= 0) {
+                        try {
+                          var m = val.match(/eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}/);
+                          if (m) {
+                            var b64 = m[0].split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+                            var pad = b64 + "===".slice((b64.length + 3) % 4);
+                            var claims = JSON.parse(decodeURIComponent(escape(atob(pad))));
+                            if (claims && typeof claims === "object") {
+                              var cCode = norm(claims.schoolcode || claims.SchoolCode || claims.school_code || claims.sc || claims.SchoolId || claims.schoolId || "");
+                              if (!sc && cCode) sc = cCode;
+                              var cName = String(claims.schoolName || claims.SchoolName || claims.school_name || claims.ArabicSchoolName || claims.arabicSchoolName || "").trim();
+                              if (!sn && cName.length >= 3 && !/^\\d+$/.test(cName)) sn = cName;
+                            }
+                          }
+                        } catch (_) {}
+                      }
+                    }
                   }
                 }
+
+                // 2. Deep responsive DOM scan
+                if (!sc || !sn) {
+                  var domNodes = document.querySelectorAll(".badge, .badge-pill, header span, header div, nav span, nav div, .navbar span, .navbar div, b, strong, h1, h2, h3, h4, p, label, a, .dropdown-menu, .dropdown-item");
+                  for (var di = 0; di < domNodes.length; di++) {
+                    var dt = (domNodes[di].textContent || "").trim();
+                    if (!sc) {
+                      var mSc = norm(dt).match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || norm(dt).match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([0-9]{4,12})/);
+                      if (mSc) sc = mSc[1];
+                    }
+                    if (!sn) {
+                      var mSn = dt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);
+                      if (mSn && mSn[1].trim().length >= 3 && !/^\\d+$/.test(mSn[1].trim())) {
+                        sn = mSn[1].replace(/المرحل[ةه].*$/, "").replace(/التبعي[ةه].*$/, "").replace(/الرقم\\s*المسلسل.*$/, "").trim();
+                      }
+                    }
+                  }
+                }
+
                 return sc ? { schoolCode: sc, schoolName: sn } : null;
               } catch(_) { return null; }
             })()`, "MAIN").then((r) => {
@@ -104,7 +216,7 @@
                 window.nepDesktop.reportDetectedSchool(r.result).catch(() => {});
               }
             }).catch(() => {});
-          }, 300);
+          }, 400);
         }
       });
 
@@ -147,10 +259,39 @@
     platform: "android",
     on,
     loadState: async () => {
+      const P = getPlugin();
+      if (P && typeof P.loadAppState === "function") {
+        try {
+          const res = await P.loadAppState();
+          if (res && typeof res.state === "string" && res.state.length > 0) {
+            return res.state;
+          }
+        } catch (e) {
+          console.warn("[Mobile loadAppState native fallback]", e);
+        }
+      }
+      const fromIdb = await idbGetState();
+      if (fromIdb && typeof fromIdb === "string" && fromIdb.length > 0) {
+        return fromIdb;
+      }
       try { return localStorage.getItem("nepras_mobile_state"); } catch (_) { return null; }
     },
     saveState: async (s) => {
-      try { localStorage.setItem("nepras_mobile_state", s); } catch (_) {}
+      if (typeof s !== "string") s = JSON.stringify(s || {});
+      const P = getPlugin();
+      if (P && typeof P.saveAppState === "function") {
+        try {
+          await P.saveAppState({ state: s });
+        } catch (e) {
+          console.warn("[Mobile saveAppState native fallback]", e);
+        }
+      }
+      await idbSetState(s);
+      try {
+        if (s.length < 4000000) {
+          localStorage.setItem("nepras_mobile_state", s);
+        }
+      } catch (_) {}
     },
 
     async createTab(id, url, opts) {
