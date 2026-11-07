@@ -39,55 +39,67 @@ const EARLY_MAIN_BOOTSTRAP = `(function() {
         } catch (_) {}
 
         // 2. دالة مزامنة sessionStorage إلى localStorage للحفاظ على التوكن عند إغلاق البرنامج أو فتح تبويب جديد
-        var syncSessionToBackup = function() {
-          try {
-            if (/\\/logout|\\/LogOff/i.test(location.pathname || "")) return;
-            var snap = {};
-            var hasAuthData = false;
-            for (var j = 0; j < sessionStorage.length; j++) {
-              var sk = sessionStorage.key(j);
-              if (!sk || sk === BACKUP_KEY) continue;
-              var sv = sessionStorage.getItem(sk);
-              if (sv != null && sv !== "") {
-                snap[sk] = sv;
-                hasAuthData = true;
+        if (!window.__neprasSessionBackupActive) {
+          window.__neprasSessionBackupActive = true;
+          var syncTimer = null;
+          var syncSessionToBackup = function() {
+            syncTimer = null;
+            try {
+              if (/\\/logout|\\/LogOff/i.test(location.pathname || "")) return;
+              var snap = {};
+              var hasAuthData = false;
+              for (var j = 0; j < sessionStorage.length; j++) {
+                var sk = sessionStorage.key(j);
+                if (!sk || sk === BACKUP_KEY) continue;
+                var sv = sessionStorage.getItem(sk);
+                if (sv != null && sv !== "") {
+                  snap[sk] = sv;
+                  hasAuthData = true;
+                }
               }
+              if (hasAuthData) {
+                localStorage.setItem(BACKUP_KEY, JSON.stringify(snap));
+              }
+            } catch (_) {}
+          };
+          var scheduleSync = function() {
+            if (syncTimer) return;
+            syncTimer = setTimeout(syncSessionToBackup, 600);
+          };
+
+          var origSetItem = Storage.prototype.setItem;
+          var origRemoveItem = Storage.prototype.removeItem;
+          var origClear = Storage.prototype.clear;
+
+          Storage.prototype.setItem = function(k, v) {
+            var res = origSetItem.apply(this, arguments);
+            if (this === window.sessionStorage) scheduleSync();
+            return res;
+          };
+          Storage.prototype.removeItem = function(k) {
+            var res = origRemoveItem.apply(this, arguments);
+            if (this === window.sessionStorage && /\\/logout|\\/LogOff/i.test(location.pathname || "")) {
+              try { localStorage.removeItem(BACKUP_KEY); } catch (_) {}
+            } else if (this === window.sessionStorage) {
+              scheduleSync();
             }
-            if (hasAuthData) {
-              localStorage.setItem(BACKUP_KEY, JSON.stringify(snap));
+            return res;
+          };
+          Storage.prototype.clear = function() {
+            var res = origClear.apply(this, arguments);
+            if (this === window.sessionStorage && /\\/logout|\\/LogOff|\\/login/i.test(location.pathname || "")) {
+              try { localStorage.removeItem(BACKUP_KEY); } catch (_) {}
             }
-          } catch (_) {}
-        };
+            return res;
+          };
 
-        var origSetItem = Storage.prototype.setItem;
-        var origRemoveItem = Storage.prototype.removeItem;
-        var origClear = Storage.prototype.clear;
-
-        Storage.prototype.setItem = function(k, v) {
-          var res = origSetItem.apply(this, arguments);
-          if (this === window.sessionStorage) syncSessionToBackup();
-          return res;
-        };
-        Storage.prototype.removeItem = function(k) {
-          var res = origRemoveItem.apply(this, arguments);
-          if (this === window.sessionStorage && /\\/logout|\\/LogOff/i.test(location.pathname || "")) {
-            try { localStorage.removeItem(BACKUP_KEY); } catch (_) {}
-          } else if (this === window.sessionStorage) {
-            syncSessionToBackup();
-          }
-          return res;
-        };
-        Storage.prototype.clear = function() {
-          var res = origClear.apply(this, arguments);
-          if (this === window.sessionStorage && /\\/logout|\\/LogOff|\\/login/i.test(location.pathname || "")) {
-            try { localStorage.removeItem(BACKUP_KEY); } catch (_) {}
-          }
-          return res;
-        };
-
-        // مزامنة أولية ودورية
-        syncSessionToBackup();
-        setInterval(syncSessionToBackup, 2000);
+          // مزامنة أولية وعند إغلاق/إخفاء التبويب دون إجهاد المعالج بحلقة مستمرة
+          syncSessionToBackup();
+          window.addEventListener("pagehide", syncSessionToBackup);
+          document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === "hidden") syncSessionToBackup();
+          });
+        }
 
         // 3. استعادة وحفظ هيدرات المصادقة (Authorization / schoolcode / schoolstage / usertype) مبكراً قبل إقلاع Angular
         var HEADERS_BACKUP_KEY = "__nepras_emis_headers_v1__";

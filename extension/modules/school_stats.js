@@ -43,6 +43,12 @@ function neprasStatsFindKey(row, patterns) {
 }
 
 function neprasStatsValue(row, patterns) {
+  if (!row || typeof row !== "object") return "";
+  for (const p of patterns || []) {
+    if (row[p] !== undefined && row[p] !== null && String(row[p]).trim() !== "") {
+      return String(row[p]).trim();
+    }
+  }
   const k = neprasStatsFindKey(row, patterns);
   return k ? String(row?.[k] ?? "").trim() : "";
 }
@@ -53,13 +59,13 @@ function neprasStatsEnglishDigits(value) {
 }
 
 function neprasStatsGender(row) {
-  const direct = neprasStatsValue(row, ["النوع", "الجنس"]);
+  const direct = neprasStatsValue(row, ["النوع", "الجنس", "gender", "__neprasStatsGender"]);
   const nd = neprasStatsNorm(direct);
   if (nd.includes("ذكر") || nd.includes("بنين") || nd.includes("ولد")) return "بنين";
   if (nd.includes("انث") || nd.includes("بنات") || nd.includes("بنت")) return "بنات";
 
   // Egyptian national ID: 13th digit odd=male, even=female.
-  const nationalId = neprasStatsEnglishDigits(neprasStatsValue(row, ["الرقم القومي", "رقم قومي"])).replace(/\D/g, "");
+  const nationalId = neprasStatsEnglishDigits(neprasStatsValue(row, ["الرقم القومي", "رقم قومي", "nationalId", "nid"])).replace(/\D/g, "");
   if (nationalId.length === 14) {
     const digit = Number(nationalId[12]);
     if (Number.isFinite(digit)) return digit % 2 ? "بنين" : "بنات";
@@ -88,15 +94,15 @@ function neprasStatsIsIntegrated(value) {
 }
 
 function neprasStatsIsHomeStudent(row) {
-  const eduType = neprasStatsValue(row, ["نوعية التعليم", "نوعيه التعليم", "نظام التعليم", "نوع التعليم", "التعليم"]);
+  const eduType = neprasStatsValue(row, ["نوعية التعليم", "نوعيه التعليم", "نظام التعليم", "نوع التعليم", "التعليم", "eduSystem", "studyType", "mode"]);
   const n = neprasStatsNorm(eduType);
   return n.includes("منازل") || n.includes("منزل") || n.includes("منزلي");
 }
 
 function neprasStatsIsWorkerStudent(row) {
-  const eduType = neprasStatsValue(row, ["نوعية التعليم", "نوعيه التعليم", "نظام التعليم", "نوع التعليم", "التعليم"]);
+  const eduType = neprasStatsValue(row, ["نوعية التعليم", "نوعيه التعليم", "نظام التعليم", "نوع التعليم", "التعليم", "eduSystem", "studyType", "mode"]);
   const n = neprasStatsNorm(eduType);
-  const status = neprasStatsNorm(neprasStatsValue(row, ["حالة القيد", "حاله القيد", "الحالة"]));
+  const status = neprasStatsNorm(neprasStatsValue(row, ["حالة القيد", "حاله القيد", "الحالة", "enrollStatus", "status"]));
   return n.includes("عمال") || n.includes("عمل") || status.includes("عمال");
 }
 
@@ -158,7 +164,9 @@ function neprasStatsIntegrationFromRow(row) {
         "الموقف من الدمج",
         "حاله الدمج",
         "حالة الدمج",
-        "الدمج"
+        "الدمج",
+        "damg",
+        "integrationType"
       ]
     ) ||
     String(
@@ -169,6 +177,9 @@ function neprasStatsIntegrationFromRow(row) {
     return neprasStatsIsPositiveIntegrationOptionText(
       direct
     );
+  }
+  if (row.integrated === "نعم" || row.integrated === true) {
+    return true;
   }
 
   // fallback فقط للصفحات القديمة التي لا تعرض obstacleId/name.
@@ -347,9 +358,9 @@ function neprasStatsEnsureStatusBreakdown(breakdown, statusName) {
 function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys = null, integrationStates = []) {
   const unique = new Map();
   for (const row of rows || []) {
-    const code = neprasStatsValue(row, ["كود التلميذ", "كود الطالب", "كود"]);
-    const nid = neprasStatsValue(row, ["الرقم القومي", "رقم قومي"]);
-    const name = neprasStatsValue(row, ["اسم التلميذ", "اسم الطالب", "الاسم"]);
+    const code = neprasStatsValue(row, ["كود التلميذ", "كود الطالب", "كود", "studentCode", "code"]);
+    const nid = neprasStatsValue(row, ["الرقم القومي", "رقم قومي", "nationalId", "nid"]);
+    const name = neprasStatsValue(row, ["اسم التلميذ", "اسم الطالب", "الاسم", "fullName", "name"]);
     const key = String(code || nid || `${name}|${JSON.stringify(row)}`).trim();
     if (!unique.has(key)) unique.set(key, row);
   }
@@ -357,7 +368,7 @@ function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys 
   // خريطة من بيانات بحث عن تلميذ نفسها؛ نستخدمها خصوصًا للدمج ونوعية التعليم.
   const mainByCode = new Map();
   for (const row of mainRows || []) {
-    const code = neprasStatsValue(row, ["كود التلميذ", "كود الطالب", "كود"]);
+    const code = neprasStatsValue(row, ["كود التلميذ", "كود الطالب", "كود", "studentCode", "code"]);
     if (code) mainByCode.set(String(code).trim(), row);
   }
 
@@ -378,7 +389,7 @@ function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys 
   };
 
   for (const row of data) {
-    const code = neprasStatsValue(row, ["كود التلميذ", "كود الطالب", "كود"]);
+    const code = neprasStatsValue(row, ["كود التلميذ", "كود الطالب", "كود", "studentCode", "code"]);
     const sourceRow = mainByCode.get(String(code || "").trim()) || row;
 
     const gender = neprasStatsGender(row);
@@ -402,16 +413,16 @@ function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys 
     // عدد الفصول = الفصول الفعلية فقط. لا نحسب 0/بدون فصل، ولا طالب المنازل أو العمال.
     if (!isHome && !isWorker) {
       const className = neprasStatsValidClassName(
-        neprasStatsValue(row, ["الفصل", "الصف الفصل", "اسم الفصل"])
+        neprasStatsValue(row, ["الفصل", "الصف الفصل", "اسم الفصل", "classRoom", "className"])
       );
       if (className) out.classes.add(className.trim());
     }
 
     const normalizedNid = neprasStatsEnglishDigits(
-      neprasStatsValue(row, ["الرقم القومي", "رقم قومي"])
+      neprasStatsValue(row, ["الرقم القومي", "رقم قومي", "nationalId", "nid"])
     ).replace(/\D/g, "");
 
-    const integrationKey = String(code || normalizedNid || neprasStatsValue(row, ["اسم التلميذ", "اسم الطالب", "الاسم"]) || "").trim();
+    const integrationKey = String(code || normalizedNid || neprasStatsValue(row, ["اسم التلميذ", "اسم الطالب", "الاسم", "fullName", "name"]) || "").trim();
 
     const isIntegrated =
       integratedKeys instanceof Set
@@ -425,10 +436,10 @@ function neprasStatsGradeSummary(gradeName, rows, mainRows = [], integratedKeys 
 
     const statusRaw = neprasStatsValue(
       sourceRow,
-      ["حالة القيد", "حاله القيد", "الموقف من القيد", "الحالة"]
+      ["حالة القيد", "حاله القيد", "الموقف من القيد", "الحالة", "enrollStatus", "status"]
     ) || neprasStatsValue(
       row,
-      ["حالة القيد", "حاله القيد", "الموقف من القيد", "الحالة"]
+      ["حالة القيد", "حاله القيد", "الموقف من القيد", "الحالة", "enrollStatus", "status"]
     );
 
     const statusBucket = neprasStatsStatusBucket(statusRaw);
@@ -2048,7 +2059,9 @@ function neprasStatsGetStudentDisplayRow(row) {
       [
         "كود التلميذ",
         "كود الطالب",
-        "كود"
+        "كود",
+        "studentCode",
+        "code"
       ]
     ) || "";
 
@@ -2058,7 +2071,9 @@ function neprasStatsGetStudentDisplayRow(row) {
       [
         "اسم التلميذ",
         "اسم الطالب",
-        "الاسم"
+        "الاسم",
+        "fullName",
+        "name"
       ]
     ) || "";
 
@@ -2068,7 +2083,9 @@ function neprasStatsGetStudentDisplayRow(row) {
         row,
         [
           "الرقم القومي",
-          "رقم قومي"
+          "رقم قومي",
+          "nationalId",
+          "nid"
         ]
       ) || ""
     );
@@ -2079,7 +2096,9 @@ function neprasStatsGetStudentDisplayRow(row) {
       [
         "الفصل",
         "الصف الفصل",
-        "اسم الفصل"
+        "اسم الفصل",
+        "classRoom",
+        "className"
       ]
     ) || "";
 
@@ -2097,7 +2116,9 @@ function neprasStatsGetStudentDisplayRow(row) {
           "نوع الدمج",
           "الموقف من الدمج",
           "حالة الدمج",
-          "حاله الدمج"
+          "حاله الدمج",
+          "damg",
+          "integrationType"
         ]
       ) ||
       ""
@@ -2119,30 +2140,37 @@ function neprasStatsGetStudentDisplayRow(row) {
     integrationType = "—";
   }
 
-  const resolvedGrade = row.__neprasGrade || neprasStatsValue(row, ["الصف"]) || raw.className || "";
+  const resolvedGrade = row.__neprasGrade || neprasStatsValue(row, ["الصف", "grade"]) || raw.className || "";
   const resolvedGender = row.__neprasStatsGender || neprasStatsGender(row);
-  const resolvedMode = row.__neprasStatsMode || neprasStatsValue(row, ["نوعية التعليم", "نوع التعليم", "نظام التعليم"]) || raw.studyTypeName || "";
-  const resolvedStatus = row.__neprasStatsStatus || neprasStatsValue(row, ["حالة القيد", "حاله القيد"]) || raw.status || "";
+  const resolvedMode = neprasStatsValue(row, ["نوعية التعليم", "نوع التعليم", "نظام التعليم", "eduSystem", "studyType", "mode"]) || row.__neprasStatsMode || raw.studyTypeName || "";
+  const resolvedStatus = neprasStatsValue(row, ["حالة القيد", "حاله القيد", "enrollStatus", "status"]) || row.__neprasStatsStatus || raw.status || "";
   const resolvedReligion =
     neprasStatsValue(row, ["الديانة", "الديانه", "religion", "rel"]) ||
     (raw.religionName) ||
     (Number(raw.religionId) === 1 ? "مسلم" : Number(raw.religionId) === 2 ? "مسيحي" : "") ||
     (globalThis.NeprasEgypt?.resolveReligion ? globalThis.NeprasEgypt.resolveReligion(row) : "");
   const resolvedDamgText = integrated === "نعم" ? (integrationType && integrationType !== "—" ? integrationType : "دمج تربوي") : "لا يوجد";
-  const resolvedSection = neprasStatsValue(row, ["الشعبة", "الشعبه"]) || String(raw.generalName || "").trim();
-  const resolvedSpecialization = neprasStatsValue(row, ["التخصص"]) || String(raw.specialName || "").trim();
+  const resolvedSection = neprasStatsValue(row, ["الشعبة", "الشعبه", "section"]) || String(raw.generalName || "").trim();
+  const resolvedSpecialization = neprasStatsValue(row, ["التخصص", "specialization"]) || String(raw.specialName || "").trim();
 
   return {
+    ...(row && typeof row === "object" ? row : {}),
     grade: resolvedGrade,
     code,
+    studentCode: code,
     name,
+    fullName: name,
     nationalId,
     gender: resolvedGender,
     mode: resolvedMode,
+    eduSystem: resolvedMode,
     className,
+    classRoom: className,
     integrated,
     integrationType,
+    damg: resolvedDamgText,
     status: resolvedStatus,
+    enrollStatus: resolvedStatus,
     religion: resolvedReligion,
     ...(resolvedSection ? { section: resolvedSection, "الشعبة": resolvedSection } : {}),
     ...(resolvedSpecialization ? { specialization: resolvedSpecialization, "التخصص": resolvedSpecialization } : {}),

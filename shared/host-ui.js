@@ -392,7 +392,7 @@
     function showUpdateNotificationModal(res) {
       if (!res || !res.hasUpdate) return;
       if (latestVerEl) latestVerEl.textContent = "v" + (res.latestVersion || "");
-      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.2");
+      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.4");
       if (notesEl && res.releaseNotes) notesEl.textContent = res.releaseNotes;
 
       if (btnModalDownloadUpdate) {
@@ -675,21 +675,27 @@
       const mobileSubDot = $("#mobile-sub-dot");
       const navSubLabel = $("#nav-sub-label");
 
+      function escHtml(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[m]);
+      }
+
       function renderMobileSubModalStatus(st) {
         if (!st) return;
         if (mobileStatusBox) {
           mobileStatusBox.classList.remove("lic-banner-ok", "lic-banner-warn", "lic-banner-error");
+          const safeCode = escHtml(st.schoolCode);
+          const safeDays = escHtml(st.daysRemaining);
           if (!st.locked) {
             mobileStatusBox.classList.add("lic-banner-ok");
-            const expStr = st.expiresAt ? new Date(st.expiresAt).toLocaleDateString("ar-EG") : "";
+            const expStr = escHtml(st.expiresAt ? new Date(st.expiresAt).toLocaleDateString("ar-EG") : "");
             if (st.status === "TRIAL") {
-              mobileStatusBox.innerHTML = `⏱️ <b>فترة تجريبية مجانية نشطة</b><br>كود المدرسة: <b>${st.schoolCode}</b><br>متبقي <b>${st.daysRemaining} يوم</b> (حتى ${expStr})`;
+              mobileStatusBox.innerHTML = `⏱️ <b>فترة تجريبية مجانية نشطة</b><br>كود المدرسة: <b>${safeCode}</b><br>متبقي <b>${safeDays} يوم</b> (حتى ${expStr})`;
             } else {
-              mobileStatusBox.innerHTML = `✅ <b>اشتراك سنوي نشط</b><br>كود المدرسة: <b>${st.schoolCode}</b><br>صالح حتى <b>${expStr}</b> (متبقي ${st.daysRemaining} يوم)`;
+              mobileStatusBox.innerHTML = `✅ <b>اشتراك سنوي نشط</b><br>كود المدرسة: <b>${safeCode}</b><br>صالح حتى <b>${expStr}</b> (متبقي ${safeDays} يوم)`;
             }
           } else if (st.schoolCode) {
             mobileStatusBox.classList.add("lic-banner-error");
-            mobileStatusBox.innerHTML = `⚠️ <b>تنبيه انتهاء الاشتراك</b><br>كود المدرسة: <b>${st.schoolCode}</b><br>${st.message || "انتهت الفترة التجريبية. يرجى تفعيل الاشتراك السنوي."}`;
+            mobileStatusBox.innerHTML = `⚠️ <b>تنبيه انتهاء الاشتراك</b><br>كود المدرسة: <b>${safeCode}</b><br>${escHtml(st.message || "انتهت الفترة التجريبية. يرجى تفعيل الاشتراك السنوي.")}`;
           } else {
             mobileStatusBox.classList.add("lic-banner-warn");
             mobileStatusBox.innerHTML = `سجّل الدخول بحساب مدرستك على صفحة بيانات التلميذ أو المعلم لالتقاط كود المدرسة تلقائياً، أو اكتب كود المدرسة أدناه.`;

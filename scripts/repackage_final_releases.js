@@ -18,9 +18,10 @@ const builderBin = path.join(desktopDir, 'node_modules/.bin/electron-builder.cmd
 execSync(`"${builderBin}" --win`, { cwd: desktopDir, stdio: 'inherit' });
 
 console.log('\n=== 4. Copying fresh .exe files to النسخ_التنفيذية_المكتملة ===');
+const pkgVer = require(path.join(desktopDir, 'package.json')).version || '1.3.4';
 const exeFiles = [
-  { src: 'Nepras_Portable_1.3.2.exe', dests: ['Nepras_Portable_1.3.2.exe', 'Nepras_Portable_v1.3.2.exe'] },
-  { src: 'Nepras_Setup_1.3.2.exe', dests: ['Nepras_Setup_1.3.2.exe', 'Nepras_Setup_v1.3.2.exe'] }
+  { src: `Nepras_Portable_${pkgVer}.exe`, dests: [`Nepras_Portable_${pkgVer}.exe`, `Nepras_Portable_v${pkgVer}.exe`] },
+  { src: `Nepras_Setup_${pkgVer}.exe`, dests: [`Nepras_Setup_${pkgVer}.exe`, `Nepras_Setup_v${pkgVer}.exe`] }
 ];
 
 for (const item of exeFiles) {
@@ -37,15 +38,19 @@ for (const item of exeFiles) {
 }
 
 console.log('\n=== 5. Creating fresh .zip archives ===');
-const extDir = path.join(outDir, 'Nepras_v1.3.2_Extension');
-const extZip = path.join(outDir, 'Nepras_v1.3.2_Extension.zip');
-execSync(`tar -a -cf "${extZip}" -C "${extDir}" .`, { stdio: 'inherit' });
-console.log('✅ Created fresh Nepras_v1.3.2_Extension.zip');
+const extDir = path.join(outDir, 'Nepras_v1.3.4_Extension');
+const extZip = path.join(outDir, 'Nepras_v1.3.4_Extension.zip');
+if (fs.existsSync(extDir)) {
+  execSync(`tar -a -cf "${extZip}" -C "${extDir}" .`, { stdio: 'inherit' });
+  console.log('✅ Created fresh Nepras_v1.3.4_Extension.zip');
+}
 
-const portableDir = path.join(outDir, 'Nepras_Desktop_v1.3.2_Portable');
-const portableZip = path.join(outDir, 'Nepras_Desktop_v1.3.2_Portable.zip');
-execSync(`tar -a -cf "${portableZip}" -C "${portableDir}" .`, { stdio: 'inherit' });
-console.log('✅ Created fresh Nepras_Desktop_v1.3.2_Portable.zip');
+const portableDir = path.join(outDir, 'Nepras_Desktop_v1.3.4_Portable');
+const portableZip = path.join(outDir, 'Nepras_Desktop_v1.3.4_Portable.zip');
+if (fs.existsSync(portableDir)) {
+  execSync(`tar -a -cf "${portableZip}" -C "${portableDir}" .`, { stdio: 'inherit' });
+  console.log('✅ Created fresh Nepras_Desktop_v1.3.4_Portable.zip');
+}
 
 console.log('\n=== 6. Final Status of النسخ_التنفيذية_المكتملة ===');
 const outFiles = fs.readdirSync(outDir);

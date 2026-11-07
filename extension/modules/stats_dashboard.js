@@ -220,9 +220,10 @@
     if (!row || typeof row !== 'object') {
       return {
         code: '', name: '', fatherName: '', nid: '', grade: 'غير محدد', cls: '',
-        gender: '', religion: 'مسلم', status: '', mode: '',
+        gender: '', religion: '', status: '', mode: '',
         isIntegrated: false, integrationType: '', mother: '', phone: '',
         address: '', birthGov: '', lang1: '', lang2: '', section: '', specialization: '',
+        exemptionType: '', exemptionClass: '', paid: false, financeStatus: '',
         raw: {}
       };
     }
@@ -479,6 +480,14 @@
       ? ((!isNonDamgText(rawDamg) && rawDamg !== 'نعم') ? rawDamg : 'دمج تربوي')
       : '';
 
+    const exemptionType = firstNonEmpty(
+      row.exemptionType, row.exemptionLabel, row['نوع الإعفاء'], row['تصنيف الإعفاء'],
+      row.social_status, row['الحالة الاجتماعية'], raw.exemptionType, raw.exemptionName
+    );
+    const exemptionClass = firstNonEmpty(row.exemptionClass, raw.exemptionClass);
+    const paid = Boolean(row.paid ?? raw.paid ?? false);
+    const financeStatus = firstNonEmpty(row.financeStatus, raw.financeStatus);
+
     return {
       code,
       name,
@@ -501,6 +510,10 @@
       lang2,
       section,
       specialization,
+      exemptionType,
+      exemptionClass,
+      paid,
+      financeStatus,
       raw
     };
   }
@@ -741,7 +754,7 @@
       .replace(/ة/g, 'ه')
       .trim();
     if (!s || s === 'غير محدد') {
-      return isFirstGradeOfStage(gradeName) ? 'new' : 'promoted';
+      return 'other';
     }
     if (s.includes('مستجد')) return 'new';
     if (s.includes('باقي') || s.includes('باق') || s.includes('راسب') || s.includes('اعاد')) return 'repeat';
@@ -2327,8 +2340,8 @@
       const stRec = normalizeStudentRecord(rawRow);
       const grade = stRec.grade || 'غير محدد';
       const isGirl = stRec.gender === 'بنات';
-      const isBoy = !isGirl;
-      const religion = stRec.religion || 'مسلم';
+      const isBoy = stRec.gender === 'بنين';
+      const religion = stRec.religion || '';
       const statusCat = classifyEnrollmentStatus(stRec.status, grade);
       const cls = stRec.cls;
 
@@ -2339,7 +2352,7 @@
 
       if (isBoy) {
         stats[grade].b++; totals.boys++;
-      } else {
+      } else if (isGirl) {
         stats[grade].g++; totals.girls++;
       }
 
@@ -2347,15 +2360,13 @@
         stats[grade].mus++; totals.muslim++;
       } else if (religion === 'مسيحي' || religion.includes('مسيح') || religion === 'Christian') {
         stats[grade].chr++; totals.christian++;
-      } else {
-        stats[grade].mus++; totals.muslim++;
       }
 
       if (statusCat === 'new') {
         stats[grade].new++; totals.new++;
       } else if (statusCat === 'repeat') {
         stats[grade].rep++; totals.repeat++;
-      } else {
+      } else if (statusCat === 'promoted') {
         stats[grade].pass++; totals.pass++;
       }
     });

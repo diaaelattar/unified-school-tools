@@ -56,6 +56,11 @@
           }
         }
       };
+      var curHref = String(location.href || "");
+      if (window.__neprasDetectedSchoolCache && window.__neprasDetectedSchoolCache.href === curHref && window.__neprasDetectedSchoolCache.data) {
+        var cached = window.__neprasDetectedSchoolCache.data;
+        if (cached.schoolCode && cached.schoolName && !isBadName(cached.schoolName)) return cached;
+      }
       if (window.__neprasLastEmisHeaders) inspectObj(window.__neprasLastEmisHeaders, 0);
       var stores = [window.localStorage, window.sessionStorage];
       for (var s = 0; s < stores.length; s++) {
@@ -93,11 +98,11 @@
         }
       }
       try {
-        var allBadges = document.querySelectorAll(".badge, .badge-pill, span, div, p, a, label, b, strong, h1, h2, h3, h4, h5, h6");
+        var allBadges = document.querySelectorAll(".badge, .badge-pill, header span, header div, nav span, nav div, .navbar span, .navbar div, b, strong, h1, h2, h3, h4, p, label");
         for (var bi = 0; bi < allBadges.length; bi++) {
           var bEl = allBadges[bi];
           if (bEl.children.length > 3) continue;
-          var bTxt = (bEl.innerText || bEl.textContent || "").trim();
+          var bTxt = (bEl.textContent || "").trim();
           if (!bTxt) continue;
           if (!code) {
             var mMail = bTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
@@ -126,7 +131,7 @@
           if (code && name && stage) break;
         }
         if ((!code || !name) && document.body) {
-          var fullTxt = (document.body.innerText || "").slice(0, 8000);
+          var fullTxt = (document.body.textContent || "").slice(0, 8000);
           if (!code) {
             var fbMail = fullTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
             if (fbMail) code = norm(fbMail[1]);
@@ -146,12 +151,16 @@
           }
         }
       } catch (_) {}
-      return (code || serial || name) ? {
+      var out = (code || serial || name) ? {
         schoolCode: code || serial || "",
         schoolSerial: serial || "",
         schoolName: isBadName(name) ? "" : (name || (code ? ("مدرسة " + code) : "")),
         stage: stage || ""
       } : null;
+      if (out && out.schoolCode && out.schoolName && !isBadName(out.schoolName)) {
+        window.__neprasDetectedSchoolCache = { href: curHref, data: out };
+      }
+      return out;
     } catch (_) { return null; }
   })()`;
 

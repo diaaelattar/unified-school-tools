@@ -241,6 +241,8 @@
       r?.['حالة الدمج'] ||
       r?.['حاله الدمج'] ||
       r?.['الدمج'] ||
+      r?.damg ||
+      r?.integrationType ||
       raw?.obstacleName ||
       raw?.disabilityName ||
       r?.merge_type ||
@@ -250,10 +252,12 @@
       ''
     );
 
-    const negatives = /^(لا يوجد|غير مدمج|ليس مدمج|ليس من طلاب الدمج|لا ينطبق|بدون دمج|لا|0|false|غير موجود|—|-)$/i;
+    const negatives = /^(لا يوجد|لايوجد|غير مدمج|ليس مدمج|ليس من طلاب الدمج|لا ينطبق|بدون دمج|لا|0|false|غير موجود|—|-)$/i;
     const isPosText = Boolean(directText && !negatives.test(directText));
     const isFlag = Boolean(
       r?.is_merged ||
+      r?.integrated === 'نعم' ||
+      r?.integrated === true ||
       r?.__neprasStatsIntegrated === 'نعم' ||
       raw?.isIntegrated === true ||
       raw?.isIntegrated === 1 ||
@@ -261,8 +265,8 @@
     );
 
     const isMerged = Boolean(hasObsId || isPosText || isFlag);
-    let mergeType = isPosText ? directText : (cleanText(raw?.obstacleName || raw?.disabilityName || r?.merge_type || raw?.mergeType || ''));
-    if (isMerged && (!mergeType || /^(نعم|دمج|1|true)$/i.test(mergeType))) {
+    let mergeType = isPosText ? directText : (cleanText(raw?.obstacleName || raw?.disabilityName || r?.damg || r?.integrationType || r?.merge_type || raw?.mergeType || ''));
+    if (isMerged && (!mergeType || /^(نعم|دمج|1|true|—|-)$/i.test(mergeType))) {
       mergeType = 'دمج تعليمي';
     }
 
@@ -286,14 +290,9 @@
       r?.['الاب'] ||
       ''
     );
-    const isOrphan = Boolean(
-      r?.is_orphan ||
-      raw?.isOrphan ||
-      /متوف/.test(fatherStatus) ||
-      /يتيم|يتامي|ايتام/.test(String(r?.social_status || r?.['الحالة الاجتماعية'] || raw?.socialStatus || raw?.socialStatusName || ''))
-    );
-
-    let socialStatus = cleanText(
+    const rawExemptionText = cleanText(
+      r?.exemptionType ||
+      r?.exemptionLabel ||
       r?.social_status ||
       r?.['الحالة الاجتماعية'] ||
       r?.['تصنيف الإعفاء'] ||
@@ -305,6 +304,15 @@
       raw?.excName ||
       ''
     );
+    const cleanExemptionText = /^(—|-|لا يوجد|بدون|غير معفى|none)$/i.test(rawExemptionText) ? '' : rawExemptionText;
+    const isOrphan = Boolean(
+      r?.is_orphan ||
+      raw?.isOrphan ||
+      /متوف/.test(fatherStatus) ||
+      /يتيم|يتامي|ايتام|أيتام/.test(cleanExemptionText)
+    );
+
+    let socialStatus = cleanExemptionText;
     if (!socialStatus && isOrphan) {
       socialStatus = 'يتيم الأب';
     }
@@ -315,22 +323,26 @@
       raw?.researchNumber ||
       r?.['رقم البحث'] ||
       r?.['المستند'] ||
+      (r?.exemptionPercent != null && Number(r.exemptionPercent) > 0 ? `إعفاء ${Number(r.exemptionPercent)}%` : '') ||
       ''
     );
 
-    const excKeywords = /تكافل|كرامة|كرامه|معفى|معفاة|معفاه|إعفاء|اعفاء|ضمان|بحث اجتماعي|شهداء|مطلقة|مطلقه|معيلة|معيله|مهجورة|مهجوره|رعاية|رعايه|أيتام|ايتام|يتيم|يتامي/;
-    const isExempt = Boolean(isOrphan || excKeywords.test(socialStatus) || exemptionDoc);
+    const excClass = String(r?.exemptionClass || raw?.exemptionClass || '').trim().toLowerCase();
+    const hasOfficialExemptionClass = excClass === 'full' || excClass === 'partial';
+    const excKeywords = /تكافل|كرامة|كرامه|معفى|معفاة|معفاه|إعفاء|اعفاء|تخفيض|ضمان|بحث اجتماعي|شهداء|مطلقة|مطلقه|معيلة|معيله|مهجورة|مهجوره|رعاية|رعايه|أيتام|ايتام|يتيم|يتامي|أبناء العاملين|ابناء العاملين/;
+    const isExempt = Boolean(isOrphan || hasOfficialExemptionClass || excKeywords.test(socialStatus) || exemptionDoc);
 
     return { isOrphan, socialStatus, exemptionDoc, isExempt };
   }
 
   function studentFromApiRow(r, gradeText, index) {
     const raw = (r && r.__neprasApiRaw) || {};
-    const nid = cleanDigits(r?.['الرقم القومي'] || r?.nationalId || r?.national_id || raw.nationalId);
+    const nid = cleanDigits(r?.['الرقم القومي'] || r?.nationalId || r?.national_id || r?.nid || raw.nationalId);
     const parsedNid = parseNationalId(nid);
-    const studyTypeRaw = String(r?.['نوعية التعليم'] || r?.['نوع التعليم'] || r?.studyType || r?.study_type || raw.studyTypeName || '');
+    const studyTypeRaw = cleanText(r?.['نوعية التعليم'] || r?.['نوع التعليم'] || r?.['نظام التعليم'] || r?.eduSystem || r?.studyType || r?.study_type || r?.mode || raw.studyTypeName || '');
+    const statusRaw = cleanText(r?.['حالة القيد'] || r?.['حالة قيد الطالب'] || r?.enrollStatus || r?.status || raw.status || '');
     const isManazel = studyTypeRaw.includes('منازل') || studyTypeRaw.includes('منزل');
-    const isWorker = studyTypeRaw.includes('عمال') || studyTypeRaw.includes('عمل') || String(r?.['حالة القيد'] || r?.status || '').includes('عمال');
+    const isWorker = studyTypeRaw.includes('عمال') || studyTypeRaw.includes('عمل') || statusRaw.includes('عمال');
     const gradeName = cleanText(
       r?.['الصف'] ||
       r?.['الصف الدراسي'] ||
@@ -362,22 +374,22 @@
 
     return {
       index,
-      name: cleanText(r?.['اسم التلميذ'] || r?.['اسم الطالب'] || r?.name || raw.studentName),
-      code: cleanDigits(r?.['كود التلميذ'] || r?.['كود الطالب'] || r?.code || raw.studentCode),
+      name: cleanText(r?.['اسم التلميذ'] || r?.['اسم الطالب'] || r?.['الاسم بالكامل'] || r?.fullName || r?.name || raw.studentName),
+      code: cleanDigits(r?.['كود التلميذ'] || r?.['كود الطالب'] || r?.studentCode || r?.code || raw.studentCode),
       national_id: nid,
       grade: gradeName,
       class_name: className,
       class_number: classNum,
-      // لا قيم مُختلَقة: النوع من الحقل الرسمي ثم الرقم القومي، والديانة من الحقول الرسمية فقط، وإلا تُترك فارغة
+      // لا قيم مُختلَقة: النوع من الحقل الرسمي ثم الرقم القومي، والديانة وحالة القيد ونوعية التعليم من الحقول الرسمية فقط
       gender: cleanText(r?.['النوع'] || r?.gender || (parsedNid ? parsedNid.gender : '')),
       religion: officialReligion(r),
-      status: cleanText(r?.['حالة القيد'] || r?.status || raw.status || 'مقيد'),
-      study_type: cleanText(r?.['نوعية التعليم'] || r?.['نوع التعليم'] || r?.studyType || r?.study_type || raw.studyTypeName || 'رسمي'),
+      status: statusRaw,
+      study_type: studyTypeRaw,
       is_manazel: isManazel,
       is_worker: isWorker,
-      phone: cleanDigits(raw.phone || raw.mobile || raw.guardianMobile || r?.phone || ''),
-      dob: parsedNid ? parsedNid.birthDateFormatted : (raw.birthDate || r?.dob || ''),
-      gov: parsedNid ? parsedNid.governorate : (raw.governorate || r?.gov || ''),
+      phone: cleanDigits(r?.mobile || r?.phone || r?.['رقم المحمول'] || r?.['رقم التليفون'] || raw.phone || raw.mobile || raw.guardianMobile || ''),
+      dob: parsedNid ? parsedNid.birthDateFormatted : cleanText(r?.dob || r?.['تاريخ الميلاد'] || raw.birthDate || ''),
+      gov: parsedNid ? parsedNid.governorate : cleanText(r?.birthGov || r?.['محافظة الميلاد'] || raw.governorate || r?.gov || ''),
       is_merged: mergeInfo.isMerged,
       merge_type: mergeInfo.mergeType,
       merge_decision: mergeInfo.mergeDecision,
@@ -385,10 +397,10 @@
       social_status: socialInfo.socialStatus,
       exemption_doc: socialInfo.exemptionDoc,
       is_exempt: socialInfo.isExempt,
-      guardian: cleanText(r?.guardian || r?.guardianName || raw.guardianName || ''),
+      guardian: cleanText(r?.guardian || r?.guardianName || r?.fatherFullName || r?.fatherName || r?.['اسم الوالد'] || raw.guardianName || ''),
       guardian_job: cleanText(r?.guardian_job || raw.guardianJob || ''),
-      address: cleanText(r?.address || raw.address || ''),
-      nationality: cleanText(r?.nationality || raw.nationality || 'مصري')
+      address: cleanText(r?.address || r?.['العنوان'] || raw.address || ''),
+      nationality: cleanText(r?.nationality || r?.['الجنسية'] || raw.nationality || '')
     };
   }
 
@@ -433,6 +445,56 @@
     let apiTried = false;
     let stage = '';
 
+    // قراءة السجل الشامل المحفوظ (neprasCachedStudentsList) وتحليل الإعفاءات والمصروفات (neprasExpensesAnalysisV1)
+    // لإثراء كل طالب بالديانة والدمج والإعفاءات والبيانات التفصيلية دون أي قيم افتراضية
+    const deepByKey = new Map();
+    const expByKey = new Map();
+    let cachedList = Array.isArray(window?.neprasCachedStudentsList) ? window.neprasCachedStudentsList : [];
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const stored = await chrome.storage.local.get(['neprasCachedStudentsList', 'neprasExpensesAnalysisV1']);
+        if (Array.isArray(stored?.neprasCachedStudentsList) && stored.neprasCachedStudentsList.length) {
+          cachedList = stored.neprasCachedStudentsList;
+        }
+        const expRows = Array.isArray(stored?.neprasExpensesAnalysisV1?.rows) ? stored.neprasExpensesAnalysisV1.rows : [];
+        for (const er of expRows) {
+          if (!er || typeof er !== 'object') continue;
+          const ec = cleanDigits(er.code || er.studentCode || er['كود التلميذ'] || '');
+          const en = cleanDigits(er.nationalId || er['الرقم القومي'] || '');
+          if (ec) expByKey.set(`c:${ec}`, er);
+          if (en) expByKey.set(`n:${en}`, er);
+        }
+      }
+    } catch (_) {}
+
+    for (const st of cachedList) {
+      if (!st || typeof st !== 'object') continue;
+      const sc = cleanDigits(st.studentCode || st.code || st['كود التلميذ'] || st['كود الطالب'] || '');
+      const sn = cleanDigits(st.nationalId || st.nid || st['الرقم القومي'] || '');
+      if (sc) deepByKey.set(`c:${sc}`, st);
+      if (sn) deepByKey.set(`n:${sn}`, st);
+    }
+
+    const enrichStudentRow = (r) => {
+      if (!r || typeof r !== 'object') return r;
+      const rc = cleanDigits(r['كود التلميذ'] || r['كود الطالب'] || r.studentCode || r.code || r.__neprasApiRaw?.studentCode || '');
+      const rn = cleanDigits(r['الرقم القومي'] || r.nationalId || r.national_id || r.nid || r.__neprasApiRaw?.nationalId || '');
+      const deepMatch = (rc && deepByKey.get(`c:${rc}`)) || (rn && deepByKey.get(`n:${rn}`)) || null;
+      const expMatch = (rc && expByKey.get(`c:${rc}`)) || (rn && expByKey.get(`n:${rn}`)) || null;
+      if (!deepMatch && !expMatch) return r;
+      return {
+        ...(deepMatch || {}),
+        ...(expMatch ? {
+          exemptionType: expMatch.exemptionType || expMatch.exemptionLabel || '',
+          exemptionClass: expMatch.exemptionClass || '',
+          exemptionPercent: expMatch.exemptionPercent,
+          paid: expMatch.paid,
+          financeStatus: expMatch.financeStatus || ''
+        } : {}),
+        ...r
+      };
+    };
+
     // 1. API الوزارة (أسرع وأدق). المصدر نفسه الذي تستعمله «إحصاء المدرسة» و«قوائم الفصول»:
     //    خطة صفوف المرحلة المختارة (أو قائمة الصف الظاهرة في الصفحة إن لم تُختر مرحلة) + جلب ثابت بإعادة المحاولة.
     //    فشل أي صف يوقف العملية باسم الصف بدل أن يُنتج كشفًا ناقصًا بصمت.
@@ -447,15 +509,23 @@
       } catch (err) {
         const msg = String((err && err.message) || err || '');
         if ((err && err.code === 'USER_STOPPED') || msg.includes('USER_STOPPED')) throw new Error('تم إلغاء العملية.');
-        if (msg !== 'GRADE_PLAN_EMPTY') throw err; // خطة فارغة: ننتقل لقراءة جدول الصفحة
+        if (msg !== 'GRADE_PLAN_EMPTY' && !cachedList.length) throw err; // خطة فارغة أو توفر السجل الشامل: ننتقل للبديل
       }
       for (const { grade, rows } of perGrade) {
-        rows.forEach((r) => students.push(studentFromApiRow(r, grade.text, students.length + 1)));
+        rows.forEach((r) => students.push(studentFromApiRow(enrichStudentRow(r), grade.text, students.length + 1)));
       }
     }
 
-    // 2. إذا لم ترجع الـ API أي طلاب، نقوم بمسح جدول الصفحة الحالي
-    if (!students.length) {
+    // 2. إذا لم ترجع الـ API أي طلاب، نعتمد أولاً على السجل الشامل المحفوظ (neprasCachedStudentsList) لأنه أدق وأغنى من جدول الصفحة الجزئي
+    if (!students.length && cachedList.length) {
+      cachedList.forEach((st) => {
+        const enriched = enrichStudentRow(st);
+        students.push(studentFromApiRow(enriched, enriched.grade || enriched['الصف'] || enriched.className || '', students.length + 1));
+      });
+    }
+
+    // 3. إذا لم تتوفر بيانات في السجل الشامل، نقوم بمسح جدول الصفحة الحالي بدون اختلاق بيانات افتراضية
+    if (!students.length && typeof document !== 'undefined') {
       reportStatus('جاري قراءة الجداول المعروضة في الصفحة...');
       const rows = document.querySelectorAll('table tbody tr');
       rows.forEach((tr, idx) => {
@@ -464,7 +534,7 @@
         const rowText = tr.innerText || '';
         if (rowText.includes('لا توجد بيانات') || rowText.includes('المجموع')) return;
 
-        let name = '', code = '', nationalId = '', className = '', grade = '', status = 'مقيد', phone = '';
+        let name = '', code = '', nationalId = '', className = '', grade = '', status = '', phone = '';
 
         cells.forEach(td => {
           const text = cleanText(td.innerText);
@@ -474,43 +544,24 @@
           else if (text.length > 8 && !name && !/\d/.test(text)) name = text;
           else if (text.includes('فصل') || text.includes('1/') || text.includes('2/') || text.includes('3/')) className = text;
           else if (text.includes('صف') || text.includes('ابتدائي') || text.includes('إعدادي') || text.includes('ثانوي')) grade = text;
+          else if (text.includes('مستجد') || text.includes('منقول') || text.includes('مقيد') || text.includes('باق') || text.includes('راسب')) status = text;
           else if (/^01[0125]\d{8}$/.test(digits)) phone = digits;
         });
 
         if (name || code || nationalId) {
-          const parsedNid = parseNationalId(nationalId);
-          students.push({
-            index: idx + 1,
+          const enriched = enrichStudentRow({
             name: name || `طالب ${idx + 1}`,
             code: code || '',
-            national_id: nationalId || '',
-            grade: grade || 'الصف الدراسي',
-            class_name: className || 'فصل 1',
-            class_number: className.replace(/\D/g, '') || '1',
-            gender: parsedNid ? parsedNid.gender : '',
-            religion: '',
-            status: status,
-            study_type: 'رسمي',
-            is_manazel: rowText.includes('منازل'),
-            phone: phone || '',
-            dob: parsedNid ? parsedNid.birthDateFormatted : '',
-            gov: parsedNid ? parsedNid.governorate : ''
+            nationalId: nationalId || '',
+            grade: grade || '',
+            classRoom: className || '',
+            enrollStatus: status || '',
+            eduSystem: rowText.includes('منازل') ? 'منازل' : (rowText.includes('خدمات') ? 'خدمات' : (rowText.includes('عمال') ? 'عمال' : '')),
+            phone: phone || ''
           });
+          students.push(studentFromApiRow(enriched, grade || '', students.length + 1));
         }
       });
-    }
-
-    // 3. احتياط محلي ذكي: قراءة الطلاب من الذاكرة المخزنة مسبقاً
-    if (!students.length && typeof chrome !== 'undefined' && chrome.storage?.local) {
-      try {
-        const stored = await chrome.storage.local.get('neprasCachedStudentsList');
-        const list = Array.isArray(stored?.neprasCachedStudentsList) ? stored.neprasCachedStudentsList : [];
-        if (list.length) {
-          list.forEach((st) => {
-            students.push(studentFromApiRow(st, st.grade || st.className || '', students.length + 1));
-          });
-        }
-      } catch (_) {}
     }
 
     if (!students.length && apiTried) {

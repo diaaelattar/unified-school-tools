@@ -172,8 +172,21 @@ public class EmisBrowserPlugin extends Plugin {
 
                     @Override
                     public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                        String url = error.getUrl();
-                        if (url != null && (url.contains("emis.gov.eg") || url.contains("microsoftonline.com") || url.contains("live.com") || url.contains("microsoft.com"))) {
+                        String url = error != null ? error.getUrl() : null;
+                        String host = "";
+                        if (url != null) {
+                            try {
+                                Uri parsed = Uri.parse(url);
+                                if (parsed.getHost() != null) {
+                                    host = parsed.getHost().toLowerCase();
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                        if (!host.isEmpty() && (
+                                host.equals("emis.gov.eg") || host.endsWith(".emis.gov.eg") ||
+                                host.endsWith(".microsoftonline.com") || host.endsWith(".live.com") ||
+                                host.endsWith(".msauth.net") || host.endsWith(".msftauth.net")
+                        )) {
                             handler.proceed();
                         } else {
                             super.onReceivedSslError(view, handler, error);

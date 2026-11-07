@@ -12,6 +12,7 @@ const extSrc = path.join(root, "extension");
 function copyDir(src, dst) {
   fs.mkdirSync(dst, { recursive: true });
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    if (e.name === "tests" || e.name.endsWith(".test.js")) continue;
     const s = path.join(src, e.name), d = path.join(dst, e.name);
     if (e.isDirectory()) copyDir(s, d); else fs.copyFileSync(s, d);
   }
@@ -19,7 +20,10 @@ function copyDir(src, dst) {
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 
-for (const f of ["host.html", "host.css", "host-core.js", "host-ui.js"]) fs.copyFileSync(path.join(root, "shared", f), path.join(out, f));
+for (const f of ["host.html", "host.css", "host-core.js", "host-ui.js", "nepras_logger.js"]) {
+  const srcFile = path.join(root, "shared", f);
+  if (fs.existsSync(srcFile)) fs.copyFileSync(srcFile, path.join(out, f));
+}
 if (target === "mobile") fs.copyFileSync(path.join(out, "host.html"), path.join(out, "index.html"));
 fs.copyFileSync(path.join(root, target, "src", "platform-backend.js"), path.join(out, "platform-backend.js"));
 
@@ -40,6 +44,7 @@ if (!popup.includes("nepras-shim.js")) {
 fs.writeFileSync(path.join(ext, "_background.html"),
   '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nepras background</title>\n' +
   '<script src="nepras-shim.js"></script>\n' +
+  '<script src="modules/nepras_logger.js"></script>\n' +
   '<script src="modules/nepras_security_guard.js"></script>\n' +
   '<script src="modules/school_manager.js"></script>\n' +
   '<script src="modules/class_books_store.js"></script>\n' +

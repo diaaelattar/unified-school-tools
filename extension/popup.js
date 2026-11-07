@@ -1021,112 +1021,179 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     const canonicalAlready =
-      Object.prototype.hasOwnProperty.call(
-        row || {},
-        "name"
-      ) ||
-      Object.prototype.hasOwnProperty.call(
-        row || {},
-        "code"
-      );
+      (Object.prototype.hasOwnProperty.call(row || {}, "name") && row?.name) ||
+      (Object.prototype.hasOwnProperty.call(row || {}, "code") && row?.code);
 
     if (canonicalAlready) {
+      const rawDamg = String(row?.integrationType || row?.damg || row?.["الموقف من الدمج"] || row?.["نوع الدمج"] || "").trim();
+      const isPosDamg = rawDamg && !/^(—|-|لا|لا يوجد|لايوجد|غير مدمج|0|false)$/i.test(rawDamg);
+      const isInt = String(row?.integrated || row?.["الدمج"] || "").trim() === "نعم" || isPosDamg;
       return {
-        grade:
-          String(row?.grade || "").trim(),
-        code:
-          String(row?.code || "").trim(),
-        name:
-          String(row?.name || "").trim(),
-        nationalId:
-          String(
-            row?.nationalId || ""
-          ).trim(),
-        gender:
-          String(
-            row?.gender || ""
-          ).trim(),
-        mode:
-          String(row?.mode || "").trim(),
-        className:
-          String(
-            row?.className || ""
-          ).trim(),
-        integrated:
-          String(
-            row?.integrated || "لا"
-          ).trim(),
-        integrationType:
-          String(
-            row?.integrationType ||
-            (
-              String(
-                row?.integrated || ""
-              ) === "نعم"
-                ? ""
-                : "—"
-            )
-          ).trim() || "—",
-        status:
-          String(row?.status || "").trim()
+        grade: String(row?.grade || row?.["الصف"] || "").trim(),
+        code: String(row?.code || row?.studentCode || row?.["كود التلميذ"] || "").trim(),
+        name: String(row?.name || row?.fullName || row?.["اسم التلميذ"] || "").trim(),
+        nationalId: String(row?.nationalId || row?.["الرقم القومي"] || "").trim(),
+        gender: String(row?.gender || row?.["النوع"] || "").trim(),
+        mode: String(row?.mode || row?.eduSystem || row?.studyType || row?.["نوعية التعليم"] || "").trim(),
+        className: String(row?.className || row?.classRoom || row?.["الفصل"] || "").trim(),
+        integrated: isInt ? "نعم" : "لا",
+        integrationType: isInt ? (isPosDamg ? rawDamg : "دمج تربوي") : "—",
+        status: String(row?.status || row?.enrollStatus || row?.["حالة القيد"] || "").trim(),
+        religion: String(row?.religion || row?.["الديانة"] || "").trim()
       };
     }
 
-    // دعم v1.0 + دعم اللقطة المكسورة في v1.0
+    const pickedDamg = pick(["نوع الدمج", "الموقف من الدمج", "حالة الدمج", "damg", "integrationType"]);
+    const isPosPickedDamg = pickedDamg && !/^(—|-|لا|لا يوجد|لايوجد|غير مدمج|0|false)$/i.test(pickedDamg);
+    const pickedIntegrated = (row?.__neprasStatsIntegrated === "نعم" || pick(["الدمج", "integrated"]) === "نعم" || isPosPickedDamg) ? "نعم" : "لا";
     return {
-      grade:
-        row?.__neprasGrade ||
-        pick(["الصف"]),
-      code:
-        pick([
-          "كود التلميذ",
-          "كود الطالب",
-          "كود"
-        ]),
-      name:
-        pick([
-          "اسم التلميذ",
-          "اسم الطالب",
-          "الاسم"
-        ]),
-      nationalId:
-        pick([
-          "الرقم القومي",
-          "رقم قومي"
-        ]),
-      gender:
-        row?.__neprasStatsGender ||
-        pick(["النوع"]),
-      mode:
-        row?.__neprasStatsMode ||
-        pick([
-          "نوعية التعليم",
-          "نوع التعليم",
-          "نظام التعليم"
-        ]),
-      className:
-        pick([
-          "الفصل",
-          "الصف الفصل",
-          "اسم الفصل"
-        ]),
-      integrated:
-        row?.__neprasStatsIntegrated ||
-        pick(["الدمج"]) ||
-        "لا",
-      integrationType:
-        pick([
-          "نوع الدمج",
-          "الموقف من الدمج",
-          "حالة الدمج"
-        ]) ||
-        "—",
-      status:
-        row?.__neprasStatsStatus ||
-        pick([
-          "حالة القيد",
-          "الحالة"
-        ])
+      grade: row?.__neprasGrade || pick(["الصف", "grade"]),
+      code: pick(["كود التلميذ", "كود الطالب", "كود", "studentCode", "code"]),
+      name: pick(["اسم التلميذ", "اسم الطالب", "الاسم بالكامل", "الاسم", "fullName", "name"]),
+      nationalId: pick(["الرقم القومي", "رقم قومي", "nationalId", "nid"]),
+      gender: row?.__neprasStatsGender || pick(["النوع", "gender"]),
+      mode: row?.__neprasStatsMode || pick(["نوعية التعليم", "نوع التعليم", "نظام التعليم", "eduSystem", "studyType", "mode"]),
+      className: pick(["الفصل", "الصف الفصل", "اسم الفصل", "classRoom", "className"]),
+      integrated: pickedIntegrated,
+      integrationType: pickedIntegrated === "نعم" ? (isPosPickedDamg ? pickedDamg : "دمج تربوي") : "—",
+      status: row?.__neprasStatsStatus || pick(["حالة القيد", "حالة قيد الطالب", "الحالة", "enrollStatus", "status"]),
+      religion: pick(["الديانة", "religion"])
+    };
+  }
+
+  function popupSynthesizeSchoolStatsFromRows(rowsInput, baseStats = {}) {
+    const list = Array.isArray(rowsInput) ? rowsInput : [];
+    if (!list.length) return null;
+
+    const normStr = (v) => String(v ?? "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").trim();
+    const statusBucket = (rawStatus) => {
+      const r = String(rawStatus || "").trim();
+      const n = normStr(r);
+      if (!n) return "غير محدد";
+      if (n.includes("ناجح") && n.includes("منقول")) return "ناجح ومنقول";
+      if (n.includes("باق") && n.includes("اعاد")) return "باقون للإعادة";
+      if (n.includes("راسب")) return "راسبون";
+      if (n.includes("منقطع")) return "منقطعون";
+      if (n.includes("مفصول")) return "مفصولون";
+      if (n.includes("محول")) return "محولون";
+      if (n.includes("منقول")) return "منقولون";
+      if (n.includes("مقيد")) return "مقيدون";
+      if (n.includes("مستجد")) return "مستجدون";
+      return r;
+    };
+
+    const byGrade = new Map();
+    const detailRows = [];
+
+    for (const rawRow of list) {
+      if (!rawRow || typeof rawRow !== "object") continue;
+      const d = popupNormalizeOldSchoolStatsRow(rawRow);
+      let gender = d.gender;
+      if (!gender || (gender !== "بنين" && gender !== "بنات")) {
+        const ng = normStr(gender);
+        if (ng.includes("ذكر") || ng.includes("بنين") || ng.includes("ولد")) gender = "بنين";
+        else if (ng.includes("انث") || ng.includes("بنات") || ng.includes("بنت")) gender = "بنات";
+        else {
+          const nidDigits = String(d.nationalId || "").replace(/\D/g, "");
+          if (nidDigits.length === 14) {
+            const gDigit = Number(nidDigits[12]);
+            if (Number.isFinite(gDigit)) gender = (gDigit % 2 === 1) ? "بنين" : "بنات";
+          }
+        }
+      }
+      const modeNorm = normStr(d.mode);
+      const statusNorm = normStr(d.status);
+      const isWorker = modeNorm.includes("عمال") || modeNorm.includes("عمل") || statusNorm.includes("عمال");
+      const isHome = !isWorker && (modeNorm.includes("منازل") || modeNorm.includes("منزل"));
+      const eduMode = isWorker ? "عمال" : (isHome ? "منازل" : "منتظم");
+      const stBucket = statusBucket(d.status);
+      const gName = d.grade || "غير محدد";
+
+      const enrichedDetail = {
+        ...rawRow,
+        ...d,
+        grade: gName,
+        gender: gender || "غير محدد",
+        mode: isHome ? "منازل" : (isWorker ? "عمال" : (d.mode || eduMode)),
+        status: stBucket !== "غير محدد" ? stBucket : d.status
+      };
+      detailRows.push(enrichedDetail);
+
+      if (!byGrade.has(gName)) {
+        byGrade.set(gName, {
+          grade: gName,
+          total: 0,
+          boys: 0,
+          girls: 0,
+          unknownGender: 0,
+          classesSet: new Set(),
+          homes: 0,
+          integrated: 0,
+          statuses: {},
+          seenKeys: new Set()
+        });
+      }
+      const gObj = byGrade.get(gName);
+      const uKey = String(d.code || d.nationalId || (d.name + "|" + gObj.total)).trim();
+      if (gObj.seenKeys.has(uKey)) continue;
+      gObj.seenKeys.add(uKey);
+
+      gObj.total++;
+      if (gender === "بنين") gObj.boys++;
+      else if (gender === "بنات") gObj.girls++;
+      else gObj.unknownGender++;
+
+      if (isHome) gObj.homes++;
+      if (!isHome && !isWorker && d.className && !/^(0|-1|--|-|اختر|بدون فصل|لا يوجد|غير محدد|عام)$/i.test(normStr(d.className))) {
+        gObj.classesSet.add(d.className.trim());
+      }
+      if (d.integrated === "نعم") gObj.integrated++;
+      if (stBucket && stBucket !== "غير محدد") {
+        gObj.statuses[stBucket] = (gObj.statuses[stBucket] || 0) + 1;
+      }
+    }
+
+    const grades = Array.from(byGrade.values()).map((g) => ({
+      grade: g.grade,
+      total: g.total,
+      boys: g.boys,
+      girls: g.girls,
+      unknownGender: g.unknownGender,
+      classes: g.classesSet.size,
+      homes: g.homes,
+      integrated: g.integrated,
+      statuses: g.statuses
+    }));
+
+    if (typeof window.NeprasStatsDashboard?.sortGrades === "function") {
+      grades.sort((a, b) => window.NeprasStatsDashboard.sortGrades(a.grade, b.grade));
+    }
+
+    const statuses = {};
+    for (const g of grades) {
+      for (const [k, v] of Object.entries(g.statuses || {})) {
+        statuses[k] = (statuses[k] || 0) + v;
+      }
+    }
+
+    return {
+      ...baseStats,
+      version: 161,
+      source: baseStats?.source || "neprasCachedStudentsList",
+      schoolName: baseStats?.schoolName || document.getElementById("sc-meta-school")?.value?.trim() || "المدرسة الحالية",
+      stage: baseStats?.stage || stageSelect?.value || "",
+      generatedAt: baseStats?.generatedAt || new Date().toISOString(),
+      total: grades.reduce((s, g) => s + g.total, 0),
+      boys: grades.reduce((s, g) => s + g.boys, 0),
+      girls: grades.reduce((s, g) => s + g.girls, 0),
+      unknownGender: grades.reduce((s, g) => s + g.unknownGender, 0),
+      classes: grades.reduce((s, g) => s + g.classes, 0),
+      homes: grades.reduce((s, g) => s + g.homes, 0),
+      integrated: grades.reduce((s, g) => s + g.integrated, 0),
+      statuses,
+      grades,
+      detailRows,
+      rows: detailRows
     };
   }
 
@@ -1161,16 +1228,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       // نقرأ من التخزين مباشرة؛ لا حاجة للاتصال بتبويب الموقع
       // لأن الإحصاء الكامل محفوظ بالفعل.
       const stored =
-        await chrome.storage.local.get(
-          "neprasSchoolStatsV1"
-        );
+        await chrome.storage.local.get([
+          "neprasSchoolStatsV1",
+          "neprasCachedStudentsList"
+        ]);
 
-      const stats =
+      let stats =
         stored?.neprasSchoolStatsV1;
+
+      if ((!stats || (!stats.detailRows?.length && !stats.rows?.length)) && Array.isArray(stored?.neprasCachedStudentsList) && stored.neprasCachedStudentsList.length) {
+        stats = popupSynthesizeSchoolStatsFromRows(stored.neprasCachedStudentsList, stats || {});
+      }
 
       if (!stats) {
         throw new Error(
-          "لا يوجد إحصاء مدرسة محفوظ. اضغط «تحديث إحصاء المدرسة» أولًا."
+          "لا يوجد إحصاء مدرسة محفوظ. اضغط «تحديث إحصاء المدرسة» أو «تنزيل وتحديث البيانات الشاملة للمدرسة» أولًا."
         );
       }
 
@@ -1283,19 +1355,44 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function renderSchoolStats(stats) {
+    const hasStudents = Array.isArray(window.neprasCachedStudentsList) && window.neprasCachedStudentsList.length > 0;
+    if (!(stats && Array.isArray(stats.grades) && stats.grades.length) && hasStudents) {
+      stats = popupSynthesizeSchoolStatsFromRows(window.neprasCachedStudentsList, stats || {});
+    }
     window.currentRenderedSchoolStats = stats || null;
     const has = !!(stats && Array.isArray(stats.grades) && stats.grades.length);
     if (schoolStatsEmpty) schoolStatsEmpty.hidden = has;
-    if (schoolStatsContent) schoolStatsContent.hidden = !has;
-    const hasStudents = Array.isArray(window.neprasCachedStudentsList) && window.neprasCachedStudentsList.length > 0;
+    // إظهار لوحة إحصاء المدرسة دائماً في تبويب التقارير والإحصاء
+    if (schoolStatsContent) schoolStatsContent.hidden = false;
     const canExport = has || hasStudents;
     if (btnSchoolStatsExport) NeprasButtons.disable(btnSchoolStatsExport, canExport ? null : "لا توجد بيانات للتصدير. حدّث إحصاء المدرسة أولًا.");
-    if (!has) return;
 
     const setText = (id, value) => {
       const el = document.getElementById(id);
       if (el) el.textContent = String(value ?? 0);
     };
+
+    if (!has) {
+      setText("stat-school-total", 0);
+      setText("stat-school-boys", 0);
+      setText("stat-school-girls", 0);
+      setText("stat-school-classes", 0);
+      setText("stat-school-homes", 0);
+      setText("stat-school-integrated", 0);
+      if (schoolStatsMeta) schoolStatsMeta.textContent = "لم يتم تحميل بيانات الإحصاء بعد";
+      if (schoolStatsStatuses) {
+        schoolStatsStatuses.innerHTML = "<div class=\"school-status-empty\">اضغط «تحديث إحصاء المدرسة» أو «تنزيل وتحديث البيانات الشاملة للمدرسة» لعرض حالات الطلاب.</div>";
+      }
+      if (schoolStatsGradeHead) {
+        schoolStatsGradeHead.innerHTML = ["الصف", "الإجمالي", "بنين", "بنات", "الفصول", "منازل", "دمج"].map(name => "<th>" + escapeHtml(name) + "</th>").join("");
+      }
+      if (schoolStatsGradeBody) {
+        schoolStatsGradeBody.innerHTML = "<tr><td colspan=\"7\" style=\"text-align:center;color:#64748b;padding:12px;\">لا توجد بيانات معروضة بعد — اضغط «تحديث إحصاء المدرسة» أو «تنزيل وتحديث البيانات الشاملة للمدرسة»</td></tr>";
+      }
+      const chartHost = document.getElementById("school-stats-charts");
+      if (chartHost) chartHost.textContent = "";
+      return;
+    }
     setText("stat-school-total", stats.total);
     setText("stat-school-boys", stats.boys);
     setText("stat-school-girls", stats.girls);
@@ -2122,9 +2219,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       if (activeCode && globalThis.NeprasSchoolManager?.loadSchoolStats) {
         const loaded = await globalThis.NeprasSchoolManager.loadSchoolStats(activeCode);
-        if (loaded && loaded.stats) {
-          statsToRender = loaded.stats;
-          studentsToCache = loaded.students || loaded.stats.detailRows || [];
+        if (loaded && (loaded.stats || (Array.isArray(loaded.students) && loaded.students.length))) {
+          statsToRender = loaded.stats || null;
+          studentsToCache = (Array.isArray(loaded.students) && loaded.students.length) ? loaded.students : (loaded.stats?.detailRows || []);
         }
       } else {
         const data = await chrome.storage.local.get(["neprasSchoolStatsV1", "neprasSchoolStatsLastError", "neprasCachedStudentsList"]);
@@ -2132,12 +2229,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const statsSchool = stats ? String(stats.schoolCode || stats.schoolKey || stats.code || "").replace(/\D/g, "") : "";
         if (!activeCode || !statsSchool || statsSchool === activeCode) {
           statsToRender = stats || null;
-          studentsToCache = Array.isArray(data?.neprasCachedStudentsList) ? data.neprasCachedStudentsList : (stats?.detailRows || []);
+          studentsToCache = (Array.isArray(data?.neprasCachedStudentsList) && data.neprasCachedStudentsList.length) ? data.neprasCachedStudentsList : (stats?.detailRows || []);
         }
       }
 
-      renderSchoolStats(statsToRender);
       window.neprasCachedStudentsList = studentsToCache;
+      renderSchoolStats(statsToRender);
 
       if (typeof window.updateSmartAnalyticsStatus === "function") {
         window.updateSmartAnalyticsStatus();
@@ -2186,6 +2283,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const oldList = Array.isArray(changes.neprasCachedStudentsList.oldValue) ? changes.neprasCachedStudentsList.oldValue : (window.neprasCachedStudentsList || []);
         const newList = changes.neprasCachedStudentsList.newValue;
         window.neprasCachedStudentsList = newList;
+        if (newList.length > 0) {
+          const synth = popupSynthesizeSchoolStatsFromRows(newList, window.currentRenderedSchoolStats || {});
+          if (synth) renderSchoolStats(synth);
+        }
 
         // رصد الفروقات الذكية Smart Delta
         if (globalThis.NeprasLocalDB?.computeDelta && oldList.length > 0 && newList.length > 0) {
@@ -4563,17 +4664,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         currentSchoolLogo = meta?.logo || meta?.schoolLogo || null;
         updateSchoolLogoPreviewUI(currentSchoolLogo);
 
-        if (data && data.stats) {
+        if (data && (data.stats || (Array.isArray(data.students) && data.students.length))) {
+          window.neprasCachedStudentsList = (Array.isArray(data.students) && data.students.length) ? data.students : (data.stats?.detailRows || []);
           renderSchoolStats(data.stats);
-          window.neprasCachedStudentsList = data.students || data.stats.detailRows || [];
-          if (stageSelect && data.stats.stage) {
+          if (stageSelect && data.stats?.stage) {
             stageSelect.value = data.stats.stage;
             await setStage(data.stats.stage);
           }
         } else {
           // تفريغ الإحصاء المعروض فوراً لمنع بقاء أرقام المدرسة السابقة على الشاشة!
-          renderSchoolStats(null);
           window.neprasCachedStudentsList = [];
+          renderSchoolStats(null);
           if (schoolStatsEmpty) {
             const dispName = meta?.schoolName || `مدرسة ${targetCode}`;
             schoolStatsEmpty.textContent = `مدرسة: ${dispName} (كود: ${targetCode}) — لا توجد إحصائيات محفوظة بعد. اضغط على «تحديث إحصاء المدرسة» لجلب بياناتها.`;
@@ -5193,9 +5294,50 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.updateSmartAnalyticsStatus = updateSmartAnalyticsStatus;
     updateSmartAnalyticsStatus();
 
+    async function enrichStudentsWithExpensesCache(studentsList) {
+      if (!Array.isArray(studentsList) || !studentsList.length) return [];
+      try {
+        const expStore = await chrome.storage.local.get("neprasExpensesAnalysisV1");
+        const expRows = Array.isArray(expStore?.neprasExpensesAnalysisV1?.rows) ? expStore.neprasExpensesAnalysisV1.rows : [];
+        if (!expRows.length) return studentsList;
+        const expByKey = new Map();
+        for (const er of expRows) {
+          if (!er || typeof er !== "object") continue;
+          const ec = String(er.code || er.studentCode || er["كود التلميذ"] || "").replace(/\D/g, "");
+          const en = String(er.nationalId || er["الرقم القومي"] || "").replace(/\D/g, "");
+          if (ec) expByKey.set("c:" + ec, er);
+          if (en) expByKey.set("n:" + en, er);
+        }
+        return studentsList.map((st) => {
+          if (!st || typeof st !== "object") return st;
+          const sc = String(st.studentCode || st.code || st["كود التلميذ"] || st["كود الطالب"] || "").replace(/\D/g, "");
+          const sn = String(st.nationalId || st.nid || st["الرقم القومي"] || "").replace(/\D/g, "");
+          const em = (sc && expByKey.get("c:" + sc)) || (sn && expByKey.get("n:" + sn)) || null;
+          if (!em) return st;
+          return {
+            ...st,
+            exemptionType: st.exemptionType || em.exemptionType || em.exemptionLabel || "",
+            exemptionClass: st.exemptionClass || em.exemptionClass || "",
+            exemptionPercent: st.exemptionPercent ?? em.exemptionPercent,
+            paid: st.paid ?? em.paid,
+            financeStatus: st.financeStatus || em.financeStatus || ""
+          };
+        });
+      } catch (_) {
+        return studentsList;
+      }
+    }
+
     async function getOrLoadStudents() {
+      try {
+        const storedCheck = await chrome.storage.local.get("neprasCachedStudentsList");
+        const storedList = Array.isArray(storedCheck?.neprasCachedStudentsList) ? storedCheck.neprasCachedStudentsList : [];
+        if (storedList.length && (!Array.isArray(window.neprasCachedStudentsList) || storedList.length >= window.neprasCachedStudentsList.length)) {
+          window.neprasCachedStudentsList = storedList;
+        }
+      } catch (_) {}
       if (Array.isArray(window.neprasCachedStudentsList) && window.neprasCachedStudentsList.length) {
-        return window.neprasCachedStudentsList;
+        return await enrichStudentsWithExpensesCache(window.neprasCachedStudentsList);
       }
       try {
         if (globalThis.NeprasSchoolManager?.loadSchoolStats) {

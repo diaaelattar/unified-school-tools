@@ -1360,7 +1360,7 @@ async function test(name, fn) {
     assert.ok(hostCss.includes(".panel-header-bar"), "host.css must define .panel-header-bar to prevent button overlapping");
 
     const hostHtml = fs.readFileSync(path.join(__dirname, "../shared/host.html"), "utf8");
-    assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.2</span>'), "host.html must display version v1.3.2");
+    assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.4</span>'), "host.html must display version v1.3.4");
   });
 
   // 30. Name Fixer Dual-Mode (Name Cleaning vs Extra-Only) Tests
@@ -1513,6 +1513,191 @@ async function test(name, fn) {
     } finally {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
     }
+  });
+
+  await test("NeprasLogger: redacts JWTs and sensitive keys and bridges to parent.nepDesktop.writeLog", () => {
+    const loggerSrc = fs.readFileSync(path.resolve(__dirname, "../shared/nepras_logger.js"), "utf8");
+    const writtenEntries = [];
+    const mockParent = {
+      nepDesktop: {
+        writeLog: (entry) => {
+          writtenEntries.push(entry);
+          return Promise.resolve(true);
+        }
+      }
+    };
+    const mockWin = {
+      parent: mockParent,
+      addEventListener: () => {}
+    };
+    const scope = {
+      globalThis: mockWin,
+      window: mockWin,
+      console: { warn: () => {}, error: () => {} },
+      Date,
+      Error,
+      Array,
+      Object,
+      String,
+      Number,
+      Boolean,
+      RegExp,
+      JSON,
+      setTimeout,
+      clearTimeout
+    };
+    vm.createContext(scope);
+    vm.runInContext(loggerSrc, scope);
+    const logger = scope.window.NeprasLogger;
+    assert(logger, "NeprasLogger must initialize in browser/iframe scope");
+
+    const sampleJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    logger.error("AUTH_TEST", `Failed with token ${sampleJwt}`, {
+      Authorization: `Bearer ${sampleJwt}`,
+      password: "super_secret_password",
+      schoolCode: "1204567"
+    });
+
+    const entries = logger.getEntries();
+    assert.strictEqual(entries.length, 1);
+    assert(!entries[0].message.includes("eyJhbGci"), "JWT must be redacted from message");
+    assert(entries[0].message.includes("[REDACTED_JWT]"), "Redacted placeholder must appear");
+    assert.strictEqual(entries[0].details.Authorization, "***", "Authorization key must be masked");
+    assert.strictEqual(entries[0].details.password, "***", "password key must be masked");
+    assert.strictEqual(entries[0].details.schoolCode, "1204567", "Non-sensitive schoolCode must be preserved");
+    assert.strictEqual(writtenEntries.length, 1, "Must bridge log entry to window.parent.nepDesktop.writeLog");
+  });
+
+  await test("Cross-platform version synchronization: all manifests and packages are unified at 1.3.4", () => {
+    const rootPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const extManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../extension/manifest.json"), "utf8"));
+    const deskPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../desktop/package.json"), "utf8"));
+    const mobPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../mobile/package.json"), "utf8"));
+    const gradleTxt = fs.readFileSync(path.resolve(__dirname, "../mobile/android/app/build.gradle"), "utf8");
+
+    assert.strictEqual(rootPkg.version, "1.3.4");
+    assert.strictEqual(extManifest.version, "1.3.4");
+    assert.strictEqual(deskPkg.version, "1.3.4");
+    assert.strictEqual(mobPkg.version, "1.3.4");
+    assert(gradleTxt.includes('versionName "1.3.4"'), "Android build.gradle must have versionName 1.3.4");
+    assert(!extManifest.permissions.includes("downloads.open"), "Invalid downloads.open permission must not exist in manifest.json");
+  });
+
+  await test("Deep student stats & zero-defaults: normalizeDeepStudent, school_stats, stats_dashboard, school_records, and always-visible school-stats-content", () => {
+    // A. Verify popup.html has #school-stats-content visible by default (not hidden)
+    const popupHtml = fs.readFileSync(path.resolve(__dirname, "../extension/popup.html"), "utf8");
+    assert(popupHtml.includes('<div id="school-stats-content">'), "#school-stats-content must not have the hidden attribute in popup.html");
+    assert(!popupHtml.includes('<div id="school-stats-content" hidden>'), "#school-stats-content must always be visible in popup.html");
+
+    // B. Verify student_api.js pre-seeds religion and nationality maps in neprasApiGetStaticDeepLookups
+    const studentApiSrc = fs.readFileSync(path.resolve(__dirname, "../extension/modules/student_api.js"), "utf8");
+    assert(studentApiSrc.includes('"1": "مسلم"') && studentApiSrc.includes('"2": "مسيحي"'), "student_api.js must pre-seed official religion map {1: مسلم, 2: مسيحي}");
+
+    // C. Verify stats_dashboard.js does not default religion to 'مسلم' or unrecorded status to 'new'/'promoted'
+    const statsDashSrc = fs.readFileSync(path.resolve(__dirname, "../extension/modules/stats_dashboard.js"), "utf8");
+    const mockXlsx = {
+      utils: {
+        aoa_to_sheet: (aoa) => ({ aoa }),
+        book_new: () => ({ Sheets: {}, SheetNames: [] }),
+        book_append_sheet: () => {}
+      }
+    };
+    const dashScope = {
+      window: { NeprasEgypt: classListsScope.NeprasEgypt, XLSX: mockXlsx },
+      globalThis: { NeprasEgypt: classListsScope.NeprasEgypt, XLSX: mockXlsx },
+      XLSX: mockXlsx,
+      console, Date, Math, Array, Object, String, Number, Boolean, RegExp, Set, Map, JSON
+    };
+    dashScope.window.window = dashScope.window;
+    vm.createContext(dashScope);
+    vm.runInContext(statsDashSrc, dashScope);
+    const Dash = dashScope.window.NeprasStatsDashboard;
+    assert(Dash, "NeprasStatsDashboard must initialize");
+
+    // Empty row must NOT default religion to 'مسلم'
+    const emptyNorm = Dash.normalizeStudentRecord(null);
+    assert.strictEqual(emptyNorm.religion, "", "Empty student record must not default religion to مسلم");
+
+    // Record without religion must have 'غير مسجّل' and not be counted as Muslim in buildPrincipalDashboardSheet
+    const noRelNorm = Dash.normalizeStudentRecord({
+      studentCode: "1001",
+      fullName: "طالب بدون ديانة",
+      nationalId: "31201010100418",
+      grade: "الصف الأول",
+      classRoom: "1",
+      eduSystem: "منازل",
+      enrollStatus: ""
+    });
+    assert.strictEqual(noRelNorm.religion, "غير مسجّل");
+    assert.strictEqual(noRelNorm.mode, "منازل");
+    assert.strictEqual(noRelNorm.status, "");
+
+    const principalSheet = Dash.buildPrincipalDashboardSheet([
+      { studentCode: "1", fullName: "أحمد محمد", nationalId: "31201010100418", grade: "الصف الأول", classRoom: "1", religion: "مسلم", enrollStatus: "مستجد" },
+      { studentCode: "2", fullName: "مينا جرجس", nationalId: "31201010100418", grade: "الصف الأول", classRoom: "1", religion: "مسيحي", enrollStatus: "ناجح ومنقول" },
+      { studentCode: "3", fullName: "طالب غير مسجل", nationalId: "31201010100428", grade: "الصف الأول", classRoom: "1", religion: "", enrollStatus: "" }
+    ], { school: "مدرسة الاختبار", year: "2026-2027", dir: "", admin: "", affairs: "", principal: "" });
+    const gradeRow = principalSheet.aoa.find(r => r && r[0] && r[0].v === "الصف الأول");
+    assert(gradeRow, "Grade row must exist in Principal Dashboard sheet");
+    assert.strictEqual(gradeRow[2].v, 3, "Total students = 3");
+    assert.strictEqual(gradeRow[3].v, 2, "Boys = 2");
+    assert.strictEqual(gradeRow[4].v, 1, "Girls = 1");
+    assert.strictEqual(gradeRow[5].v, 1, "Muslim = 1 (unrecorded religion must NOT be counted as Muslim)");
+    assert.strictEqual(gradeRow[6].v, 1, "Christian = 1");
+    assert.strictEqual(gradeRow[7].v, 1, "New = 1");
+    assert.strictEqual(gradeRow[8].v, 1, "Promoted = 1 (unrecorded status must NOT be counted as Promoted)");
+
+    // D. Verify school_stats.js aggregates normalizeDeepStudent records accurately
+    const statsSrc = fs.readFileSync(path.resolve(__dirname, "../extension/modules/school_stats.js"), "utf8");
+    const sScope = {
+      window: { NeprasEgypt: classListsScope.NeprasEgypt },
+      globalThis: { NeprasEgypt: classListsScope.NeprasEgypt },
+      document: { querySelector: () => null },
+      chrome: { storage: { local: {} } },
+      console, Date, Math, Array, Object, String, Number, Boolean, RegExp, Set, Map, JSON
+    };
+    vm.createContext(sScope);
+    vm.runInContext(statsSrc, sScope);
+
+    const deepStudentsSample = [
+      {
+        studentCode: "5001",
+        fullName: "عمر خالد",
+        nationalId: "31201010100418",
+        gender: "بنين",
+        religion: "مسلم",
+        grade: "الصف الأول الثانوي",
+        classRoom: "1/1",
+        eduSystem: "منازل",
+        enrollStatus: "مستجد",
+        damg: "لا يوجد"
+      },
+      {
+        studentCode: "5002",
+        fullName: "مريم بطرس",
+        nationalId: "31201010100428",
+        gender: "بنات",
+        religion: "مسيحي",
+        grade: "الصف الأول الثانوي",
+        classRoom: "1/2",
+        eduSystem: "نظامي",
+        enrollStatus: "ناجح ومنقول",
+        damg: "بطء التعلم",
+        motherFullName: "ماري حنا",
+        lang1: "لغة إنجليزية",
+        lang2: "لغة فرنسية"
+      }
+    ];
+    const agg = sScope.window.neprasStatsAggregateFromRows(deepStudentsSample, "GENERAL_SECONDARY");
+    assert(agg && Array.isArray(agg.grades) && agg.grades.length === 1);
+    assert.strictEqual(agg.total, 2);
+    assert.strictEqual(agg.boys, 1);
+    assert.strictEqual(agg.girls, 1);
+    assert.strictEqual(agg.homes, 1, "Must detect منازل from eduSystem");
+    assert.strictEqual(agg.integrated, 1, "Must detect دمج from damg");
+    assert.strictEqual(agg.classes, 1, "Only non-home class 1/2 counted");
+    assert.strictEqual(agg.detailRows[1].religion, "مسيحي", "detailRows must preserve religion");
+    assert.strictEqual(agg.detailRows[1].motherFullName, "ماري حنا", "detailRows must preserve deep fields like motherFullName");
   });
 
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);

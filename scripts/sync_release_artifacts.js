@@ -9,21 +9,21 @@ const sharedDir = path.join(root, 'Nepras_apps/shared');
 
 const extTargets = [
   path.join(root, 'Nepras_apps/dist/desktop/ext'),
-  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_v1.3.2_Extension'),
-  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.2_Portable/resources/dist/ext'),
+  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_v1.3.4_Extension'),
+  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.4_Portable/resources/dist/ext'),
   path.join(root, 'Nepras_apps/release/desktop/win-unpacked/resources/dist/ext'),
   path.join(root, 'Nepras_apps/release/desktop-legacy/win-ia32-unpacked/resources/dist/ext')
 ];
 
 const hostFiles = ['host.html', 'host.css', 'host-core.js', 'host-ui.js', 'nepras_logger.js'];
 const distTargets = [
-  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.2_Portable/resources/dist'),
+  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.4_Portable/resources/dist'),
   path.join(root, 'Nepras_apps/release/desktop/win-unpacked/resources/dist'),
   path.join(root, 'Nepras_apps/release/desktop-legacy/win-ia32-unpacked/resources/dist')
 ];
 
 const asarTargets = [
-  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.2_Portable/resources/app.asar'),
+  path.join(root, 'النسخ_التنفيذية_المكتملة/Nepras_Desktop_v1.3.4_Portable/resources/app.asar'),
   path.join(root, 'Nepras_apps/release/desktop/win-unpacked/resources/app.asar'),
   path.join(root, 'Nepras_apps/release/desktop-legacy/win-ia32-unpacked/resources/app.asar')
 ];
@@ -78,7 +78,7 @@ async function main() {
         fs.rmSync(testsDir, { recursive: true, force: true });
       }
 
-      const isPlainBrowserExtension = target.endsWith('Nepras_v1.3.2_Extension');
+      const isPlainBrowserExtension = target.includes('Extension');
       if (!isPlainBrowserExtension) {
         fs.writeFileSync(path.join(target, '_background.html'), bgHtmlContent, 'utf8');
       }

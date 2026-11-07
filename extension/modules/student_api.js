@@ -541,10 +541,10 @@ async function neprasApiGetStaticDeepLookups() {
   };
 
   const result = {
-    religion: { map: {}, selectedValue: "", selectedText: "" },
+    religion: { map: { "1": "مسلم", "2": "مسيحي" }, selectedValue: "", selectedText: "" },
     lang1: { map: {}, selectedValue: "", selectedText: "" },
     lang2: { map: {}, selectedValue: "", selectedText: "" },
-    nationality: { map: {}, selectedValue: "", selectedText: "" },
+    nationality: { map: { "1": "مصري" }, selectedValue: "", selectedText: "" },
     birthGov: { map: {}, selectedValue: "", selectedText: "" },
     obstacle: { map: {}, selectedValue: "", selectedText: "" },
     diagnostics: {}

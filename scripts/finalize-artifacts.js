@@ -10,16 +10,16 @@ if (!fs.existsSync(outDir)) {
 
 const files = [
   {
-    src: path.join(baseDir, 'Nepras_apps', 'release', 'desktop', 'Nepras_Portable_1.3.1.exe'),
-    dest: path.join(outDir, 'Nepras_Portable_v1.3.1.exe')
+    src: path.join(baseDir, 'Nepras_apps', 'release', 'desktop', 'Nepras_Portable_1.3.4.exe'),
+    dest: path.join(outDir, 'Nepras_Portable_v1.3.4.exe')
   },
   {
-    src: path.join(baseDir, 'Nepras_apps', 'release', 'desktop', 'Nepras_Setup_1.3.1.exe'),
-    dest: path.join(outDir, 'Nepras_Setup_v1.3.1.exe')
+    src: path.join(baseDir, 'Nepras_apps', 'release', 'desktop', 'Nepras_Setup_1.3.4.exe'),
+    dest: path.join(outDir, 'Nepras_Setup_v1.3.4.exe')
   },
   {
-    src: path.join(baseDir, 'Nepras_apps', 'mobile', 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
-    dest: path.join(outDir, 'Nepras_v1.3.1.apk')
+    src: path.join(baseDir, 'Nepras_apps', 'mobile', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk'),
+    dest: path.join(outDir, 'Nepras_v1.3.4.apk')
   }
 ];
 

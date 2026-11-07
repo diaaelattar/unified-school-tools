@@ -1649,52 +1649,107 @@ function neprasBuildDeepStudentFromApi(api, schoolRow, lookups, emailInfo) {
     api.motherForthName
   ].filter(Boolean).join(" "));
 
+  const rawSchool =
+    schoolRow?.__neprasApiRaw || {};
+
+  const resolvedNid =
+    neprasDeepFirstDefined(
+      api.nationalId,
+      rawSchool.nationalId,
+      neprasDeepGetSchoolRowValue(schoolRow, ["الرقم القومي"])
+    );
+
   const gender =
     neprasDeepGetSchoolRowValue(schoolRow, ["النوع"]) ||
     (typeof neprasApiSexName === "function"
-      ? neprasApiSexName(api.sexId, api.nationalId)
-      : (Number(api.sexId) === 1 ? "ذكر" : Number(api.sexId) === 2 ? "أنثى" : ""));
+      ? neprasApiSexName(neprasDeepFirstDefined(api.sexId, rawSchool.sexId), resolvedNid)
+      : (Number(api.sexId || rawSchool.sexId) === 1 ? "ذكر" : Number(api.sexId || rawSchool.sexId) === 2 ? "أنثى" : ""));
 
   const grade =
     neprasDeepGetSchoolRowValue(
       schoolRow,
       ["الصف"]
+    ) ||
+    neprasDeepDirectLabel(
+      neprasDeepFirstDefined(
+        api.className,
+        api.gradeName,
+        rawSchool.className
+      )
     );
 
   const eduSystem =
     neprasDeepGetSchoolRowValue(
       schoolRow,
-      ["نوعية التعليم", "نظام التعليم"]
+      ["نوعية التعليم", "نظام التعليم", "نوع التعليم"]
+    ) ||
+    neprasDeepDirectLabel(
+      neprasDeepFirstDefined(
+        api.studyTypeName,
+        api.eduSystemName,
+        rawSchool.studyTypeName
+      )
     );
 
   const enrollStatus =
     neprasDeepGetSchoolRowValue(
       schoolRow,
       ["حالة القيد"]
+    ) ||
+    neprasDeepDirectLabel(
+      neprasDeepFirstDefined(
+        api.status,
+        api.statusName,
+        api.registrationStatusName,
+        rawSchool.status
+      )
     );
 
   const classRoom =
     neprasDeepGetSchoolRowValue(
       schoolRow,
       ["الفصل"]
+    ) ||
+    cleanValue(
+      neprasDeepFirstDefined(
+        api.classNumber,
+        api.classRoom,
+        rawSchool.classNumber
+      )
     );
 
-  const rawSchool =
-    schoolRow?.__neprasApiRaw || {};
+  const rawObstacleId =
+    neprasDeepFirstDefined(
+      api.disabilityId,
+      api.obstacleId,
+      rawSchool.obstacleId
+    );
 
   const damg =
     neprasDeepGetSchoolRowValue(
       schoolRow,
       ["الموقف من الدمج", "الدمج"]
     ) ||
+    neprasDeepDirectLabel(
+      neprasDeepFirstDefined(
+        api.obstacleName,
+        api.disabilityName,
+        rawSchool.obstacleName
+      )
+    ) ||
     neprasDeepLookupText(
       lookups,
       "obstacle",
-      neprasDeepFirstDefined(
-        api.disabilityId,
-        rawSchool.obstacleId
-      ),
+      rawObstacleId,
       ""
+    ) ||
+    (Number(rawObstacleId) > 0 ? "دمج تربوي" : "");
+
+  const rawNatId =
+    neprasDeepFirstDefined(
+      api.nationality,
+      api.nationalityId,
+      rawSchool.natId
     );
 
   const nationality =
@@ -1702,15 +1757,19 @@ function neprasBuildDeepStudentFromApi(api, schoolRow, lookups, emailInfo) {
       schoolRow,
       ["الجنسية"]
     ) ||
+    neprasDeepDirectLabel(
+      neprasDeepFirstDefined(
+        api.nationalityName,
+        rawSchool.nationality
+      )
+    ) ||
     neprasDeepLookupText(
       lookups,
       "nationality",
-      neprasDeepFirstDefined(
-        api.nationality,
-        rawSchool.natId
-      ),
+      rawNatId,
       ""
-    );
+    ) ||
+    (Number(rawNatId) === 1 ? "مصري" : "");
 
   // GetStudentByStudentCode uses divisionId / specializationId
   // بينما GetSchoolStudent يحمل general / special.
@@ -1779,16 +1838,15 @@ function neprasBuildDeepStudentFromApi(api, schoolRow, lookups, emailInfo) {
     fatherFullName,
     motherFullName,
     gender,
-    religion:
-      neprasDeepLookupText(
-        lookups,
-        "religion",
-        neprasDeepFirstDefined(
-          api.religionId,
-          rawSchool.religionId
-        ),
-        ""
-      ),
+    religion: (() => {
+      const relId = neprasDeepFirstDefined(api.religionId, rawSchool.religionId);
+      return (
+        neprasDeepLookupText(lookups, "religion", relId, "") ||
+        neprasDeepDirectLabel(neprasDeepFirstDefined(api.religionName, api.religion, rawSchool.religionName, schoolRow["الديانة"], schoolRow.religion)) ||
+        (Number(relId) === 1 ? "مسلم" : Number(relId) === 2 ? "مسيحي" : "") ||
+        (globalThis.NeprasEgypt?.resolveReligion ? globalThis.NeprasEgypt.resolveReligion(api) : "")
+      );
+    })(),
     dob: neprasDeepDateOnly(api.birthDate),
     birthGov:
       neprasDeepLookupText(
@@ -2441,21 +2499,28 @@ async function processDeepScrapeForGrade(gradeName, options = {}) {
 
         for (const code of batch.failed) {
           const row = schoolRowsByCode.get(String(code)) || {};
+          const raw = row.__neprasApiRaw || {};
+          const fallbackName = row["اسم التلميذ"] || row["اسم الطالب"] || row.fullName || row.name || raw.studentName || "";
+          const fallbackParts = String(fallbackName).trim().split(/\s+/).filter(Boolean);
           const fallbackStudent = {
             studentCode: code,
-            studentName: row["اسم الطالب"] || row.name || "",
-            nationalId: row["الرقم القومي"] || row.nationalId || "",
-            grade: row["الصف"] || gradeName,
-            className: row["الفصل"] || row.className || "",
-            gender: row["النوع"] || row.gender || "",
-            religion: row["الديانة"] || row.religion || "",
+            fullName: fallbackName,
+            fatherFullName: fallbackParts.length > 1 ? fallbackParts.slice(1).join(" ") : "",
+            motherFullName: row["اسم الأم"] || row.motherFullName || row.motherName || "",
+            nationalId: row["الرقم القومي"] || row.nationalId || raw.nationalId || "",
+            grade: row["الصف"] || row.grade || raw.className || gradeName,
+            classRoom: row["الفصل"] || row.classRoom || row.className || raw.classNumber || "",
+            gender: row["النوع"] || row.gender || (typeof neprasApiSexName === "function" ? neprasApiSexName(raw.sexId, row["الرقم القومي"] || raw.nationalId) : ""),
+            religion: row["الديانة"] || row.religion || raw.religionName || (Number(raw.religionId) === 1 ? "مسلم" : Number(raw.religionId) === 2 ? "مسيحي" : ""),
             dob: row["تاريخ الميلاد"] || row.dob || "",
-            status: row["حالة القيد"] || row.status || "مقيد",
-            studyType: row["نوع التعليم"] || row.studyType || "رسمي",
-            address: row["العنوان"] || "",
-            motherName: row["اسم الأم"] || "",
-            phone: row["تليفون الطالب"] || row["محمول"] || row.phone || "",
-            fatherNationalId: ""
+            birthGov: row["محافظة الميلاد"] || row.birthGov || neprasDeepBirthGovFallback("", row["الرقم القومي"] || raw.nationalId),
+            enrollStatus: row["حالة القيد"] || row.enrollStatus || row.status || raw.status || "",
+            eduSystem: row["نوعية التعليم"] || row["نوع التعليم"] || row.eduSystem || row.studyType || raw.studyTypeName || "",
+            address: row["العنوان"] || row.address || "",
+            phone: row["تليفون الطالب"] || row.phone || "",
+            mobile: row["رقم المحمول"] || row["محمول"] || row.mobile || "",
+            damg: row["الموقف من الدمج"] || row.damg || raw.obstacleName || "",
+            nationality: row["الجنسية"] || row.nationality || raw.nationality || ""
           };
           deepScrapedData.push(normalizeDeepStudent(fallbackStudent));
         }
@@ -3042,34 +3107,128 @@ function neprasArabicLanguageName(value) {
 function normalizeDeepStudent(st) {
   st = st || {};
 
-  return {
-    studentCode: cleanValue(st.studentCode),
-    nationalId: cleanValue(st.nationalId),
-    fullName: cleanValue(st.fullName),
-    fatherFullName: cleanValue(st.fatherFullName),
-    motherFullName: cleanValue(st.motherFullName),
-    gender: cleanValue(st.gender),
-    religion: cleanValue(st.religion),
-    dob: cleanValue(st.dob),
-    birthGov: cleanValue(st.birthGov),
-    address: cleanValue(st.address),
-    phone: cleanValue(st.phone),
-    mobile: cleanValue(st.mobile),
-    email: cleanValue(st.email),
-    altEmail: cleanValue(st.altEmail),
-    mobile2: cleanValue(st.mobile2),
-    grade: cleanValue(st.grade),
-    eduSystem: cleanValue(st.eduSystem),
-    enrollStatus: cleanValue(st.enrollStatus),
-    classRoom: cleanValue(st.classRoom),
-    section: cleanValue(st.section),
-    specialization: cleanValue(st.specialization),
-    lang1: neprasArabicLanguageName(st.lang1),
-    lang2: neprasArabicLanguageName(st.lang2),
-    damg: cleanValue(st.damg),
-    nationality: cleanValue(st.nationality),
-    passport: cleanValue(st.passport)
+  const studentCode = cleanValue(st.studentCode ?? st.code ?? st["كود التلميذ"] ?? st["كود الطالب"]);
+  const nationalId = cleanValue(st.nationalId ?? st.nid ?? st["الرقم القومي"]);
+  const fullName = cleanValue(st.fullName ?? st.studentName ?? st.name ?? st["اسم التلميذ"] ?? st["اسم الطالب"] ?? st["الاسم بالكامل"]);
+  const fatherFullName = cleanValue(st.fatherFullName ?? st.fatherName ?? st["اسم الوالد"] ?? st["اسم الأب"]);
+  const motherFullName = cleanValue(st.motherFullName ?? st.motherName ?? st["اسم الأم"] ?? st["اسم الام بالكامل"]);
+  const rawGender = cleanValue(st.gender ?? st["النوع"] ?? st["الجنس"]);
+  const gender = rawGender || (typeof neprasApiSexName === "function" ? neprasApiSexName(st.sexId, nationalId) : "");
+  const religion = cleanValue(
+    st.religion ??
+    st["الديانة"] ??
+    (Number(st.religionId) === 1 ? "مسلم" : Number(st.religionId) === 2 ? "مسيحي" : "") ??
+    (globalThis.NeprasEgypt?.resolveReligion ? globalThis.NeprasEgypt.resolveReligion(st) : "")
+  );
+  const dob = cleanValue(st.dob ?? st["تاريخ الميلاد"]);
+  const birthGov = cleanValue(st.birthGov ?? st["محافظة الميلاد"]) || neprasDeepBirthGovFallback("", nationalId);
+  const address = cleanValue(st.address ?? st["العنوان"]);
+  const phone = cleanValue(st.phone ?? st["رقم التليفون"] ?? st["التليفون"]);
+  const mobile = cleanValue(st.mobile ?? st["رقم المحمول"] ?? st["المحمول"]);
+  const email = cleanValue(st.email ?? st["البريد الإلكتروني"] ?? st["البريد الموحد"]);
+  const altEmail = cleanValue(st.altEmail ?? st["البريد البديل"]);
+  const mobile2 = cleanValue(st.mobile2 ?? st["المحمول البديل"]);
+  const grade = cleanValue(st.grade ?? st["الصف"]);
+  const eduSystem = cleanValue(st.eduSystem ?? st.studyType ?? st.mode ?? st["نوعية التعليم"] ?? st["نظام التعليم"] ?? st["نوع التعليم"]);
+  const enrollStatus = cleanValue(st.enrollStatus ?? st.status ?? st["حالة القيد"] ?? st["حالة قيد الطالب"]);
+  const classRoom = cleanValue(st.classRoom ?? st.className ?? st["الفصل"]);
+  const section = cleanValue(st.section ?? st["الشعبة"] ?? st["الشعبة الدراسية"]);
+  const specialization = cleanValue(st.specialization ?? st["التخصص"]);
+  const lang1 = neprasArabicLanguageName(st.lang1 ?? st["اللغة الأجنبية الأولى"] ?? st["اللغة الاجنبية الأولى"]);
+  const lang2 = neprasArabicLanguageName(st.lang2 ?? st["اللغة الأجنبية الثانية"] ?? st["اللغة الاجنبية الثانية"]);
+  const damg = cleanValue(st.damg ?? st.integrationType ?? st["الموقف من الدمج"] ?? st["الدمج"]);
+  const nationality = cleanValue(st.nationality ?? st["الجنسية"]);
+  const passport = cleanValue(st.passport ?? st["رقم جواز السفر"]);
+
+  const normalized = {
+    studentCode,
+    nationalId,
+    fullName,
+    fatherFullName,
+    motherFullName,
+    gender,
+    religion,
+    dob,
+    birthGov,
+    address,
+    phone,
+    mobile,
+    email,
+    altEmail,
+    mobile2,
+    grade,
+    eduSystem,
+    enrollStatus,
+    classRoom,
+    section,
+    specialization,
+    lang1,
+    lang2,
+    damg,
+    nationality,
+    passport
   };
+
+  // تضمين المفاتيح العربية والرديفة كخصائص قابلة للتعداد (enumerable)
+  // حتى تُحفظ كاملة في chrome.storage.local وتعمل مع كافة محركات الإحصائيات والسجلات في الموبايل وسطح المكتب
+  const aliases = {
+    code: studentCode,
+    name: fullName,
+    className: classRoom,
+    studyType: eduSystem,
+    mode: eduSystem,
+    status: enrollStatus,
+    motherName: motherFullName,
+    fatherName: fatherFullName,
+    integrated: (damg && !/^(لا|لا يوجد|لايوجد|غير مدمج|0|false|-|—)$/i.test(String(damg).trim())) ? "نعم" : "لا",
+    integrationType: (damg && !/^(لا|لا يوجد|لايوجد|غير مدمج|0|false|-|—)$/i.test(String(damg).trim())) ? damg : "—",
+    "كود التلميذ": studentCode,
+    "كود الطالب": studentCode,
+    "الرقم القومي": nationalId,
+    "اسم التلميذ": fullName,
+    "اسم الطالب": fullName,
+    "الاسم بالكامل": fullName,
+    "اسم الوالد": fatherFullName,
+    "اسم الأم": motherFullName,
+    "النوع": gender,
+    "الديانة": religion,
+    "تاريخ الميلاد": dob,
+    "محافظة الميلاد": birthGov,
+    "العنوان": address,
+    "رقم التليفون": phone,
+    "رقم المحمول": mobile,
+    "الصف": grade,
+    "نوعية التعليم": eduSystem,
+    "نظام التعليم": eduSystem,
+    "نوع التعليم": eduSystem,
+    "حالة القيد": enrollStatus,
+    "الفصل": classRoom,
+    "الشعبة": section,
+    "التخصص": specialization,
+    "اللغة الأجنبية الأولى": lang1,
+    "اللغة الأجنبية الثانية": lang2,
+    "الموقف من الدمج": damg,
+    "نوع الدمج": damg,
+    "الدمج": (damg && !/^(لا|لا يوجد|لايوجد|غير مدمج|0|false|-|—)$/i.test(String(damg).trim())) ? "نعم" : "لا",
+    "الجنسية": nationality,
+    "رقم جواز السفر": passport
+  };
+
+  Object.assign(normalized, aliases);
+
+  // الحفاظ على بيانات الإعفاءات والمصروفات والحالة الاجتماعية إن وجدت في السجل
+  const extraKeys = [
+    "exemptionType", "exemptionClass", "exemptionPercent", "paid", "financeStatus",
+    "social_status", "is_orphan", "is_exempt", "exemption_doc", "fatherStatus",
+    "تصنيف الإعفاء", "نوع الإعفاء", "الحالة الاجتماعية", "حالة الأب"
+  ];
+  for (const ek of extraKeys) {
+    if (st[ek] !== undefined && st[ek] !== null && st[ek] !== "") {
+      normalized[ek] = st[ek];
+    }
+  }
+
+  return normalized;
 }
 
 // ============================================================
@@ -3324,11 +3483,27 @@ function exportDeepFormattedExcel(dataList, fileName) {
 
   try {
     try {
+      const normalizedList = Array.isArray(dataList) ? dataList.map(normalizeDeepStudent) : [];
+      let computedStats = null;
+      try {
+        if (typeof window !== 'undefined' && typeof window.neprasStatsAggregateFromRows === 'function') {
+          computedStats = window.neprasStatsAggregateFromRows(normalizedList, typeof NEPRAS_SELECTED_STAGE !== 'undefined' ? NEPRAS_SELECTED_STAGE : '');
+        }
+      } catch (_) {}
+
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ neprasCachedStudentsList: dataList }).catch(() => {});
+        const payloadToSave = { neprasCachedStudentsList: normalizedList };
+        if (computedStats && Array.isArray(computedStats.grades) && computedStats.grades.length) {
+          payloadToSave.neprasSchoolStatsV1 = computedStats;
+          payloadToSave.neprasSchoolStatsLastError = null;
+        }
+        chrome.storage.local.set(payloadToSave).catch(() => {});
       }
       if (typeof window !== 'undefined') {
-        window.neprasCachedStudentsList = dataList;
+        window.neprasCachedStudentsList = normalizedList;
+      }
+      if (computedStats && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ action: 'SCHOOL_STATS_FINISHED', result: computedStats }).catch(() => {});
       }
       if (globalThis.NeprasSchoolManager) {
         (async () => {
@@ -3336,10 +3511,13 @@ function exportDeepFormattedExcel(dataList, fileName) {
             const activeCode = await globalThis.NeprasSchoolManager.getActiveCode();
             if (activeCode) {
               const existing = (await globalThis.NeprasSchoolManager.loadSchoolStats(activeCode)) || {};
+              const statsToSave = (computedStats && Array.isArray(computedStats.grades) && computedStats.grades.length)
+                ? computedStats
+                : (existing.stats || {});
               await globalThis.NeprasSchoolManager.saveSchoolStats(
                 activeCode,
-                existing.stats || {},
-                dataList
+                statsToSave,
+                normalizedList
               );
             }
           } catch (_) {}

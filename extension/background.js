@@ -1,7 +1,10 @@
 
 // قوالب دفاتر الفصول التي يرفعها المستخدم بدل المضمّنة تُحفظ في IndexedDB بأصل الإضافة (modules/class_books_store.js) وتقرؤها الخلفية.
 // importScripts في MV3 لا يعمل إلا عند بدء العامل، فيُستدعى هنا مرة واحدة. فشله لا يعطّل شيئًا: نعود للقوالب المضمّنة.
-try { if (typeof importScripts === "function") importScripts("modules/class_books_store.js"); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+try { if (typeof importScripts === "function") importScripts("modules/nepras_logger.js", "modules/class_books_store.js"); } catch (err) {
+  try { if (typeof importScripts === "function") importScripts("modules/class_books_store.js"); } catch (_) {}
+  console.warn("[Nepras Handled]", err?.message || err);
+}
 
 // ==========================================================
 // Nepras — Edge Android action opens full page directly
@@ -3944,7 +3947,7 @@ function neprasDownloadBasename(value) {
 // أقل من الحد بهامش كافٍ كي لا نقترب منه.
 const NEPRAS_DATA_URL_MAX_CHARS = 1500000;
 // الامتدادات التي تُنتجها نبراس فقط؛ أي امتداد آخر (exe, html, js...) يُرفض.
-const NEPRAS_DOWNLOAD_ALLOWED_EXTS = [".xlsx", ".xlsm", ".xltm", ".xls", ".pdf", ".csv", ".zip", ".txt"];
+const NEPRAS_DOWNLOAD_ALLOWED_EXTS = [".xlsx", ".xlsm", ".xltm", ".xls", ".pdf", ".csv", ".zip", ".txt", ".log", ".nepras", ".json"];
 let neprasOffscreenPromise = null;
 
 // ينشئ مستند offscreen مرة واحدة (أو يستخدم الموجود). يرجع true/false ولا يرمي استثناءً.

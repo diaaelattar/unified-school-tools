@@ -25,25 +25,38 @@
           }
         } catch (_) {}
 
-        const syncBackup = () => {
-          try {
-            if (/\/logout|\/LogOff/i.test(location.pathname || "")) return;
-            const snap = {};
-            let hasAny = false;
-            for (let i = 0; i < sessionStorage.length; i++) {
-              const sk = sessionStorage.key(i);
-              if (!sk || sk === BACKUP_KEY) continue;
-              const sv = sessionStorage.getItem(sk);
-              if (sv != null && sv !== "") {
-                snap[sk] = sv;
-                hasAny = true;
+        if (!globalThis.__neprasSessionBackupActive) {
+          globalThis.__neprasSessionBackupActive = true;
+          let syncTimer = null;
+          const syncBackup = () => {
+            syncTimer = null;
+            try {
+              if (/\/logout|\/LogOff/i.test(location.pathname || "")) return;
+              const snap = {};
+              let hasAny = false;
+              for (let i = 0; i < sessionStorage.length; i++) {
+                const sk = sessionStorage.key(i);
+                if (!sk || sk === BACKUP_KEY) continue;
+                const sv = sessionStorage.getItem(sk);
+                if (sv != null && sv !== "") {
+                  snap[sk] = sv;
+                  hasAny = true;
+                }
               }
-            }
-            if (hasAny) localStorage.setItem(BACKUP_KEY, JSON.stringify(snap));
-          } catch (_) {}
-        };
-        syncBackup();
-        setInterval(syncBackup, 2500);
+              if (hasAny) localStorage.setItem(BACKUP_KEY, JSON.stringify(snap));
+            } catch (_) {}
+          };
+          const scheduleSync = () => {
+            if (syncTimer) return;
+            syncTimer = setTimeout(syncBackup, 600);
+          };
+          syncBackup();
+          window.addEventListener("pagehide", syncBackup);
+          document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "hidden") syncBackup();
+          });
+          setInterval(scheduleSync, 15000);
+        }
       }
     }
   } catch (_) {}

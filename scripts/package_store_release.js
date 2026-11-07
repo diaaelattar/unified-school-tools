@@ -54,11 +54,7 @@ fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest, nu
 console.log('=== 3. Packaging ZIPs with Compress-Archive (clean root, no ./) ===');
 const zipNames = [
   'Nepras_Edge_Extension_v1.3.4.zip',
-  'Nepras_v1.3.4_Extension.zip',
-  'Nepras_Edge_Extension_v1.3.3.zip',
-  'Nepras_v1.3.3_Extension.zip',
-  'Nepras_Edge_Extension_v1.3.2.zip',
-  'Nepras_v1.3.2_Extension.zip'
+  'Nepras_v1.3.4_Extension.zip'
 ];
 
 for (const z of zipNames) {

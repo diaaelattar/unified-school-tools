@@ -166,6 +166,7 @@
      */
     renderLockScreen(container, message) {
       if (!container) return;
+      const esc = (str) => String(str || "").replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
       container.innerHTML = `
         <div style="position:fixed;inset:0;background:#0f172a;color:#f8fafc;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
           <div style="width:72px;height:72px;border-radius:50%;background:rgba(239,68,68,0.15);border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">
@@ -175,15 +176,12 @@
             </svg>
           </div>
           <h2 style="font-size:20px;font-weight:700;color:#ef4444;margin:0 0 12px 0;">انتهت صلاحية تشغيل الإصدار</h2>
-          <p style="font-size:14px;line-height:1.7;color:#cbd5e1;max-width:440px;margin:0 0 24px 0;">${escapeHtml(message || "انتهت فترة صلاحية ترخيص هذا الإصدار (31 أغسطس 2027). تم إيقاف كافة الخدمات البرمجية.")}</p>
+          <p style="font-size:14px;line-height:1.7;color:#cbd5e1;max-width:440px;margin:0 0 24px 0;">${esc(message || "انتهت فترة صلاحية ترخيص هذا الإصدار (31 أغسطس 2027). تم إيقاف كافة الخدمات البرمجية.")}</p>
           <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px 18px;font-size:12px;color:#94a3b8;max-width:440px;line-height:1.6;">
             💡 للحصول على التحديث وتجديد الترخيص الرسمي، يرجى التواصل مع مسؤول الدعم الفني المعتمد لنظام نبراس.
           </div>
         </div>
       `;
-      function escapeHtml(str) {
-        return String(str || "").replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
-      }
     },
 
     /**
@@ -191,12 +189,13 @@
      */
     renderWarningBanner(bannerElement, checkResult) {
       if (!bannerElement || checkResult.status !== "WARNING") return;
+      const esc = (str) => String(str || "").replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
       bannerElement.hidden = false;
       bannerElement.innerHTML = `
         <div style="background:linear-gradient(90deg, #b45309, #d97706);color:#fff;padding:10px 14px;border-radius:6px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;box-shadow:0 2px 6px rgba(180,83,9,0.3);direction:rtl;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:16px;">⏳</span>
-            <span>${checkResult.message}</span>
+            <span>${esc(checkResult.message)}</span>
           </div>
           <span style="background:rgba(0,0,0,0.2);padding:2px 8px;border-radius:4px;font-size:11px;">31/08/2027</span>
         </div>

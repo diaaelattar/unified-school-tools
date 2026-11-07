@@ -22,17 +22,90 @@
   let activeTabId = 1;
   let listenersAdded = false;
 
+  function extractSchoolFromHeaderList(hdrList) {
+    if (!Array.isArray(hdrList)) return null;
+    let schoolCode = "";
+    let schoolName = "";
+    let authVal = "";
+    for (const h of hdrList) {
+      if (!h || !h.name) continue;
+      const lk = String(h.name).toLowerCase();
+      const val = String(h.value || "").trim();
+      if (!val) continue;
+      if ((lk === "schoolcode" || lk === "sc") && /^\d{5,12}$/.test(val)) {
+        schoolCode = val;
+      } else if (lk === "authorization") {
+        authVal = val;
+      }
+    }
+    if (authVal && /^Bearer\s+/i.test(authVal)) {
+      try {
+        const jwt = authVal.replace(/^Bearer\s+/i, "").trim();
+        const parts = jwt.split(".");
+        if (parts.length >= 2) {
+          const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const pad = b64 + "===".slice((b64.length + 3) % 4);
+          const claims = JSON.parse(decodeURIComponent(escape(atob(pad))));
+          if (claims && typeof claims === "object") {
+            const candCode = String(claims.schoolcode || claims.SchoolCode || claims.school_code || claims.sc || claims.SchoolId || claims.schoolId || "").trim();
+            if (!schoolCode && /^\d{5,12}$/.test(candCode)) schoolCode = candCode;
+            const candName = String(claims.schoolName || claims.SchoolName || claims.school_name || claims.ArabicSchoolName || "").trim();
+            if (candName.length >= 3 && !/^\d+$/.test(candName)) schoolName = candName;
+          }
+        }
+      } catch (_) {}
+    }
+    return schoolCode ? { schoolCode, schoolName } : null;
+  }
+
   function ensureListeners() {
     if (listenersAdded) return;
     const P = getPlugin();
     if (P && typeof P.addListener === "function") {
       listenersAdded = true;
+      if (listenerPollTimer) {
+        clearInterval(listenerPollTimer);
+        listenerPollTimer = null;
+      }
       P.addListener("tabUpdate", (data) => {
         emit("tabUpdate", activeTabId, data);
       });
 
       P.addListener("tabLoaded", (data) => {
-        emit("tabLoaded", activeTabId, data.url);
+        const loadedUrl = (data && data.url) || "";
+        emit("tabLoaded", activeTabId, loadedUrl);
+        if (/\/Account\/Log(?:in|Off)|\/login|\/logout/i.test(loadedUrl)) {
+          if (window.nepDesktop && typeof window.nepDesktop.reportLogout === "function") {
+            window.nepDesktop.reportLogout().catch(() => {});
+          }
+        } else if (/^https:\/\/(student|teacher)\.emis\.gov\.eg\//i.test(loadedUrl)) {
+          setTimeout(() => {
+            backend.exec(activeTabId, `(function(){
+              try {
+                var h = window.__neprasLastEmisHeaders || {};
+                var sc = String(h.schoolcode || h.sc || "").trim();
+                var sn = "";
+                var badges = document.querySelectorAll(".badge, .badge-pill, header span, nav span, b, strong");
+                for (var i = 0; i < badges.length; i++) {
+                  var t = (badges[i].textContent || "").trim();
+                  if (!sc) {
+                    var m = t.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || t.match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([0-9]{5,12})/);
+                    if (m) sc = m[1];
+                  }
+                  if (!sn) {
+                    var ms = t.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);
+                    if (ms && ms[1].trim().length >= 3) sn = ms[1].replace(/المرحل[ةه].*$/, "").trim();
+                  }
+                }
+                return sc ? { schoolCode: sc, schoolName: sn } : null;
+              } catch(_) { return null; }
+            })()`, "MAIN").then((r) => {
+              if (r && r.ok && r.result && r.result.schoolCode && window.nepDesktop && typeof window.nepDesktop.reportDetectedSchool === "function") {
+                window.nepDesktop.reportDetectedSchool(r.result).catch(() => {});
+              }
+            }).catch(() => {});
+          }, 300);
+        }
       });
 
       P.addListener("tabMessage", (data) => {
@@ -47,6 +120,12 @@
       P.addListener("webRequest", (data) => {
         try {
           if (data && data.name && data.details) {
+            if (data.name === "onBeforeSendHeaders" && data.details.requestHeaders) {
+              const extracted = extractSchoolFromHeaderList(data.details.requestHeaders);
+              if (extracted && extracted.schoolCode && window.nepDesktop && typeof window.nepDesktop.reportDetectedSchool === "function") {
+                window.nepDesktop.reportDetectedSchool(extracted).catch(() => {});
+              }
+            }
             emit("request", data.name, data.details);
           }
         } catch (e) {
@@ -62,7 +141,7 @@
     }
   }
 
-  setInterval(ensureListeners, 100);
+  let listenerPollTimer = setInterval(ensureListeners, 100);
 
   const backend = {
     platform: "android",
@@ -81,9 +160,6 @@
       const targetUrl = url || "https://student.emis.gov.eg/";
       if (P) {
         await P.init({ url: targetUrl, visible: true });
-        if (targetUrl) {
-          await P.navigate({ url: targetUrl });
-        }
       }
       emit("tabUpdate", id, { status: "complete", url: targetUrl, title: "بيانات التلميذ والمعلم" });
     },
@@ -351,6 +427,39 @@
     store.serverUrl = srv;
 
     try {
+      // 1) استدعاء دالة RPC المعتمدة في Supabase والموحدة مع تطبيق سطح المكتب
+      const rpcRes = await fetch(`${srv}/rest/v1/rpc/check_school_subscription`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_LICENSE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_LICENSE_ANON_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          p_school_code: code,
+          p_school_name: store.activeSchoolName || ""
+        })
+      });
+      if (rpcRes.ok) {
+        const data = await rpcRes.json();
+        if (data && data.ok && data.subscribed) {
+          const exp = new Date(data.expires_at || data.expiresAt || 0).getTime() || (Date.now() + 365 * DAY_MS);
+          const isTrial = String(data.status || "").toUpperCase() === "TRIAL";
+          store.schools = store.schools || {};
+          store.schools[code] = {
+            status: isTrial ? "TRIAL" : "ACTIVE",
+            startsAt: Date.now(),
+            expiresAt: exp,
+            schoolName: data.school_name || data.schoolName || store.activeSchoolName || ""
+          };
+          saveMobileLicenseStore(store);
+          const st = getMobileLicenseStatus(code);
+          notifyLicenseUpdate(st);
+          return { ok: true, message: data.message || st.message, status: st };
+        }
+      }
+
+      // 2) احتياطي: الاستعلام المباشر عن جدول التراخيص
       const url = `${srv}/rest/v1/licenses?school_code=eq.${encodeURIComponent(code)}&select=*`;
       const res = await fetch(url, {
         method: "GET",
@@ -406,41 +515,83 @@
     let expTime = Date.now() + 365 * DAY_MS;
 
     try {
-      const url = `${srv}/rest/v1/license_keys?key=eq.${encodeURIComponent(key)}&select=*`;
-      const res = await fetch(url, {
-        method: "GET",
+      // 1) التفعيل عبر دالة RPC المعتمدة في Supabase والموحدة مع تطبيق سطح المكتب
+      const rpcRes = await fetch(`${srv}/rest/v1/rpc/activate_license_key`, {
+        method: "POST",
         headers: {
           "apikey": SUPABASE_LICENSE_ANON_KEY,
           "Authorization": `Bearer ${SUPABASE_LICENSE_ANON_KEY}`,
           "Content-Type": "application/json"
-        }
+        },
+        body: JSON.stringify({
+          p_school_code: code,
+          p_license_key: key.toUpperCase(),
+          p_school_name: store.activeSchoolName || null
+        })
       });
-      if (res.ok) {
-        const rows = await res.json();
-        if (Array.isArray(rows) && rows.length > 0) {
-          const kRow = rows[0];
-          if (!kRow.is_used || String(kRow.school_code) === code) {
-            valid = true;
-            if (kRow.expires_at) expTime = new Date(kRow.expires_at).getTime();
-            if (!kRow.is_used) {
-              await fetch(`${srv}/rest/v1/license_keys?id=eq.${kRow.id}`, {
-                method: "PATCH",
-                headers: {
-                  "apikey": SUPABASE_LICENSE_ANON_KEY,
-                  "Authorization": `Bearer ${SUPABASE_LICENSE_ANON_KEY}`,
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ is_used: true, school_code: code, used_at: new Date().toISOString() })
-              }).catch(() => {});
+      if (rpcRes.ok) {
+        const data = await rpcRes.json();
+        if (data && data.ok) {
+          valid = true;
+          if (data.expires_at || data.expiresAt) {
+            expTime = new Date(data.expires_at || data.expiresAt).getTime();
+          }
+          if (data.school_name || data.schoolName) {
+            store.activeSchoolName = data.school_name || data.schoolName;
+          }
+        }
+      }
+
+      // 2) احتياطي: التحقق من جدول مفاتيح التفعيل
+      if (!valid) {
+        const url = `${srv}/rest/v1/license_keys?key=eq.${encodeURIComponent(key)}&select=*`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "apikey": SUPABASE_LICENSE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_LICENSE_ANON_KEY}`,
+            "Content-Type": "application/json"
+          }
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows) && rows.length > 0) {
+            const kRow = rows[0];
+            if (!kRow.is_used || String(kRow.school_code) === code) {
+              valid = true;
+              if (kRow.expires_at) expTime = new Date(kRow.expires_at).getTime();
+              if (!kRow.is_used) {
+                await fetch(`${srv}/rest/v1/license_keys?id=eq.${kRow.id}`, {
+                  method: "PATCH",
+                  headers: {
+                    "apikey": SUPABASE_LICENSE_ANON_KEY,
+                    "Authorization": `Bearer ${SUPABASE_LICENSE_ANON_KEY}`,
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({ is_used: true, school_code: code, used_at: new Date().toISOString() })
+                }).catch(() => {});
+              }
             }
           }
         }
       }
     } catch (_) {}
 
-    if (!valid && /^NEPRAS-202[6-9]-[A-Z0-9]{4,8}-[A-Z0-9]{4,8}$/i.test(key)) {
-      valid = true;
-      expTime = new Date(2027, 7, 31, 23, 59, 59).getTime();
+    // 3) دعم تذاكر التفعيل الموقعة NEPRAS1.<payloadB64>.<sig> للأجهزة غير المتصلة بالإنترنت
+    if (!valid && /^NEPRAS1\./i.test(key)) {
+      try {
+        const cleanToken = key.replace(/^NEPRAS1\./i, "");
+        const parts = cleanToken.split(".");
+        if (parts.length === 2 && parts[1].length >= 40) {
+          const b64 = parts[0].replace(/-/g, "+").replace(/_/g, "/");
+          const pad = b64 + "===".slice((b64.length + 3) % 4);
+          const payload = JSON.parse(decodeURIComponent(escape(atob(pad))));
+          if (payload && normalizeSchoolCode(payload.schoolCode) === code && Number(payload.expiresAt) > Date.now()) {
+            valid = true;
+            expTime = Number(payload.expiresAt);
+          }
+        }
+      } catch (_) {}
     }
 
     if (!valid) {
@@ -505,7 +656,7 @@
         if (typeof cb === "function") licenseSubscribers.push(cb);
       },
       checkUpdate: async () => {
-        const currentVersion = "1.3.2";
+        const currentVersion = "1.3.4";
         const websiteUrl = "https://unified-school-tools-website.vercel.app/";
         const endpoints = [
           "https://unified-school-tools-website.vercel.app/version.json",

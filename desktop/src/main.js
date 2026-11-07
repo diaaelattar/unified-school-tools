@@ -94,6 +94,15 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
       }
     };
 
+    // 0. Fast cache check if already detected on this exact page URL with complete data
+    var curHref = String(location.href || "");
+    if (window.__neprasDetectedSchoolCache && window.__neprasDetectedSchoolCache.href === curHref && window.__neprasDetectedSchoolCache.data) {
+      var cached = window.__neprasDetectedSchoolCache.data;
+      if (cached.schoolCode && cached.schoolName && !isBadName(cached.schoolName)) {
+        return cached;
+      }
+    }
+
     // 1. Hooked EMIS headers
     if (window.__neprasLastEmisHeaders) {
       inspectObj(window.__neprasLastEmisHeaders, 0);
@@ -136,13 +145,13 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
       }
     }
 
-    // 3. DOM Scan (Direct badge/header extraction matching the Ministry EMIS UI)
+    // 3. DOM Scan (Direct badge/header extraction matching the Ministry EMIS UI without forcing layout reflow)
     try {
-      var allBadges = document.querySelectorAll(".badge, .badge-pill, span, div, p, a, label, b, strong, h1, h2, h3, h4, h5, h6");
+      var allBadges = document.querySelectorAll(".badge, .badge-pill, header span, header div, nav span, nav div, .navbar span, .navbar div, b, strong, h1, h2, h3, h4, p, label");
       for (var bi = 0; bi < allBadges.length; bi++) {
         var bEl = allBadges[bi];
         if (bEl.children.length > 3) continue;
-        var bTxt = (bEl.innerText || bEl.textContent || "").trim();
+        var bTxt = (bEl.textContent || "").trim();
         if (!bTxt) continue;
 
         if (!schoolCode) {
@@ -179,7 +188,7 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
       }
 
       if ((!schoolCode || !schoolName) && document.body) {
-        var fullTxt = (document.body.innerText || "").slice(0, 8000);
+        var fullTxt = (document.body.textContent || "").slice(0, 8000);
         if (!schoolCode) {
           var fbMail = fullTxt.match(/([0-9]{5,12})@[a-z0-9.]*emis\\.gov\\.eg/i);
           if (fbMail) schoolCode = norm(fbMail[1]);
@@ -200,12 +209,17 @@ const EMIS_DETECTOR_SCRIPT = `(function() {
       }
     } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
 
-    return (schoolCode || schoolSerial || schoolName) ? {
+    var out = (schoolCode || schoolSerial || schoolName) ? {
       schoolCode: schoolCode || "",
       schoolSerial: schoolSerial || "",
       schoolName: isBadName(schoolName) ? "" : (schoolName || (schoolCode ? ("مدرسة " + schoolCode) : "")),
       stage: stage || ""
     } : null;
+
+    if (out && out.schoolCode && out.schoolName && !isBadName(out.schoolName)) {
+      window.__neprasDetectedSchoolCache = { href: curHref, data: out };
+    }
+    return out;
   } catch (_) {
     return null;
   }
@@ -335,7 +349,13 @@ function setupSession(ses) {
 
   // ---- request headers: capture (Authorization etc.) + CORS bridge for extension pages
   ses.webRequest.onBeforeSendHeaders({ urls: ["*://*/*"] }, (details, cb) => {
-    if (details.webContentsId === hostId()) reqHeaders.set(details.id, details.requestHeaders);
+    if (details.webContentsId === hostId()) {
+      if (reqHeaders.size > 500) {
+        const firstKey = reqHeaders.keys().next().value;
+        if (firstKey !== undefined) reqHeaders.delete(firstKey);
+      }
+      reqHeaders.set(details.id, details.requestHeaders);
+    }
     if (wrUrls.length && details.webContentsId !== hostId() && wrMatch(details.url)) {
       if (licenseMgr) {
         const extracted = extractSchoolFromEmisHeaders(details.requestHeaders);
@@ -417,6 +437,13 @@ function setupSession(ses) {
       });
     }
     cb({ responseHeaders: headers, statusLine });
+  });
+
+  ses.webRequest.onErrorOccurred({ urls: ["*://*/*"] }, (details) => {
+    reqHeaders.delete(details.id);
+  });
+  ses.webRequest.onCompleted({ urls: ["*://*/*"] }, (details) => {
+    reqHeaders.delete(details.id);
   });
 
   // ---- page-initiated downloads (e.g. EMIS report PDFs)
@@ -663,16 +690,20 @@ ipcMain.on("nep:activeTabChanged", (_e, { wcId, tabId }) => {
   } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
 });
 
-// فحص دوري كل 2.5 ثانية للتبويب النشط حصرياً لمنع تعارض المدارس بين التبويبات المتعددة
+// فحص دوري خفيف للتبويب النشط عند عدم اكتمال بيانات المدرسة بعد، لمنع تعارض المدارس أو استهلاك المعالج
 setInterval(() => {
   if (!licenseMgr || !win || win.isDestroyed()) return;
   if (currentActiveWcId != null) {
+    const existing = schoolByTab.get(currentActiveWcId);
+    if (existing && existing.schoolCode && existing.schoolName && !/^مدرسة \d+$/.test(existing.schoolName)) {
+      return;
+    }
     try {
       const c = require("electron").webContents.fromId(currentActiveWcId);
       if (c && !c.isDestroyed()) inspectAndEnforceWebContents(c, true);
     } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
   }
-}, 2500);
+}, 4000);
 
 ipcMain.handle("nep:getActiveSchool", () => {
   if (currentActiveWcId != null && schoolByTab.has(currentActiveWcId)) {

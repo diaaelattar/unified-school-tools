@@ -66,6 +66,7 @@ try {
   const bgHtmlContent =
     '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nepras background</title>\n' +
     '<script src="nepras-shim.js"></script>\n' +
+    '<script src="modules/nepras_logger.js"></script>\n' +
     '<script src="modules/nepras_security_guard.js"></script>\n' +
     '<script src="modules/school_manager.js"></script>\n' +
     '<script src="modules/class_books_store.js"></script>\n' +

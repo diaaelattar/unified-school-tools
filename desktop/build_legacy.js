@@ -10,8 +10,8 @@ const cmd = [
   '--ia32',
   '-c.electronVersion="22.3.27"',
   '-c.directories.output="../release/desktop-legacy"',
-  '-c.portable.artifactName="Nepras_Portable_Win7_32bit_v1.3.2.exe"',
-  '-c.nsis.artifactName="Nepras_Setup_Win7_32bit_v1.3.2.exe"'
+  '-c.portable.artifactName="Nepras_Portable_Win7_32bit_v1.3.4.exe"',
+  '-c.nsis.artifactName="Nepras_Setup_Win7_32bit_v1.3.4.exe"'
 ].join(' ');
 
 try {
