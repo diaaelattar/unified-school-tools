@@ -40,6 +40,103 @@ document.addEventListener("DOMContentLoaded", async () => {
   const schoolStatsDetailClose = document.getElementById("school-stats-detail-close");
   const schoolStatsDetailSearch = document.getElementById("school-stats-detail-search");
   const schoolStatsDetailExport = document.getElementById("school-stats-detail-export");
+  const schoolDeepProgressCard = document.getElementById("school-deep-progress-card");
+  const deepProgressIcon = document.getElementById("deep-progress-icon");
+  const deepProgressTitle = document.getElementById("deep-progress-title");
+  const deepProgressBadge = document.getElementById("deep-progress-badge");
+  const deepProgressBarFill = document.getElementById("deep-progress-bar-fill");
+  const deepProgressSubtitle = document.getElementById("deep-progress-subtitle");
+  const deepProgressCounts = document.getElementById("deep-progress-counts");
+
+  function renderDeepProgressUI(p) {
+    if (!schoolDeepProgressCard) return;
+    if (!p) {
+      schoolDeepProgressCard.classList.add("hidden");
+      return;
+    }
+    const isRunning = p.running === true;
+    const isDone = p.done === true;
+    const isStopped = p.stopped === true;
+    if (!isRunning && !isDone && !isStopped) {
+      schoolDeepProgressCard.classList.add("hidden");
+      return;
+    }
+    schoolDeepProgressCard.classList.remove("hidden");
+    if (isRunning) {
+      schoolDeepProgressCard.style.borderColor = "#bae6fd";
+      schoolDeepProgressCard.style.background = "#f0f9ff";
+      if (deepProgressIcon) deepProgressIcon.textContent = "🔄";
+      if (deepProgressTitle) {
+        deepProgressTitle.textContent = p.title || "جاري تنزيل وتحديث البيانات الشاملة للمدرسة...";
+        deepProgressTitle.style.color = "#0369a1";
+      }
+      const pct = Math.max(0, Math.min(100, Number(p.percent || 0)));
+      if (deepProgressBadge) {
+        deepProgressBadge.textContent = `${pct}%`;
+        deepProgressBadge.style.background = "#e0f2fe";
+        deepProgressBadge.style.color = "#0284c7";
+      }
+      if (deepProgressBarFill) {
+        deepProgressBarFill.style.width = `${pct}%`;
+        deepProgressBarFill.style.background = "linear-gradient(90deg, #0284c7, #10b981)";
+      }
+      if (deepProgressSubtitle) deepProgressSubtitle.textContent = p.subtitle || "يتم سحب وتدقيق بيانات الطلاب في الخلفية...";
+      if (deepProgressCounts) {
+        if (p.total > 0 && p.current != null) {
+          deepProgressCounts.textContent = `(${p.current} / ${p.total})`;
+        } else {
+          deepProgressCounts.textContent = "";
+        }
+      }
+    } else if (isDone) {
+      schoolDeepProgressCard.style.borderColor = "#86efac";
+      schoolDeepProgressCard.style.background = "#f0fdf4";
+      if (deepProgressIcon) deepProgressIcon.textContent = "✅";
+      if (deepProgressTitle) {
+        deepProgressTitle.textContent = "اكتمل تنزيل وتحديث البيانات الشاملة بنجاح!";
+        deepProgressTitle.style.color = "#15803d";
+      }
+      if (deepProgressBadge) {
+        deepProgressBadge.textContent = "100%";
+        deepProgressBadge.style.background = "#dcfce7";
+        deepProgressBadge.style.color = "#16a34a";
+      }
+      if (deepProgressBarFill) {
+        deepProgressBarFill.style.width = "100%";
+        deepProgressBarFill.style.background = "#16a34a";
+      }
+      if (deepProgressSubtitle) {
+        deepProgressSubtitle.textContent = p.message || `تم حفظ ${p.total || ""} طالب وتحديث إحصاء المدرسة وكافة التقارير.`;
+      }
+      if (deepProgressCounts) deepProgressCounts.textContent = "";
+      loadSavedSchoolStats().catch(() => {});
+      if (typeof updateStatsCenterStatus === "function") updateStatsCenterStatus().catch(() => {});
+      if (typeof window.updateSmartAnalyticsStatus === "function") window.updateSmartAnalyticsStatus();
+      clearTimeout(renderDeepProgressUI._t);
+      renderDeepProgressUI._t = setTimeout(() => {
+        schoolDeepProgressCard.classList.add("hidden");
+      }, 10000);
+    } else if (isStopped) {
+      schoolDeepProgressCard.style.borderColor = "#fde68a";
+      schoolDeepProgressCard.style.background = "#fffbeb";
+      if (deepProgressIcon) deepProgressIcon.textContent = "⚠️";
+      if (deepProgressTitle) {
+        deepProgressTitle.textContent = "تم إيقاف التنزيل الشامل";
+        deepProgressTitle.style.color = "#b45309";
+      }
+      if (deepProgressBadge) {
+        deepProgressBadge.textContent = "توقف";
+        deepProgressBadge.style.background = "#fef3c7";
+        deepProgressBadge.style.color = "#d97706";
+      }
+      if (deepProgressSubtitle) deepProgressSubtitle.textContent = p.message || "تم إيقاف العملية.";
+      if (deepProgressCounts) deepProgressCounts.textContent = "";
+      clearTimeout(renderDeepProgressUI._t);
+      renderDeepProgressUI._t = setTimeout(() => {
+        schoolDeepProgressCard.classList.add("hidden");
+      }, 7000);
+    }
+  }
   let schoolStatsDetailRows = [];
   let schoolStatsDetailFilter = null;
 
@@ -2246,8 +2343,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   awaitSafe(loadSavedExpenses());
 
   // v1.0 — الإحصاء والمصروفات Snapshot محفوظ داخل نبراس مع التحقق من كود المدرسة المعروضة
+  chrome.storage.local.get("neprasDeepScrapeProgress").then((res) => {
+    const p = res?.neprasDeepScrapeProgress;
+    if (p && p.running && (Date.now() - Number(p.updatedAt || 0) < 10 * 60 * 1000)) {
+      renderDeepProgressUI(p);
+    }
+  }).catch(() => {});
+
   chrome.storage.onChanged.addListener(async (changes, areaName) => {
     if (areaName !== "local") return;
+
+    if (changes.neprasDeepScrapeProgress) {
+      renderDeepProgressUI(changes.neprasDeepScrapeProgress.newValue);
+    }
 
     if (changes.neprasSchoolStatsV1) {
       const activeCode = globalThis.NeprasSchoolManager ? globalThis.NeprasSchoolManager.cleanCode(await globalThis.NeprasSchoolManager.getActiveCode()) : "";
@@ -5019,6 +5127,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         showNeprasPopupNotice("يرجى اختيار المرحلة التعليمية أولاً من أعلى الشاشة.", "warning", "المرحلة مطلوبة");
         return;
       }
+      renderDeepProgressUI({
+        running: true,
+        title: "جاري بدء التنزيل والتحديث الشامل لبيانات المدرسة...",
+        percent: 0,
+        subtitle: "يتم فتح صفحة الطلاب والاتصال بمنظومة الوزارة في الخلفية..."
+      });
       showNeprasPopupNotice("جاري بدء التنزيل والتحديث الشامل لبيانات المدرسة بالكامل من منظومة الوزارة...", "info", "تحديث البيانات الشاملة");
       await triggerExportCommand({ type: "ALL_GRADES", stage, mode: "deep" });
     }

@@ -220,6 +220,19 @@ function neprasStudentStopHooks(reason) {
   };
 }
 
+function updateDeepScrapeProgressStorage(obj) {
+  try {
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({
+        neprasDeepScrapeProgress: {
+          ...obj,
+          updatedAt: Date.now()
+        }
+      }).catch(() => {});
+    }
+  } catch (_) {}
+}
+
 function showFloatingStatus(message, isSuccess = null) {
   // بعد طلب الإيقاف لا نسمح لرسالة تقدم متأخرة أن توحي للمستخدم أن العملية ما زالت تعمل.
   if (neprasIsGlobalStopRequested() && isSuccess === null && !String(message || "").includes("إيقاف")) {
@@ -229,6 +242,28 @@ function showFloatingStatus(message, isSuccess = null) {
   if (!L) return;
   const running = L.classify(message, isSuccess) === "running";
   L.status(message, isSuccess, running ? neprasStudentStopHooks("student_floating_stop_pointer") : undefined);
+
+  if (isSuccess === true) {
+    updateDeepScrapeProgressStorage({
+      running: false,
+      done: true,
+      stopped: false,
+      message: String(message || "")
+    });
+  } else if (isSuccess === false) {
+    updateDeepScrapeProgressStorage({
+      running: false,
+      done: false,
+      stopped: true,
+      message: String(message || "")
+    });
+  } else {
+    updateDeepScrapeProgressStorage({
+      running: true,
+      title: "جاري المعالجة والتنزيل...",
+      subtitle: String(message || "")
+    });
+  }
 }
 
 function showDeepProgressStatus(title, current, total, subtitle = "") {
@@ -237,6 +272,17 @@ function showDeepProgressStatus(title, current, total, subtitle = "") {
     title || "جاري التنزيل الشامل", current, total, subtitle, "green",
     neprasStudentStopHooks("student_deep_progress_stop_pointer")
   );
+  const cur = Number(current || 0);
+  const tot = Number(total || 0);
+  const pct = tot > 0 ? Math.min(100, Math.round((cur / tot) * 100)) : 0;
+  updateDeepScrapeProgressStorage({
+    running: true,
+    title: title || "جاري التنزيل الشامل",
+    current: cur,
+    total: tot,
+    percent: pct,
+    subtitle: subtitle || ""
+  });
 }
 
 function hideFloatingStatus(delay = 0) {
@@ -2952,6 +2998,12 @@ async function processDeepScrapeAllGrades() {
       );
 
     if (isScrapeCancelled) {
+      updateDeepScrapeProgressStorage({
+        running: false,
+        done: false,
+        stopped: true,
+        message: "🛑 تم إيقاف التنزيل الشامل."
+      });
       const currentGradeSnapshot =
         Array.isArray(window._neprasCurrentDeepGradeData)
           ? window._neprasCurrentDeepGradeData
@@ -3492,7 +3544,18 @@ function exportDeepFormattedExcel(dataList, fileName) {
       } catch (_) {}
 
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        const payloadToSave = { neprasCachedStudentsList: normalizedList };
+        const payloadToSave = {
+          neprasCachedStudentsList: normalizedList,
+          neprasDeepScrapeProgress: {
+            running: false,
+            done: true,
+            stopped: false,
+            total: normalizedList.length,
+            percent: 100,
+            message: `🎉 اكتمل تنزيل وتحديث البيانات الشاملة بنجاح (${normalizedList.length} طالب)`,
+            updatedAt: Date.now()
+          }
+        };
         if (computedStats && Array.isArray(computedStats.grades) && computedStats.grades.length) {
           payloadToSave.neprasSchoolStatsV1 = computedStats;
           payloadToSave.neprasSchoolStatsLastError = null;

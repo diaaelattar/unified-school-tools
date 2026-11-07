@@ -242,14 +242,16 @@
         const studentTab = [...core.tabs.values()].find((t) => (t.url || "").includes("student.emis.gov.eg"));
         if (studentTab) {
           core.setActive(studentTab.id);
+        } else {
+          core.navigateActive("https://student.emis.gov.eg/");
         }
-        core.navigateActive("https://student.emis.gov.eg/");
       } else if (v === "teacher" && core) {
         const teacherTab = [...core.tabs.values()].find((t) => (t.url || "").includes("teacher.emis.gov.eg"));
         if (teacherTab) {
           core.setActive(teacherTab.id);
+        } else {
+          core.navigateActive("https://teacher.emis.gov.eg/");
         }
-        core.navigateActive("https://teacher.emis.gov.eg/");
       }
     } else {
       if (backend.setBrowserVisible) backend.setBrowserVisible(true);
@@ -546,7 +548,6 @@
     if (navStudent) {
       navStudent.onclick = () => {
         showView("student");
-        if (core) core.navigateActive("https://student.emis.gov.eg/");
       };
     }
 
@@ -554,7 +555,6 @@
     if (navTeacher) {
       navTeacher.onclick = () => {
         showView("teacher");
-        if (core) core.navigateActive("https://teacher.emis.gov.eg/");
       };
     }
 
@@ -719,7 +719,11 @@
 
         if (navSubLabel) {
           if (!st.locked && st.schoolCode) {
-            navSubLabel.textContent = `مشترك (${st.daysRemaining}ي)`;
+            if (st.status === "TRIAL") {
+              navSubLabel.textContent = `تجريبي (${st.daysRemaining}ي)`;
+            } else {
+              navSubLabel.textContent = `مشترك (${st.daysRemaining}ي)`;
+            }
           } else if (st.schoolCode && st.locked) {
             navSubLabel.textContent = "تفعيل";
           } else {
@@ -908,7 +912,14 @@
 
       window.nepDesktop.onLicenseUpdate((st) => renderDesktopLicense(st));
       const initialSt = await window.nepDesktop.getLicenseStatus();
-      if (initialSt) renderDesktopLicense(initialSt);
+      if (initialSt) {
+        renderDesktopLicense(initialSt);
+        if (initialSt.schoolCode && typeof window.nepDesktop.checkSchoolLicense === "function") {
+          window.nepDesktop.checkSchoolLicense({ schoolCode: initialSt.schoolCode })
+            .then((res) => { if (res && res.status) renderDesktopLicense(res.status); })
+            .catch(() => {});
+        }
+      }
     }
 
     setInterval(render, 400);

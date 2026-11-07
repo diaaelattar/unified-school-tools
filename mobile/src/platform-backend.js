@@ -352,6 +352,11 @@
       store.activeSchoolCode = code;
       saveMobileLicenseStore(store);
 
+      // 🔄 فحص فوري وسريع للاشتراك السحابي للمدرسة المسجلة في Supabase
+      setTimeout(() => {
+        checkMobileSchoolLicense({ schoolCode: code, serverUrl }).catch(() => {});
+      }, 80);
+
       return {
         platform: "mobile",
         locked: false,
@@ -361,8 +366,20 @@
         serverUrl,
         daysRemaining: TRIAL_DAYS,
         expiresAt: trialExpiresAt,
-        message: `⏱️ فترة تجريبية مجانية لتطبيق الموبايل (متبقي ${TRIAL_DAYS} أيام). يمكنك تفعيل الاشتراك السنوي في أي وقت.`
+        message: `⏱️ فترة تجريبية مجانية لتطبيق الموبايل (متبقي ${TRIAL_DAYS} أيام). جاري التحقق من الاشتراك السحابي لمدرستك...`
       };
+    }
+
+    // إذا كانت المدرسة لا تزال في حالة TRIAL محلياً، نتحقق في الخلفية لترقيتها فوراً إذا كانت مفعلة سحابياً
+    if (entry.status === "TRIAL") {
+      const lastCheck = Number(entry._lastOnlineCheck || 0);
+      if (Date.now() - lastCheck > 60 * 1000) {
+        entry._lastOnlineCheck = Date.now();
+        saveMobileLicenseStore(store);
+        setTimeout(() => {
+          checkMobileSchoolLicense({ schoolCode: code, serverUrl }).catch(() => {});
+        }, 100);
+      }
     }
 
     const now = Date.now();
@@ -634,6 +651,12 @@
         store.activeSchoolCode = code;
         if (schoolName) store.activeSchoolName = schoolName;
         saveMobileLicenseStore(store);
+
+        // 🚀 تحقق فوري وتلقائي من تفعيل المدرسة في قاعدة بيانات نبراس السحابية (Supabase)
+        checkMobileSchoolLicense({ schoolCode: code, serverUrl: store.serverUrl }).catch((err) => {
+          console.warn("[Mobile License Check Auto Sync]", err);
+        });
+
         const st = getMobileLicenseStatus(code);
         notifyLicenseUpdate(st);
         return st;
@@ -706,5 +729,16 @@
         window.open(target, "_blank");
       }
     };
+
+    // مزامنة فورية على بدء تشغيل التطبيق لكود المدرسة النشط
+    setTimeout(async () => {
+      try {
+        const st = loadMobileLicenseStore();
+        const code = st.activeSchoolCode;
+        if (code) {
+          checkMobileSchoolLicense({ schoolCode: code, serverUrl: st.serverUrl }).catch(() => {});
+        }
+      } catch (_) {}
+    }, 1000);
   }
 })();

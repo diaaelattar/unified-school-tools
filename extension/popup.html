@@ -488,6 +488,22 @@
 <button class="n-btn n-btn--secondary n-btn--block" id="btn-school-stats-export" type="button" aria-disabled="true" data-reason="لا توجد بيانات للتصدير. حدّث إحصاء المدرسة أولًا."><i data-icon="sheet"></i><span class="n-btn__label">تصدير Excel</span></button>
 </div>
 <button class="n-btn n-btn--ghost n-btn--block" id="btn-school-deep-stats-refresh" type="button" style="margin-top:6px;" title="تنزيل وتحديث البيانات الشاملة لجميع صفوف المدرسة (الديانة، اللغات، الشعب، الأمهات) لتغذية كافة التقارير والإحصائيات"><i data-icon="download"></i><span class="n-btn__label">تنزيل وتحديث البيانات الشاملة للمدرسة</span></button>
+<div id="school-deep-progress-card" class="school-deep-progress-card hidden" style="margin:10px 0;padding:12px 14px;border-radius:10px;border:1px solid #bae6fd;background:#f0f9ff;box-shadow:0 2px 8px rgba(0,0,0,0.05);transition:all 0.3s ease;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="deep-progress-icon" style="font-size:16px;">🔄</span>
+      <b id="deep-progress-title" style="font-size:12.5px;color:#0369a1;">جاري تنزيل وتحديث البيانات الشاملة للمدرسة...</b>
+    </div>
+    <span id="deep-progress-badge" style="font-weight:700;font-size:12px;color:#0284c7;background:#e0f2fe;padding:2px 8px;border-radius:999px;">0%</span>
+  </div>
+  <div style="width:100%;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-bottom:6px;">
+    <div id="deep-progress-bar-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#0284c7,#10b981);border-radius:999px;transition:width 0.3s ease;"></div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:#475569;">
+    <span id="deep-progress-subtitle">يتم سحب وتدقيق بيانات الطلاب في الخلفية...</span>
+    <span id="deep-progress-counts" style="font-weight:600;color:#0369a1;"></span>
+  </div>
+</div>
 <div id="school-stats-empty" class="school-stats-empty">آخر إحصاء محفوظ يظل داخل الأداة ولا يتغير إلا عند الضغط على «تحديث إحصاء المدرسة».</div>
 <div id="school-stats-content">
 <div class="school-stats-meta" id="school-stats-meta"></div>
