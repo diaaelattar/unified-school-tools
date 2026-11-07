@@ -1862,6 +1862,85 @@ async function test(name, fn) {
     ]);
     assert.strictEqual(ext3.schoolCode, "5556667");
     assert.strictEqual(ext3.schoolName, "مدرسة النيل الحديثة");
+
+    // Must prioritize 8-digit official school code (21024219) over 6-digit database serial (972133)
+    const ext4 = extractFn([
+      { name: "schoolid", value: "972133" },
+      { name: "schoolcode", value: "21024219" }
+    ]);
+    assert.strictEqual(ext4.schoolCode, "21024219", "Must prioritize official 8-digit school code over 6-digit internal database id");
+  });
+
+  // 38. Mobile School Alias & Golden License Inheritance (resolves 21024219 <-> 972133 conflict)
+  await test("mobile_platform: auto-aliasing preserves paid active license across school serials and portal tabs", async () => {
+    const mobileBackendSrc = fs.readFileSync(path.resolve(__dirname, "../mobile/src/platform-backend.js"), "utf8");
+    let storedLicense = {};
+    const ls = {
+      getItem: (k) => k === "nepras_mobile_license_v1" ? JSON.stringify(storedLicense) : null,
+      setItem: (k, v) => { if (k === "nepras_mobile_license_v1") storedLicense = JSON.parse(v); }
+    };
+    const scope = {
+      window: { localStorage: ls },
+      localStorage: ls,
+      globalThis: {},
+      console,
+      setTimeout: (fn) => 1,
+      clearTimeout: () => {},
+      setInterval: (fn) => 1,
+      clearInterval: () => {},
+      fetch: async () => ({ ok: false }),
+      Date,
+      Math,
+      Array,
+      Object,
+      String,
+      Number,
+      Boolean,
+      RegExp,
+      JSON,
+      atob: (s) => Buffer.from(s, "base64").toString("binary"),
+      decodeURIComponent,
+      escape
+    };
+    scope.window.window = scope.window;
+    scope.globalThis = scope.window;
+    vm.createContext(scope);
+    vm.runInContext(mobileBackendSrc, scope);
+
+    // Seed active paid license for official code 21024219 (مدرسة الشهيد محمد سليمان سلامة ع بنين)
+    storedLicense = {
+      activeSchoolCode: "21024219",
+      activeSchoolName: "الشهيد محمد سليمان سلامة ع بنين",
+      schools: {
+        "21024219": {
+          status: "ACTIVE",
+          startsAt: Date.now() - 30 * 86400000,
+          expiresAt: Date.now() + 298 * 86400000,
+          schoolName: "الشهيد محمد سليمان سلامة ع بنين"
+        }
+      }
+    };
+
+    // When student portal detects internal serial 972133 with school name "الشهيد محمد سليمان سلامة ع بنين":
+    const repRes = await scope.window.nepDesktop.reportDetectedSchool({
+      schoolCode: "972133",
+      schoolName: "الشهيد محمد سليمان سلامة ع بنين"
+    });
+
+    assert.strictEqual(repRes.status, "ACTIVE", "Internal serial 972133 must inherit ACTIVE paid license from 21024219");
+    assert(repRes.daysRemaining >= 297, "Must show 297+ days remaining instead of 7-day trial");
+
+    // Check status directly for 972133
+    const directCheck = await scope.window.nepDesktop.getLicenseStatus();
+    assert.strictEqual(directCheck.status, "ACTIVE", "Status must remain ACTIVE when queried");
+    assert.strictEqual(directCheck.schoolCode, "21024219", "Effective code must resolve to official paid code 21024219");
+
+    // Verify DOM regex matches "الرقم المسلسل: 21024219" and ignores "الرقم المسلسل: 0"
+    const domRegex = /(?:كود\s*(?:المدرسة|المؤسسة)|الرقم\s*التعريفي|الرقم\s*المسلسل)\s*[:\-]?\s*([0-9]{6,12})/;
+    const mValid = "الرقم المسلسل: 21024219".match(domRegex);
+    assert(mValid && mValid[1] === "21024219", "Must match 21024219 under الرقم المسلسل");
+    const mZero = "الرقم المسلسل: 0".match(domRegex);
+    assert.strictEqual(mZero, null, "Must reject zero serial");
   });
 
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);

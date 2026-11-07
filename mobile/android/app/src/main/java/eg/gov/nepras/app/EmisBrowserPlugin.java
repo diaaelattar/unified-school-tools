@@ -453,7 +453,8 @@ public class EmisBrowserPlugin extends Plugin {
                 "              if (typeof v === 'string' || typeof v === 'number') {\n" +
                 "                var sv = String(v).trim();\n" +
                 "                if (!auth && jwtRe.test(sv)) auth = 'Bearer ' + sv.match(jwtRe)[0];\n" +
-                "                if (!scode && (lk === 'schoolcode' || lk === 'schoolid' || lk === 'schcode' || lk === 'sc' || lk === 'school_code') && /^\\d{4,12}$/.test(sv)) scode = sv;\n" +
+                "                if ((lk === 'schoolcode' || lk === 'schcode' || lk === 'sc' || lk === 'school_code') && /^\\d{6,12}$/.test(sv)) scode = sv;\n" +
+                "                else if (!scode && lk === 'schoolid' && /^\\d{4,12}$/.test(sv)) scode = sv;\n" +
                 "                if (!sname && (lk === 'schoolname' || lk === 'arabicschoolname' || lk === 'school_name') && sv.length >= 3 && !/^\\d+$/.test(sv)) sname = sv;\n" +
                 "                if (!sstage && (lk === 'schoolstage' || lk === 'stagecode' || lk === 'stageid' || lk === 'stage') && /^\\d{1,3}$/.test(sv)) sstage = sv;\n" +
                 "                if (utype === '0' && (lk === 'usertype' || lk === 'usertypeid') && /^\\d{1,3}$/.test(sv)) utype = sv;\n" +
@@ -468,7 +469,8 @@ public class EmisBrowserPlugin extends Plugin {
                 "              if (!auth && jwtRe.test(raw)) auth = 'Bearer ' + raw.match(jwtRe)[0];\n" +
                 "              var lk = k.toLowerCase().replace(/[_-]/g, '');\n" +
                 "              var cv = raw.replace(/^[\"']|[\"']$/g, '');\n" +
-                "              if (!scode && (lk.indexOf('schoolcode') !== -1 || lk === 'schoolid' || lk === 'sc' || lk === 'school_code') && /^\\d{4,12}$/.test(cv)) scode = cv;\n" +
+                "              if ((lk.indexOf('schoolcode') !== -1 || lk === 'schcode' || lk === 'sc' || lk === 'school_code') && /^\\d{6,12}$/.test(cv)) scode = cv;\n" +
+                "              else if (!scode && lk === 'schoolid' && /^\\d{4,12}$/.test(cv)) scode = cv;\n" +
                 "              if (!sname && (lk.indexOf('schoolname') !== -1 || lk === 'arabicschoolname') && cv.length >= 3 && !/^\\d+$/.test(cv)) sname = cv;\n" +
                 "              if (!sstage && (lk.indexOf('schoolstage') !== -1 || lk.indexOf('stagecode') !== -1 || lk === 'stageid') && /^\\d{1,3}$/.test(cv)) sstage = cv;\n" +
                 "              if (raw.charAt(0) === '{' || raw.charAt(0) === '[') { try { scanObj(JSON.parse(raw), 0); } catch(_) {} }\n" +
@@ -488,9 +490,9 @@ public class EmisBrowserPlugin extends Plugin {
                 "          var domNodes = document.querySelectorAll('.badge, .badge-pill, header span, header div, nav span, nav div, .navbar span, .navbar div, b, strong, h1, h2, h3, h4, p, label, a, .dropdown-menu, .dropdown-item');\n" +
                 "          for (var di = 0; di < domNodes.length; di++) {\n" +
                 "            var dt = (domNodes[di].textContent || '').trim();\n" +
-                "            if (!scode) {\n" +
-                "              var mSc = normArD(dt).match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || normArD(dt).match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([0-9]{4,12})/);\n" +
-                "              if (mSc) scode = mSc[1];\n" +
+                "            if (!scode || scode.length < 7) {\n" +
+                "              var mSc = normArD(dt).match(/([0-9]{6,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || normArD(dt).match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي|الرقم\\s*المسلسل)\\s*[:\\-]?\\s*([0-9]{6,12})/);\n" +
+                "              if (mSc && mSc[1] !== '0') scode = mSc[1];\n" +
                 "            }\n" +
                 "            if (!sname) {\n" +
                 "              var mSn = dt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);\n" +
@@ -569,7 +571,7 @@ public class EmisBrowserPlugin extends Plugin {
     }
 
     public boolean canGoBack() {
-        return emisWebView != null && emisWebView.canGoBack();
+        return isVisible && emisWebView != null && emisWebView.canGoBack();
     }
 
     @PluginMethod

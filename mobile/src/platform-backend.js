@@ -35,9 +35,12 @@
       const lk = String(h.name).toLowerCase().replace(/[_-]/g, "");
       const val = String(h.value || "").trim();
       if (!val) continue;
-      if ((lk === "schoolcode" || lk === "sc" || lk === "schoolid" || lk === "schcode") && /^\d{4,12}$/.test(norm(val))) {
-        schoolCode = norm(val);
-      } else if ((lk === "schoolname" || lk === "arabicschoolname") && val.length >= 3 && !/^\d+$/.test(val)) {
+      const nVal = norm(val);
+      if ((lk === "schoolcode" || lk === "sc" || lk === "schcode" || lk === "school_code") && /^\d{6,12}$/.test(nVal)) {
+        schoolCode = nVal;
+      } else if (!schoolCode && lk === "schoolid" && /^\d{4,12}$/.test(nVal)) {
+        schoolCode = nVal;
+      } else if ((lk === "schoolname" || lk === "arabicschoolname" || lk === "school_name") && val.length >= 3 && !/^\d+$/.test(val)) {
         schoolName = val;
       } else if (lk === "authorization") {
         authVal = val;
@@ -52,8 +55,13 @@
           const pad = b64 + "===".slice((b64.length + 3) % 4);
           const claims = JSON.parse(decodeURIComponent(escape(atob(pad))));
           if (claims && typeof claims === "object") {
-            const candCode = norm(claims.schoolcode || claims.SchoolCode || claims.school_code || claims.sc || claims.SchoolId || claims.schoolId || claims.school_id || "");
-            if (!schoolCode && /^\d{4,12}$/.test(candCode)) schoolCode = candCode;
+            const candOfficial = norm(claims.schoolcode || claims.SchoolCode || claims.school_code || claims.sc || claims.schcode || "");
+            const candSerial = norm(claims.SchoolId || claims.schoolId || claims.school_id || "");
+            if (/^\d{6,12}$/.test(candOfficial)) {
+              schoolCode = candOfficial;
+            } else if (!schoolCode && /^\d{4,12}$/.test(candSerial)) {
+              schoolCode = candSerial;
+            }
             const candName = String(claims.schoolName || claims.SchoolName || claims.school_name || claims.ArabicSchoolName || claims.arabicSchoolName || "").trim();
             if (!schoolName && candName.length >= 3 && !/^\d+$/.test(candName)) schoolName = candName;
           }
@@ -197,8 +205,8 @@
                   for (var di = 0; di < domNodes.length; di++) {
                     var dt = (domNodes[di].textContent || "").trim();
                     if (!sc) {
-                      var mSc = norm(dt).match(/([0-9]{4,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || norm(dt).match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي)\\s*[:\\-]?\\s*([0-9]{4,12})/);
-                      if (mSc) sc = mSc[1];
+                      var mSc = norm(dt).match(/([0-9]{6,12})@[a-z0-9.]*emis\\.gov\\.eg/i) || norm(dt).match(/(?:كود\\s*(?:المدرسة|المؤسسة)|الرقم\\s*التعريفي|الرقم\\s*المسلسل)\\s*[:\\-]?\\s*([0-9]{6,12})/);
+                      if (mSc && mSc[1] !== "0") sc = mSc[1];
                     }
                     if (!sn) {
                       var mSn = dt.match(/(?:اسم\\s*المدرسة|المدرسة)\\s*[:\\-]?\\s*([^\\n\\r<>|•]+)/);
@@ -449,6 +457,18 @@
     });
   }
 
+  function areSchoolNamesMatching(nameA, nameB) {
+    if (!nameA || !nameB) return false;
+    const clean = (s) => String(s || "")
+      .replace(/مدرسة|الشهيد|بنين|بنات|المشتركة|الرسمية|للغات|الخاصة|ع|ث|ب|إعدادية|ثانوية|ابتدائية/g, "")
+      .replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+      .replace(/\s+/g, "").trim();
+    const cA = clean(nameA);
+    const cB = clean(nameB);
+    if (!cA || !cB) return false;
+    return cA === cB || cA.includes(cB) || cB.includes(cA);
+  }
+
   function normalizeSchoolCode(raw) {
     const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
     const str = String(raw || "")
@@ -476,6 +496,35 @@
         expiresAt: 0,
         message: "سجّل الدخول بحساب مدرستك لالتقاط كود المدرسة تلقائياً، أو أدخل كود المدرسة أدناه لتفعيل الاشتراك."
       };
+    }
+
+    // 🛡️ درع الحماية الذهبي: التحقق هل يمتلك الجهاز ترخيصاً سنوياً مفعلاً وسارياً لمدرسة بنفس الاسم أو نفس الجلسة
+    let activePaidCode = "";
+    let activePaidEntry = null;
+    if (store.schools) {
+      for (const [sCode, sEntry] of Object.entries(store.schools)) {
+        if (sEntry && String(sEntry.status || "").toUpperCase() === "ACTIVE" && Number(sEntry.expiresAt || 0) > Date.now()) {
+          activePaidCode = sCode;
+          activePaidEntry = sEntry;
+          break;
+        }
+      }
+    }
+
+    if (code && activePaidCode && code !== activePaidCode) {
+      const activeName = activePaidEntry.schoolName || "";
+      const curName = schoolName || store.schools?.[code]?.schoolName || "";
+      if (areSchoolNamesMatching(curName, activeName) || areSchoolNamesMatching(store.activeSchoolName, activeName) || (code.length <= 6 && activePaidCode.length >= 7)) {
+        store.schools = store.schools || {};
+        store.schools[code] = {
+          status: "ACTIVE",
+          startsAt: activePaidEntry.startsAt || Date.now(),
+          expiresAt: activePaidEntry.expiresAt,
+          schoolName: activePaidEntry.schoolName || curName,
+          aliasedFrom: activePaidCode
+        };
+        saveMobileLicenseStore(store);
+      }
     }
 
     const entry = store.schools?.[code];
@@ -789,16 +838,45 @@
         if (!schoolCode) return;
         const code = normalizeSchoolCode(schoolCode);
         const store = loadMobileLicenseStore();
-        store.activeSchoolCode = code;
+
+        // 🛡️ فحص درع الحماية والترخيص النشط لتفضيل الكود الرسمي وتوريث التفعيل
+        let activePaidCode = "";
+        let activePaidEntry = null;
+        if (store.schools) {
+          for (const [sCode, sEntry] of Object.entries(store.schools)) {
+            if (sEntry && String(sEntry.status || "").toUpperCase() === "ACTIVE" && Number(sEntry.expiresAt || 0) > Date.now()) {
+              activePaidCode = sCode;
+              activePaidEntry = sEntry;
+              break;
+            }
+          }
+        }
+
+        const isAlias = activePaidCode && code !== activePaidCode && (areSchoolNamesMatching(schoolName, activePaidEntry.schoolName) || (code.length <= 6 && activePaidCode.length >= 7));
+        const effectiveCode = isAlias ? activePaidCode : code;
+
+        store.activeSchoolCode = effectiveCode;
         if (schoolName) store.activeSchoolName = schoolName;
         saveMobileLicenseStore(store);
 
+        if (isAlias) {
+          store.schools = store.schools || {};
+          store.schools[code] = {
+            status: "ACTIVE",
+            startsAt: activePaidEntry.startsAt || Date.now(),
+            expiresAt: activePaidEntry.expiresAt,
+            schoolName: activePaidEntry.schoolName || schoolName,
+            aliasedFrom: activePaidCode
+          };
+          saveMobileLicenseStore(store);
+        }
+
         // 🚀 تحقق فوري وتلقائي من تفعيل المدرسة في قاعدة بيانات نبراس السحابية (Supabase)
-        checkMobileSchoolLicense({ schoolCode: code, serverUrl: store.serverUrl }).catch((err) => {
+        checkMobileSchoolLicense({ schoolCode: effectiveCode, serverUrl: store.serverUrl }).catch((err) => {
           console.warn("[Mobile License Check Auto Sync]", err);
         });
 
-        const st = getMobileLicenseStatus(code);
+        const st = getMobileLicenseStatus(effectiveCode);
         notifyLicenseUpdate(st);
         return st;
       },
