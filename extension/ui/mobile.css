@@ -6,16 +6,114 @@
 :root { --n-tabbar-h: 60px; --n-support-h: 76px; }
 
 /* الهيكل: صفحة تُمرَّر بدل نافذة ثابتة 680×600 */
-html.nepras-mobile, html.nepras-mobile body { width: 100% !important; min-width: 0 !important; max-width: 100% !important; min-height: 100% !important; height: auto !important; overflow-x: hidden !important; }
+html.nepras-mobile, html.nepras-mobile body {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-height: 100% !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
 html.nepras-mobile body {
-  min-height: 100dvh !important; overscroll-behavior-y: contain !important;
+  min-height: 100dvh !important;
+  overscroll-behavior-y: contain !important;
   padding: max(6px, env(safe-area-inset-top)) 6px calc(var(--n-tabbar-h) + 12px) !important;
 }
-html.nepras-mobile .app-shell, html.nepras-mobile .container { width: 100% !important; min-width: 0 !important; max-width: 100% !important; height: auto !important; }
+html.nepras-mobile .app-shell, html.nepras-mobile .container {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
 html.nepras-mobile .container { gap: var(--n-s2) !important; }
-html.nepras-mobile-full, html.nepras-mobile-full body { height: 100% !important; min-height: 100dvh !important; max-height: none !important; overflow-y: auto !important; overscroll-behavior-y: auto !important; -webkit-overflow-scrolling: touch; touch-action: pan-y !important; }
+html.nepras-mobile-full, html.nepras-mobile-full body {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
 html.nepras-mobile-full body { position: static !important; }
-html.nepras-mobile-full .app-shell, html.nepras-mobile-full .container { max-width: 760px !important; min-height: 0 !important; max-height: none !important; margin: 0 auto !important; overflow: visible !important; }
+html.nepras-mobile-full .app-shell, html.nepras-mobile-full .container {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}
+
+/* حل انحراف الشريط العلوي وشريط المدرسة ومرحلة الدراسة على شاشات الهاتف */
+html.nepras-mobile .n-school-profile-bar,
+html.nepras-mobile-full .n-school-profile-bar {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 8px !important;
+}
+html.nepras-mobile .n-school-profile-info,
+html.nepras-mobile-full .n-school-profile-info {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+html.nepras-mobile .n-school-profile-actions,
+html.nepras-mobile-full .n-school-profile-actions {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  box-sizing: border-box !important;
+  gap: 4px !important;
+}
+html.nepras-mobile .n-school-profile-actions button,
+html.nepras-mobile-full .n-school-profile-actions button {
+  flex: 1 1 auto !important;
+  text-align: center !important;
+}
+html.nepras-mobile .n-stage,
+html.nepras-mobile-full .n-stage {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+html.nepras-mobile .n-header,
+html.nepras-mobile-full .n-header {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 0 var(--n-s2) !important;
+}
+html.nepras-mobile .n-tools,
+html.nepras-mobile-full .n-tools {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+html.nepras-mobile .n-section,
+html.nepras-mobile-full .n-section {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
 html.nepras-mobile button, html.nepras-mobile select, html.nepras-mobile input { touch-action: manipulation; }
 html.nepras-mobile #btn-open-large-window, html.nepras-edge.nepras-mobile #btn-open-large-window { display: none !important; }
 

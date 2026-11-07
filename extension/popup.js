@@ -2324,7 +2324,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const data = await chrome.storage.local.get(["neprasSchoolStatsV1", "neprasSchoolStatsLastError", "neprasCachedStudentsList"]);
         const stats = data?.neprasSchoolStatsV1;
         const statsSchool = stats ? String(stats.schoolCode || stats.schoolKey || stats.code || "").replace(/\D/g, "") : "";
-        if (!activeCode || !statsSchool || statsSchool === activeCode) {
+        const isMatch = !activeCode || !statsSchool || statsSchool === activeCode ||
+        (globalThis.NeprasSchoolManager?.isSameSchool ? globalThis.NeprasSchoolManager.isSameSchool(statsSchool, activeCode) : false) ||
+        (statsSchool === "21024219" && activeCode === "972133") ||
+        (statsSchool === "972133" && activeCode === "21024219");
+
+      if (isMatch) {
           statsToRender = stats || null;
           studentsToCache = (Array.isArray(data?.neprasCachedStudentsList) && data.neprasCachedStudentsList.length) ? data.neprasCachedStudentsList : (stats?.detailRows || []);
         }
@@ -2362,7 +2367,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       const newStats = changes.neprasSchoolStatsV1.newValue;
       const statsSchool = newStats ? String(newStats.schoolCode || newStats.schoolKey || newStats.code || "").replace(/\D/g, "") : "";
 
-      if (!activeCode || !statsSchool || statsSchool === activeCode) {
+      const isMatch = !activeCode || !statsSchool || statsSchool === activeCode ||
+        (globalThis.NeprasSchoolManager?.isSameSchool ? globalThis.NeprasSchoolManager.isSameSchool(statsSchool, activeCode) : false) ||
+        (statsSchool === "21024219" && activeCode === "972133") ||
+        (statsSchool === "972133" && activeCode === "21024219");
+
+      if (isMatch) {
         renderSchoolStats(newStats || null);
         if (newStats?.detailRows?.length || newStats?.rows?.length) {
           const oldList = window.neprasCachedStudentsList || [];
@@ -4214,6 +4224,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (request.action === "SCHOOL_STATS_FINISHED" && request.result) {
+      const stats = request.result;
+      if (stats) {
+        renderSchoolStats(stats);
+        if (Array.isArray(stats.detailRows) && stats.detailRows.length) {
+          window.neprasCachedStudentsList = stats.detailRows;
+        }
+      }
       const total = Number(request.result.totalStudents || request.result.total || 0);
       showNeprasPopupNotice(
         `تم تحديث إحصاء المدرسة بنجاح.
@@ -4760,8 +4777,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       };
 
       if (targetCode) {
-        const data = await globalThis.NeprasSchoolManager.loadSchoolStats(targetCode);
-        const meta = await globalThis.NeprasSchoolManager.loadSchoolMeta(targetCode);
+        let data = await globalThis.NeprasSchoolManager.loadSchoolStats(targetCode);
+        let meta = await globalThis.NeprasSchoolManager.loadSchoolMeta(targetCode);
+        if ((!data || (!data.stats && (!Array.isArray(data.students) || !data.students.length))) && (targetCode === "972133" || targetCode === "21024219")) {
+          const altCode = targetCode === "972133" ? "21024219" : "972133";
+          const altData = await globalThis.NeprasSchoolManager.loadSchoolStats(altCode);
+          if (altData && (altData.stats || (Array.isArray(altData.students) && altData.students.length))) data = altData;
+          if (!meta || !meta.schoolName || /^مدرسة \d+$/.test(meta.schoolName)) {
+            const altMeta = await globalThis.NeprasSchoolManager.loadSchoolMeta(altCode);
+            if (altMeta) meta = altMeta;
+          }
+        }
 
         setMetaField("sc-meta-year", meta?.year);
         setMetaField("sc-meta-school", meta?.schoolName || meta?.school || `مدرسة ${targetCode}`);
@@ -5470,7 +5496,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const activeCode = globalThis.NeprasSchoolManager ? await globalThis.NeprasSchoolManager.getActiveCode() : "";
         const statsSchool = stats ? String(stats.schoolCode || stats.schoolKey || stats.code || "").replace(/\D/g, "") : "";
 
-        if (!activeCode || !statsSchool || statsSchool === activeCode) {
+        const isMatch = !activeCode || !statsSchool || statsSchool === activeCode ||
+        (globalThis.NeprasSchoolManager?.isSameSchool ? globalThis.NeprasSchoolManager.isSameSchool(statsSchool, activeCode) : false) ||
+        (statsSchool === "21024219" && activeCode === "972133") ||
+        (statsSchool === "972133" && activeCode === "21024219");
+
+      if (isMatch) {
           if (Array.isArray(stored?.neprasCachedStudentsList) && stored.neprasCachedStudentsList.length) {
             window.neprasCachedStudentsList = stored.neprasCachedStudentsList;
             updateSmartAnalyticsStatus();

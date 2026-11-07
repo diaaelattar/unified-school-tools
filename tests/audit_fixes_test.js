@@ -1943,5 +1943,75 @@ async function test(name, fn) {
     assert.strictEqual(mZero, null, "Must reject zero serial");
   });
 
+  // 39. NeprasSchoolManager: School code and serial auto-aliasing preserves stats across 21024219 <-> 972133
+  await test("school_manager: auto-aliasing preserves and retrieves school statistics across 21024219 <-> 972133", async () => {
+    const schoolManagerSrc = fs.readFileSync(path.resolve(__dirname, "../extension/modules/school_manager.js"), "utf8");
+    let storageData = {};
+    const scope = {
+      globalThis: {},
+      console,
+      Date,
+      Math,
+      Array,
+      Object,
+      String,
+      Number,
+      Boolean,
+      RegExp,
+      JSON,
+      chrome: {
+        storage: {
+          local: {
+            get: (keys, cb) => {
+              const res = {};
+              const arr = Array.isArray(keys) ? keys : [keys];
+              arr.forEach(k => { if (storageData[k] !== undefined) res[k] = storageData[k]; });
+              cb ? cb(res) : Promise.resolve(res);
+            },
+            set: (obj, cb) => {
+              Object.assign(storageData, obj);
+              cb ? cb() : Promise.resolve();
+            }
+          }
+        }
+      }
+    };
+    scope.globalThis = scope;
+    vm.createContext(scope);
+    vm.runInContext(schoolManagerSrc, scope);
+
+    const sm = scope.NeprasSchoolManager;
+    assert(sm, "NeprasSchoolManager must be defined");
+    assert.strictEqual(sm.isSameSchool("972133", "21024219"), true, "972133 and 21024219 must be recognized as the same school");
+    assert.strictEqual(sm.resolveSchoolAlias("972133"), "21024219", "972133 must resolve to canonical code 21024219");
+
+    // Save school stats under official code 21024219
+    const sampleStats = {
+      schoolName: "الشهيد محمد سليمان سلامة ع بنين",
+      total: 567,
+      boys: 567,
+      girls: 0,
+      classes: 12,
+      grades: [{ grade: "الصف الأول الإعدادي", total: 189 }]
+    };
+    const sampleStudents = [{ studentCode: "101", fullName: "أحمد علي" }];
+
+    await sm.setActiveCode("972133");
+    await sm.saveSchoolStats("21024219", sampleStats, sampleStudents);
+
+    // Global indicators must be populated even though active code was internal serial 972133
+    assert.strictEqual(storageData.neprasSchoolStatsV1?.total, 567, "Global neprasSchoolStatsV1 must be updated via alias match");
+
+    // Querying by serial 972133 must retrieve stats saved under 21024219
+    const loadedFromSerial = await sm.loadSchoolStats("972133");
+    assert(loadedFromSerial && loadedFromSerial.stats, "Must load stats when queried by serial 972133");
+    assert.strictEqual(loadedFromSerial.stats.total, 567, "Total students must be 567");
+
+    // Querying by official code 21024219 must also retrieve the exact same stats
+    const loadedFromOfficial = await sm.loadSchoolStats("21024219");
+    assert(loadedFromOfficial && loadedFromOfficial.stats, "Must load stats when queried by official code 21024219");
+    assert.strictEqual(loadedFromOfficial.stats.total, 567, "Total students must be 567");
+  });
+
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);
 })();

@@ -1001,6 +1001,13 @@ body.plat-android .panel-drawer {
   display: flex !important;
   flex-direction: column !important;
   background: #ffffff !important;
+  overflow: hidden !important;
+}
+body.plat-android #panel-frame {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
 }
 body.plat-android .drawer-header {
   display: none !important;

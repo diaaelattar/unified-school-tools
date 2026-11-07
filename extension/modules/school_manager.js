@@ -11,6 +11,12 @@
   const REGISTRY_STORAGE_KEY = 'nepras_schools_registry_v1';
   const ACTIVE_CODE_STORAGE_KEY = 'nepras_active_school_code_v1';
 
+  // جدول الربط بين الأكواد المتناظرة لنفس المدرسة (الرقم المسلسل الداخلي vs كود المدرسة القومي)
+  const KNOWN_SCHOOL_ALIASES = {
+    '972133': '21024219',
+    '21024219': '21024219'
+  };
+
   function cleanCode(code) {
     if (!code) return '';
     const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
@@ -18,6 +24,20 @@
       .replace(/[٠-٩]/g, (d) => String(arabicDigits.indexOf(d)))
       .trim();
     return str.replace(/\D/g, '');
+  }
+
+  function resolveSchoolAlias(code) {
+    const c = cleanCode(code);
+    if (!c) return '';
+    return KNOWN_SCHOOL_ALIASES[c] || c;
+  }
+
+  function isSameSchool(codeA, codeB) {
+    const ca = cleanCode(codeA);
+    const cb = cleanCode(codeB);
+    if (!ca || !cb) return false;
+    if (ca === cb) return true;
+    return resolveSchoolAlias(ca) === resolveSchoolAlias(cb);
   }
 
   function getStorage(keys) {
@@ -232,15 +252,19 @@
    * حفظ بيانات ترويسة المدرسة الرسمية لكل كود بشكل معزول
    */
   async function saveSchoolMeta(code, meta) {
-    const c = cleanCode(code) || (await getActiveCode());
-    if (!c) {
+    const rawC = cleanCode(code) || (await getActiveCode());
+    if (!rawC) {
       await setStorage({ nepras_report_header_meta: meta });
       return;
     }
+    const c = resolveSchoolAlias(rawC);
     const key = scopedKey(c, 'meta');
     const active = await getActiveCode();
     const toStore = { [key]: meta };
-    if (!active || active === c) {
+    if (rawC !== c) {
+      toStore[scopedKey(rawC, 'meta')] = meta;
+    }
+    if (!active || isSameSchool(active, c)) {
       toStore.nepras_report_header_meta = meta;
     }
     await setStorage(toStore);
@@ -260,24 +284,27 @@
    * قراءة بيانات ترويسة المدرسة لكود معين
    */
   async function loadSchoolMeta(code) {
-    const c = cleanCode(code) || (await getActiveCode());
-    if (!c) {
+    const rawC = cleanCode(code) || (await getActiveCode());
+    if (!rawC) {
       const data = await getStorage('nepras_report_header_meta');
       return data?.nepras_report_header_meta || null;
     }
+    const c = resolveSchoolAlias(rawC);
     const key = scopedKey(c, 'meta');
-    const data = await getStorage([key, 'nepras_report_header_meta']);
+    const rawKey = scopedKey(rawC, 'meta');
+    const data = await getStorage([key, rawKey, 'nepras_report_header_meta']);
     if (data?.[key]) return data[key];
+    if (data?.[rawKey]) return data[rawKey];
 
     // إذا لم توجد ترويسة مخصصة بعد، تحقق أولاً من أن الترويسة العامة تخص نفس المدرسة
     const globalMeta = data?.nepras_report_header_meta;
-    if (globalMeta && cleanCode(globalMeta.schoolCode || globalMeta.schoolKey || globalMeta.code) === c) {
+    if (globalMeta && isSameSchool(globalMeta.schoolCode || globalMeta.schoolKey || globalMeta.code, c)) {
       return globalMeta;
     }
 
     // وإلا قم ببناء ترويسة نظيفة من بيانات المدرسة المسجلة في الفهرس
     const schools = await getSchoolsList();
-    const profile = schools.find((s) => s.code === c);
+    const profile = schools.find((s) => isSameSchool(s.code, c));
     if (profile) {
       return {
         schoolName: profile.name,
@@ -298,8 +325,9 @@
    * حفظ إحصاء وطلاب المدرسة بشكل معزول
    */
   async function saveSchoolStats(code, statsResult, studentsList) {
-    const c = cleanCode(code) || (await getActiveCode());
-    if (!c) return;
+    const rawC = cleanCode(code) || (await getActiveCode());
+    if (!rawC) return;
+    const c = resolveSchoolAlias(rawC);
 
     const statsKey = scopedKey(c, 'stats');
     const studentsKey = scopedKey(c, 'students');
@@ -310,9 +338,13 @@
       [studentsKey]: studentsList
     };
 
-    // نحدّث المؤشرات العالمية فقط إذا كانت هذه هي المدرسة المعروضة حالياً
-    // لمنع أي سحب في الخلفية من مسح بيانات المدرسة المفتوحة للمستخدم
-    if (!active || active === c) {
+    if (rawC !== c) {
+      toStore[scopedKey(rawC, 'stats')] = statsResult;
+      toStore[scopedKey(rawC, 'students')] = studentsList;
+    }
+
+    // نحدّث المؤشرات العالمية إذا كانت هذه هي المدرسة المعروضة حالياً أو متطابقة بالاسم المستعار
+    if (!active || isSameSchool(active, c)) {
       toStore.neprasSchoolStatsV1 = statsResult;
       toStore.neprasCachedStudentsList = studentsList;
     }
@@ -347,24 +379,32 @@
    * قراءة إحصاء وطلاب المدرسة لكود معين مع العزل الصارم
    */
   async function loadSchoolStats(code) {
-    const c = cleanCode(code) || (await getActiveCode());
-    if (!c) {
+    const rawC = cleanCode(code) || (await getActiveCode());
+    if (!rawC) {
       const def = await getStorage(['neprasSchoolStatsV1', 'neprasCachedStudentsList']);
       return {
         stats: def?.neprasSchoolStatsV1 || null,
         students: def?.neprasCachedStudentsList || []
       };
     }
+    const c = resolveSchoolAlias(rawC);
 
     const statsKey = scopedKey(c, 'stats');
     const studentsKey = scopedKey(c, 'students');
-    const data = await getStorage([statsKey, studentsKey, 'neprasSchoolStatsV1', 'neprasCachedStudentsList']);
+    const rawStatsKey = scopedKey(rawC, 'stats');
+    const rawStudentsKey = scopedKey(rawC, 'students');
 
-    let stats = data?.[statsKey];
-    let students = data?.[studentsKey];
+    const data = await getStorage([
+      statsKey, studentsKey,
+      rawStatsKey, rawStudentsKey,
+      'neprasSchoolStatsV1', 'neprasCachedStudentsList'
+    ]);
+
+    let stats = data?.[statsKey] || data?.[rawStatsKey];
+    let students = data?.[studentsKey] || data?.[rawStudentsKey];
 
     const fallbackStats = data?.neprasSchoolStatsV1;
-    const fallbackMatches = fallbackStats && (cleanCode(fallbackStats.schoolCode || fallbackStats.schoolKey || fallbackStats.code) === c);
+    const fallbackMatches = fallbackStats && isSameSchool(fallbackStats.schoolCode || fallbackStats.schoolKey || fallbackStats.code, c);
 
     if (!stats && fallbackMatches) stats = fallbackStats;
     if ((!students || !students.length) && fallbackMatches && Array.isArray(data?.neprasCachedStudentsList)) {
@@ -374,7 +414,7 @@
     // استرجاع فوري من لقطات قاعدة البيانات المحلية NeprasLocalDB إن لم تتوافر
     if ((!stats || !students || !students.length) && global.NeprasLocalDB?.getLatestSnapshot) {
       try {
-        const snap = await global.NeprasLocalDB.getLatestSnapshot(c);
+        const snap = (await global.NeprasLocalDB.getLatestSnapshot(c)) || (await global.NeprasLocalDB.getLatestSnapshot(rawC));
         if (snap) {
           if (!stats && snap.stats) stats = snap.stats;
           if ((!students || !students.length) && Array.isArray(snap.students) && snap.students.length) {
@@ -586,6 +626,8 @@
 
   global.NeprasSchoolManager = Object.freeze({
     cleanCode,
+    resolveSchoolAlias,
+    isSameSchool,
     getSchoolsList,
     getActiveCode,
     setActiveCode,

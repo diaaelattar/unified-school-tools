@@ -99,6 +99,34 @@ html.large-window-mode .n-section__body .student-workspace { grid-template-colum
 .att-upload .att-row { margin-top: var(--n-s2); }
 .att-open { padding-top: var(--n-s2); border-top: 1px dashed var(--n-line); }
 
+/* شريط اختيار وإدارة ملف المدرسة المستقل */
+.n-school-profile-bar {
+  width: 100%;
+  margin-bottom: var(--n-s2);
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-r-md);
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--n-s2);
+  box-sizing: border-box;
+}
+.n-school-profile-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.n-school-profile-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
 /* ==========================================================================
    صف الأدوات داخل المحتوى: المرحلة الدراسية (تظهر حيث تلزم) + البحث السريع — سطر واحد بدل بطاقتين
    ========================================================================== */
