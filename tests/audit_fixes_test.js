@@ -1360,7 +1360,7 @@ async function test(name, fn) {
     assert.ok(hostCss.includes(".panel-header-bar"), "host.css must define .panel-header-bar to prevent button overlapping");
 
     const hostHtml = fs.readFileSync(path.join(__dirname, "../shared/host.html"), "utf8");
-    assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.4</span>'), "host.html must display version v1.3.4");
+    assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.41</span>'), "host.html must display version v1.3.41");
   });
 
   // 30. Name Fixer Dual-Mode (Name Cleaning vs Extra-Only) Tests
@@ -1568,18 +1568,18 @@ async function test(name, fn) {
     assert.strictEqual(writtenEntries.length, 1, "Must bridge log entry to window.parent.nepDesktop.writeLog");
   });
 
-  await test("Cross-platform version synchronization: all manifests and packages are unified at 1.3.4", () => {
+  await test("Cross-platform version synchronization: all manifests and packages are unified at 1.3.41", () => {
     const rootPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
     const extManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../extension/manifest.json"), "utf8"));
     const deskPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../desktop/package.json"), "utf8"));
     const mobPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../mobile/package.json"), "utf8"));
     const gradleTxt = fs.readFileSync(path.resolve(__dirname, "../mobile/android/app/build.gradle"), "utf8");
 
-    assert.strictEqual(rootPkg.version, "1.3.4");
-    assert.strictEqual(extManifest.version, "1.3.4");
-    assert.strictEqual(deskPkg.version, "1.3.4");
-    assert.strictEqual(mobPkg.version, "1.3.4");
-    assert(gradleTxt.includes('versionName "1.3.4"'), "Android build.gradle must have versionName 1.3.4");
+    assert.strictEqual(rootPkg.version, "1.3.41");
+    assert.strictEqual(extManifest.version, "1.3.41");
+    assert.strictEqual(deskPkg.version, "1.3.41");
+    assert.strictEqual(mobPkg.version, "1.3.41");
+    assert(gradleTxt.includes('versionName "1.3.41"'), "Android build.gradle must have versionName 1.3.41");
     assert(!extManifest.permissions.includes("downloads.open"), "Invalid downloads.open permission must not exist in manifest.json");
   });
 

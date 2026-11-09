@@ -224,6 +224,84 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // معالجات الاشتراك السنوي وتنويه الدعم ونافذة الاشتراك (مطابقة لتطبيق سطح المكتب)
+  const supportModal = document.getElementById("nepras-support-modal");
+  const btnSupportProject = document.getElementById("btn-support-project");
+  const btnMenuSupport = document.getElementById("btn-menu-support");
+  const btnBannerOpenModal = document.getElementById("btn-banner-open-modal");
+  const btnCloseSupport = document.getElementById("btn-close-support-modal");
+  const btnDismissSupport = document.getElementById("btn-dismiss-support");
+  const btnCopyModalPhone = document.getElementById("btn-copy-support-number");
+  const btnBannerCopyPhone = document.getElementById("btn-banner-copy-phone");
+  const btnDismissSubBanner = document.getElementById("btn-dismiss-sub-banner");
+  const neprasSubBanner = document.getElementById("nepras-sub-banner");
+
+  const openSupportModal = () => {
+    if (supportModal) {
+      supportModal.classList.remove("hidden");
+      supportModal.removeAttribute("hidden");
+    }
+  };
+  const closeSupportModal = () => {
+    if (supportModal) {
+      supportModal.classList.add("hidden");
+      supportModal.setAttribute("hidden", "");
+    }
+  };
+
+  if (btnSupportProject) btnSupportProject.addEventListener("click", openSupportModal);
+  if (btnMenuSupport) btnMenuSupport.addEventListener("click", openSupportModal);
+  if (btnBannerOpenModal) btnBannerOpenModal.addEventListener("click", openSupportModal);
+  if (btnCloseSupport) btnCloseSupport.addEventListener("click", closeSupportModal);
+  if (btnDismissSupport) btnDismissSupport.addEventListener("click", closeSupportModal);
+  if (supportModal) {
+    supportModal.addEventListener("click", (e) => {
+      if (e.target === supportModal) closeSupportModal();
+    });
+  }
+
+  const copyPhoneGeneric = async (btn) => {
+    const phone = "01118209309";
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(phone);
+      } else {
+        const input = document.createElement("input");
+        input.value = phone;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = "✅ تم النسخ!";
+        setTimeout(() => { btn.textContent = orig; }, 2500);
+      }
+      showNeprasPopupNotice("تم نسخ رقم الاشتراك (01118209309) بنجاح 🌸", "success", "نسخ الرقم");
+    } catch (_) {
+      showNeprasPopupNotice("رقم فودافون كاش / إنستاباي: 01118209309", "info", "رقم الاشتراك");
+    }
+  };
+
+  if (btnCopyModalPhone) {
+    btnCopyModalPhone.addEventListener("click", () => copyPhoneGeneric(btnCopyModalPhone));
+  }
+  if (btnBannerCopyPhone) {
+    btnBannerCopyPhone.addEventListener("click", () => copyPhoneGeneric(btnBannerCopyPhone));
+  }
+  if (btnDismissSubBanner && neprasSubBanner) {
+    btnDismissSubBanner.addEventListener("click", () => {
+      neprasSubBanner.style.display = "none";
+      try { sessionStorage.setItem("nepras_dismiss_sub_banner", "1"); } catch (_) {}
+    });
+    try {
+      if (sessionStorage.getItem("nepras_dismiss_sub_banner") === "1") {
+        neprasSubBanner.style.display = "none";
+      }
+    } catch (_) {}
+  }
+
   const btnExportDiagnostics = document.getElementById("btn-export-diagnostics");
   if (btnExportDiagnostics) {
     btnExportDiagnostics.addEventListener("click", () => {

@@ -118,6 +118,8 @@ test('إصلاح تسجيل الغياب الكامل: أولوية زر عرض 
   assert(attendanceCode.includes('neprasAttendanceFillAllClassDaysWithScroll'), 'يجب استخدام التمرير التكراري لضمان تسجيل كل طلاب الفصل');
   assert(attendanceCode.includes('neprasAttendanceWaitForTableLoad'), 'يجب الانتظار الذكي لاكتمال تحميل جدول الفصل قبل الحفظ');
   assert(attendanceCode.includes('neprasAttendanceShuffleArray'), 'يجب استخدام خوارزمية خلط عشوائي حقيقية لتوزيع الغياب العشوائي');
+  assert(!attendanceCode.includes('o => o.value && o.value !== "0" && !opt.text'), 'يجب ألا يحتوي كود تحميل الفصول على متغير غير معرف');
+  assert(attendanceCode.includes('state.classLoadAttempts'), 'يجب دعم محاولات الانتظار الذكي للفصول وعدم التعليق في مرحلة تجهيز الفصول');
 });
 
 // 6. فحص إحصائيات الثانوي العام المفصلة (مسارات وشعب ونظام التعليم والنوع)

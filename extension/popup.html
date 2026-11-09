@@ -26,12 +26,16 @@
 <div class="n-header__title"><b>نبراس</b></div>
 <span class="n-status site-waiting" id="nepras-site-status" role="status" aria-live="polite"><i class="n-status__dot" aria-hidden="true"></i><span class="n-status__label">انتظار موقع الوزارة</span></span>
 <span class="n-header__spacer"></span>
+<button class="n-btn n-btn--secondary n-btn--sm support-btn" id="btn-support-project" title="المساهمة في دعم وتطوير نبراس من خلال الاشتراك السنوي للمدرسة (30 جنيهاً سنوياً)" type="button" style="background:linear-gradient(135deg, #fdf2f8, #fce7f3);border-color:#fbcfe8;color:#be185d;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;font-size:11px;">
+<span style="font-size:12px;">⭐</span><span class="n-btn__label">الاشتراك السنوي</span>
+</button>
 <button class="n-btn n-btn--secondary n-btn--sm" id="btn-stop-active" title="إيقاف العملية الحالية" type="button" hidden><i data-icon="stop"></i><span class="n-btn__label">إيقاف العملية الجارية</span></button>
 <button class="n-btn n-btn--ghost n-btn--icon" id="btn-command-search" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="n-command-bar" title="بحث في الأدوات" aria-label="بحث في الأدوات"><i data-icon="search"></i></button>
 <button class="n-btn n-btn--ghost n-btn--icon n-header__close" id="btn-close-popup" type="button" title="إغلاق" aria-label="إغلاق النافذة"><i data-icon="close"></i></button>
 <div class="n-menu" id="n-menu">
 <button class="n-btn n-btn--ghost n-btn--icon" id="btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="n-menu-list" aria-label="المزيد من الخيارات" title="المزيد"><i data-icon="more"></i></button>
 <div class="n-menu__list" id="n-menu-list" role="menu" aria-labelledby="btn-menu" hidden>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-menu-support" type="button" style="color:#be185d;font-weight:700;"><span style="font-size:13px;">⭐</span><span class="n-btn__label">الاشتراك السنوي لدعم وتطوير نبراس</span></button>
 <button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-open-large-window" type="button" title="فتح الأداة في نافذة كبيرة مستقلة"><i data-icon="window"></i><span class="n-btn__label">فتح نافذة أكبر</span></button>
 <button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-toggle-keep-open" type="button" title="تفعيل بقاء الأداة نشطة ومفتوحة بعد تنفيذ المهام"><i data-icon="check"></i><span class="n-btn__label" id="lbl-toggle-keep-open">إبقاء الأداة نشطة دائماً</span></button>
 <button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-copy-enabler" type="button" title="تفعيل النسخ وتجاوز حظر التحديد في صفحة الوزارة"><i data-icon="edit"></i><span class="n-btn__label">تفعيل النسخ والتحديد</span></button>
@@ -91,6 +95,33 @@
     <button class="n-btn n-btn--ghost n-btn--sm" id="btn-remove-school-profile" type="button" title="حذف المدرسة المحددة من السجل المحفوظ" style="padding:4px 7px;font-size:11px;color:#ef4444;" hidden>
       <i data-icon="trash"></i> حذف
     </button>
+  </div>
+</div>
+<div class="support-contribution-card" id="nepras-sub-banner" style="margin-bottom:8px;padding:9px 12px;background:linear-gradient(135deg, #fdf2f8, #fce7f3);border:1px solid #fbcfe8;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#831843;">
+      <span>⭐</span>
+      <span>تنويه: الاشتراك السنوي لدعم وتطوير نبراس</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <button type="button" id="btn-banner-open-modal" class="n-btn n-btn--ghost n-btn--sm" style="padding:2px 7px;font-size:11px;color:#be185d;font-weight:700;" title="عرض التفاصيل الكاملة للاشتراك">
+        التفاصيل 🔍
+      </button>
+      <button type="button" id="btn-dismiss-sub-banner" class="n-btn n-btn--ghost n-btn--sm n-btn--icon" style="color:#9d174d;font-size:13px;width:20px;height:20px;padding:0;" title="إخفاء التنويه مؤقتاً">✕</button>
+    </div>
+  </div>
+  <div style="font-size:11px;color:#475569;line-height:1.5;margin-bottom:7px;">
+    للمساهمة في استمرار وتطوير تطبيقات نبراس وتغطية تكاليف السيرفرات، يسعدنا دعوتكم للاشتراك السنوي الرمزي للمدرسة (<b>30 جنيهاً فقط في العام الدراسي الواحد</b>) ليعمل التطبيق على جميع أجهزة حاسب وهواتف المدرسة دون قيود.
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+    <div style="display:flex;align-items:center;gap:6px;background:#ffffff;padding:3px 8px;border-radius:6px;border:1px dashed #f472b6;">
+      <span style="font-size:10.5px;font-weight:700;color:#0f172a;">فودافون كاش / إنستاباي:</span>
+      <b dir="ltr" style="font-size:12px;color:#be185d;font-family:monospace;" id="banner-phone-val">01118209309</b>
+      <button type="button" class="n-btn n-btn--secondary n-btn--sm" id="btn-banner-copy-phone" style="padding:2px 7px;font-size:10px;">📋 نسخ</button>
+    </div>
+    <a href="https://wa.me/201118209309?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%AA%D9%81%D8%B9%D9%8A%D9%84%20%D8%A7%D9%84%D8%A7%D8%B4%D8%AA%D8%B1%D8%A7%D9%83%20%D8%A7%D9%84%D8%B3%D9%86%D9%88%D9%8A%20%D9%84%D9%85%D8%AF%D8%B1%D8%B3%D8%AA%D9%8A%20%D9%81%D9%8A%20%D9%86%D8%A8%D8%B1%D8%A7%D8%B3" target="_blank" rel="noopener noreferrer" class="n-btn n-btn--primary n-btn--sm" style="background:#25d366;border-color:#25d366;font-size:11px;padding:3px 10px;text-decoration:none;">
+      💬 تفعيل الاشتراك عبر واتساب
+    </a>
   </div>
 </div>
 <div id="n-login-banner" class="n-notice n-notice--info" style="display:none;margin-bottom:8px;padding:8px 10px;">
@@ -1512,6 +1543,51 @@
   </div>
 </section>
 
+
+<!-- Modal: Annual Subscription Invitation & Support -->
+<div id="nepras-support-modal" class="nep-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
+  <div class="nep-modal-card">
+    <div class="nep-modal-header">
+      <div class="nep-modal-title">
+        <span class="nep-heart-badge">⭐</span>
+        <h3 id="support-modal-title">الاشتراك السنوي لدعم وتطوير نبراس</h3>
+      </div>
+      <button type="button" id="btn-close-support-modal" class="nep-modal-close" title="إغلاق">&times;</button>
+    </div>
+    <div class="nep-modal-body">
+      <p class="nep-support-greeting">
+        زملائنا وأحباءنا من المعلمين وإداريي شئون الطلاب الأفاضل،
+      </p>
+      <p class="nep-support-text">
+        للمساهمة في استمرار وتطوير تطبيقات نبراس وتغطية تكاليف الخوادم السحابية، يسعدنا دعوتكم للاشتراك السنوي الرمزي للمدرسة (<b>30 جنيهاً فقط في العام الدراسي الواحد</b>) ليعمل التطبيق على جميع أجهزة المدرسة دون قيود.
+      </p>
+      
+      <div class="nep-sub-features-list" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;line-height:1.8;">
+        <div>✅ <b>ترخيص مدرسي شامل:</b> يربط بكود المدرسة الرسمي ويعمل على كل أجهزة حاسب المدرسة.</div>
+        <div>✅ <b>تحديثات وتطوير مستمر:</b> ميزات دورية فورية وتقارير وإحصائيات متوافقة مع أحدث قرارات الوزارة.</div>
+        <div>✅ <b>دعم فني سريع ومباشر:</b> أولوية في المساعدة والاستجابة الفورية عبر واتساب.</div>
+      </div>
+
+      <div class="nep-support-box">
+        <div class="nep-support-label">قيمة الاشتراك: 30 جنيهاً سنوياً عبر فودافون كاش أو إنستاباي:</div>
+        <div class="nep-support-row">
+          <span class="nep-support-number" id="support-phone-val" dir="ltr">01118209309</span>
+          <button type="button" id="btn-copy-support-number" class="nep-copy-btn">📋 نسخ الرقم</button>
+        </div>
+      </div>
+
+      <p class="nep-support-thanks" style="font-size:11px;color:#64748b;margin:0;">
+        📌 بعد التحويل، يرجى إرسال كود المدرسة على واتساب (01118209309) لاستلام مفتاح التفعيل الفوري. مساهمتكم بالاشتراك السنوي تُمكّننا من مواصلة تقديم أفضل الأدوات لكم.
+      </p>
+    </div>
+    <div class="nep-modal-footer">
+      <a href="https://wa.me/201118209309?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%AA%D9%81%D8%B9%D9%8A%D9%84%20%D8%A7%D9%84%D8%A7%D8%B4%D8%AA%D8%B1%D8%A7%D9%83%20%D8%A7%D9%84%D8%B3%D9%86%D9%88%D9%8A%20%D9%84%D9%85%D8%AF%D8%B1%D8%B3%D8%AA%D9%8A%20%D9%81%D9%8A%20%D9%86%D8%A8%D8%B1%D8%A7%D8%B3" target="_blank" rel="noopener noreferrer" class="nep-btn-whatsapp">
+        💬 تفعيل الاشتراك عبر واتساب
+      </a>
+      <button type="button" id="btn-dismiss-support" class="nep-btn-secondary">سأشترك لاحقاً</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

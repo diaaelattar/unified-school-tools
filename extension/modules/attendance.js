@@ -957,6 +957,17 @@ function clickButtonSafely(element) {
 function triggerSelectChange(selectElem, val) {
   if (!selectElem) return;
   selectElem.value = val;
+  try {
+    if (selectElem.options && selectElem.options.length) {
+      for (let i = 0; i < selectElem.options.length; i++) {
+        if (String(selectElem.options[i].value) === String(val)) {
+          selectElem.selectedIndex = i;
+          selectElem.options[i].selected = true;
+          break;
+        }
+      }
+    }
+  } catch (_) {}
   selectElem.dispatchEvent(new Event("change", { bubbles: true }));
   selectElem.dispatchEvent(new Event("input", { bubbles: true }));
   if (window.jQuery) {
@@ -3678,6 +3689,7 @@ async function neprasAttendanceProcessStepCore() {
         const gradeSelect = getGradeSelect();
         const targetGrade = state.grades[state.currentGradeIdx];
         if (gradeSelect && targetGrade) triggerSelectChange(gradeSelect, targetGrade.val);
+        state.classLoadAttempts = 0;
         state.phase = "تحميل_قائمة_الفصول";
         state.nextActionTime = Date.now() + 1200;
       }
@@ -3685,13 +3697,29 @@ async function neprasAttendanceProcessStepCore() {
     else if (state.phase === "تحميل_قائمة_الفصول") {
       const classSelect = getClassSelect();
       if (classSelect && classSelect.options) {
-        const opts = Array.from(classSelect.options).filter(o => o.value && o.value !== "0" && !opt.text.includes("اختر"));
-        state.classes = opts.map(o => ({ val: o.value, text: o.text }));
-        state.currentClassIdx = 0;
-        state.phase = "اختيار_الفصل";
-        state.nextActionTime = Date.now() + 600;
+        const opts = Array.from(classSelect.options).filter(o => o.value && o.value !== "0" && !(o.text || "").includes("اختر"));
+        state.classLoadAttempts = Number(state.classLoadAttempts || 0) + 1;
+        // إذا لم تكتمل استجابة الخادم/AJAX لقائمة الفصول، ننتظر حتى 6 محاولات ذكية
+        if (opts.length === 0 && state.classLoadAttempts < 6) {
+          state.nextActionTime = Date.now() + 800;
+        } else {
+          state.classLoadAttempts = 0;
+          state.classes = opts.map(o => ({ val: o.value, text: (o.text || "").trim() }));
+          state.currentClassIdx = 0;
+          state.phase = "اختيار_الفصل";
+          state.nextActionTime = Date.now() + 600;
+        }
       } else {
-        state.nextActionTime = Date.now() + 1000;
+        state.classLoadAttempts = Number(state.classLoadAttempts || 0) + 1;
+        if (state.classLoadAttempts < 6) {
+          state.nextActionTime = Date.now() + 1000;
+        } else {
+          state.classLoadAttempts = 0;
+          state.classes = [];
+          state.currentClassIdx = 0;
+          state.phase = "اختيار_الفصل";
+          state.nextActionTime = Date.now() + 600;
+        }
       }
     }
     else if (state.phase === "اختيار_الفصل") {

@@ -394,7 +394,7 @@
     function showUpdateNotificationModal(res) {
       if (!res || !res.hasUpdate) return;
       if (latestVerEl) latestVerEl.textContent = "v" + (res.latestVersion || "");
-      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.4");
+      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.41");
       if (notesEl && res.releaseNotes) notesEl.textContent = res.releaseNotes;
 
       if (btnModalDownloadUpdate) {
