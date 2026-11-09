@@ -3316,6 +3316,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnRecordsEnrollment = document.getElementById("btn-records-enrollment");
   const btnRecordsManazel = document.getElementById("btn-records-manazel");
   const btnRecordsWorkers = document.getElementById("btn-records-workers");
+  const btnRecordsCustomEightCols = document.getElementById("btn-records-custom-eight-cols");
+  const btnStudentCustomEightCols = document.getElementById("btn-student-custom-eight-cols");
   const btnRecordsDownloadAnyTable = document.getElementById("btn-records-download-any-table");
   const btnRecordsNidCheck = document.getElementById("btn-records-nid-check");
   const inputRecordsNid = document.getElementById("input-records-nid");
@@ -3388,6 +3390,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRecordsWorkers?.addEventListener("click", () => {
     window.withButtonBusy ? window.withButtonBusy(btnRecordsWorkers, () => runRecordsAction("NEPRAS_RECORDS_WORKERS")) : runRecordsAction("NEPRAS_RECORDS_WORKERS");
+  });
+
+  btnRecordsCustomEightCols?.addEventListener("click", () => {
+    const selectedGrade = gradeSelect?.value || "";
+    window.withButtonBusy
+      ? window.withButtonBusy(btnRecordsCustomEightCols, () => runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade }))
+      : runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade });
+  });
+
+  btnStudentCustomEightCols?.addEventListener("click", () => {
+    const selectedGrade = gradeSelect?.value || "";
+    window.withButtonBusy
+      ? window.withButtonBusy(btnStudentCustomEightCols, () => runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade }))
+      : runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade });
   });
 
   // ===== استمارة الشهادة الإعدادية الإلكترونية (كشوف المسجلين والمتخلفين كاملة البيانات) =====

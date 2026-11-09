@@ -2624,6 +2624,175 @@
     }
   }
 
+  // -------------------------------------------------------------
+  // (8.1) كشف الطلاب المخصص (8 أعمدة: م - الإدارة - المدرسة - المرحلة - إسم الطالب - الكود - الصف - الرقم القومى)
+  // -------------------------------------------------------------
+  function resolveStudentStage(st, ctx) {
+    if (st && st.stage && typeof st.stage === 'string' && st.stage.trim()) return st.stage.trim();
+    if (st && st.stageName && typeof st.stageName === 'string' && st.stageName.trim()) return st.stageName.trim();
+    const grade = String((st && (st.grade || st.gradeName || st['الصف'])) || '').trim();
+    if (/ابتدائي/i.test(grade)) return 'المرحلة الابتدائية';
+    if (/إعدادي|اعدادي/i.test(grade)) return 'المرحلة الإعدادية';
+    if (/ثانوي\s*عام|ثانوية\s*عامة/i.test(grade)) return 'المرحلة الثانوية';
+    if (/ثانوي|فني|صناعي|تجاري|زراعي|فندقي/i.test(grade)) return 'التعليم الفني';
+    if (/رياض|روضة|kg/i.test(grade)) return 'رياض الأطفال';
+
+    const ctxStage = String((ctx && ctx.stage) || '').toUpperCase();
+    if (ctxStage === 'PRIMARY') return 'المرحلة الابتدائية';
+    if (ctxStage === 'PREP') return 'المرحلة الإعدادية';
+    if (ctxStage === 'GENERAL_SECONDARY') return 'المرحلة الثانوية';
+    if (ctxStage === 'TECHNICAL_SECONDARY') return 'التعليم الفني';
+    if (ctxStage === 'KG') return 'رياض الأطفال';
+
+    const sch = String((ctx && ctx.school) || '').trim();
+    if (/ابتدائي/i.test(sch)) return 'المرحلة الابتدائية';
+    if (/إعدادي|اعدادي/i.test(sch)) return 'المرحلة الإعدادية';
+    if (/ثانوي/i.test(sch)) return 'المرحلة الثانوية';
+    if (/رياض/i.test(sch)) return 'رياض الأطفال';
+
+    return grade ? `المرحلة ${grade}` : 'المرحلة الرسمية';
+  }
+
+  async function runCustomEightColumnsExport(passedStudents = null, sortMode = 'gender_boys', options = {}) {
+    setRunning('custom_eight_columns', 'جاري إنشاء كشف الطلاب المخصص (8 أعمدة)...');
+    try {
+      let list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
+      if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة.');
+
+      if (options && options.selectedGrade && typeof options.selectedGrade === 'string') {
+        const targetGrd = options.selectedGrade.trim();
+        const filtered = list.filter(st => {
+          const g = String(st.grade || st.gradeName || st['الصف'] || '').trim();
+          return g === targetGrd || g.includes(targetGrd) || targetGrd.includes(g);
+        });
+        if (filtered.length) list = filtered;
+      }
+
+      const ctx = await loadSchoolContext(list);
+      const xlsxLib = await ensureXLSXLib();
+      if (!xlsxLib) throw new Error('مكتبة Excel غير متوفرة في الصفحة.');
+
+      const headers = ['م', 'الإدارة', 'المدرسة', 'المرحلة', 'إسم الطالب', 'الكود', 'الصف', 'الرقم القومى'];
+
+      // ترتيب الطلاب: حسب الصف ثم الفصل ثم البنين ثم البنات أبجدياً
+      const classGroups = groupStudentsByClass(list, sortMode);
+      const sortedAll = classGroups.flatMap(g => g.students);
+
+      const buildSheetForList = (studentsArr) => {
+        const dataRows = studentsArr.map((st, idx) => {
+          const administration = cleanText(st.administration || st.edaraName || ctx.administration || '');
+          const school = cleanText(st.school || st.schoolName || ctx.school || '');
+          const stage = resolveStudentStage(st, ctx);
+          const name = cleanText(st.name || st.fullName || st['اسم التلميذ'] || '');
+          const code = cleanText(st.code || st.studentCode || st['كود التلميذ'] || '');
+          const grade = cleanText(st.grade || st.gradeName || st['الصف'] || '');
+          const nationalId = cleanText(st.national_id || st.nationalId || st['الرقم القومي'] || '');
+
+          return [
+            idx + 1,
+            administration,
+            school,
+            stage,
+            name,
+            code,
+            grade,
+            nationalId
+          ];
+        });
+
+        const aoa = [headers, ...dataRows];
+        const ws = xlsxLib.utils.aoa_to_sheet(aoa);
+
+        ws['!cols'] = [
+          { wch: 6 },  // م
+          { wch: 22 }, // الإدارة
+          { wch: 28 }, // المدرسة
+          { wch: 18 }, // المرحلة
+          { wch: 34 }, // إسم الطالب
+          { wch: 16 }, // الكود
+          { wch: 20 }, // الصف
+          { wch: 22 }  // الرقم القومى
+        ];
+        ws['!rows'] = [{ hpt: 28 }];
+        ws['!autofilter'] = { ref: `A1:H${dataRows.length + 1}` };
+        ws['!freezeRow'] = 1;
+
+        // تنسيق ترويسة الجدول (Header) باللون الأزرق الملكي والنص الأبيض
+        headers.forEach((_, c) => {
+          const col = colLetter(c);
+          if (ws[col + '1']) {
+            ws[col + '1'].s = {
+              fill: { fgColor: { rgb: '1E3A8A' } },
+              font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+              alignment: { horizontal: 'center', vertical: 'center' }
+            };
+          }
+        });
+
+        // تنسيق خلايا البيانات (Data rows)
+        dataRows.forEach((_, r) => {
+          const rowNum = r + 2;
+          if (ws['H' + rowNum]) {
+            ws['H' + rowNum].t = 's';
+            ws['H' + rowNum].z = '@';
+            ws['H' + rowNum].s = { alignment: { horizontal: 'center' } };
+          }
+          if (ws['F' + rowNum]) {
+            ws['F' + rowNum].t = 's';
+            ws['F' + rowNum].z = '@';
+            ws['F' + rowNum].s = { alignment: { horizontal: 'center' } };
+          }
+          if (ws['E' + rowNum]) {
+            ws['E' + rowNum].s = { alignment: { horizontal: 'right' } };
+          }
+        });
+
+        return ws;
+      };
+
+      const wb = xlsxLib.utils.book_new();
+      if (!wb.Workbook) wb.Workbook = {};
+      wb.Workbook.Views = [{ RTL: true }];
+
+      // الورقة الرئيسية: كشف الطلاب الشامل
+      const masterWs = buildSheetForList(sortedAll);
+      xlsxLib.utils.book_append_sheet(wb, masterWs, 'كشف_الطلاب_الشامل');
+
+      // تجميع حسب الصفوف إذا كان هناك أكثر من صف
+      const gradesSet = new Set(sortedAll.map(s => s.grade).filter(Boolean));
+      if (gradesSet.size > 1) {
+        for (const gName of gradesSet) {
+          const gradeStudents = sortedAll.filter(s => s.grade === gName);
+          const gWs = buildSheetForList(gradeStudents);
+          const safeSheetName = typeof neprasXlsxSafeSheetName === 'function'
+            ? neprasXlsxSafeSheetName(gName, new Set(wb.SheetNames))
+            : gName.slice(0, 31).replace(/[\\/*?[\]:]/g, '_');
+          xlsxLib.utils.book_append_sheet(wb, gWs, safeSheetName);
+        }
+      }
+
+      if (isAborted()) throw new Error('تم إلغاء العملية.');
+
+      let bytes = null;
+      const styledConverter = window.neprasXlsxConvertWorkbookToStyledPackage || (typeof neprasXlsxConvertWorkbookToStyledPackage === 'function' ? neprasXlsxConvertWorkbookToStyledPackage : null);
+      if (styledConverter) {
+        try {
+          bytes = styledConverter(wb);
+        } catch (_) {}
+      }
+      if (!bytes) {
+        bytes = xlsxLib.write(wb, { bookType: 'xlsx', type: 'array' });
+      }
+
+      const filename = `كشف_الطلاب_المخصص_${ctx.school}_${NeprasEgypt.todayStamp()}.xlsx`;
+      await deliverNeprasBinary(bytes, filename, 'كشوف الطلاب');
+      reportStatus(`✅ تم إنشاء وتنزيل كشف الطلاب المخصص بنجاح (${list.length} طالب).`);
+      return { ok: true, count: list.length, filename };
+    } finally {
+      clearRunning();
+    }
+  }
+
   // (9) أداة تفريغ وتحميل أي جدول معروض بالصفحة فوراً
   async function downloadAnyTableAsExcel() {
     setRunning('any_table', 'جاري فحص وتفريغ الجدول المعروض...');
@@ -2892,6 +3061,7 @@
     NEPRAS_RECORDS_ENROLLMENT_REGISTERS: (r) => runEnrollmentRegistersExport(r.students, r.sortMode),
     NEPRAS_RECORDS_MANAZEL: (r) => runManazelExport(r.students),
     NEPRAS_RECORDS_WORKERS: (r) => runWorkersExport(r.students),
+    NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS: (r) => runCustomEightColumnsExport(r.students, r.sortMode, r),
     NEPRAS_RECORDS_CLASSBOOKS: (r) => runClassBooksExport(r),
     NEPRAS_RECORDS_DOWNLOAD_ANY_TABLE: () => downloadAnyTableAsExcel(),
     NEPRAS_RECORDS_DOWNLOAD_TEMPLATE: (r) => downloadBlankTemplate(r.templateKey),
@@ -2954,6 +3124,7 @@
     runEnrollmentRegistersExport,
     runManazelExport,
     runWorkersExport,
+    runCustomEightColumnsExport,
     runClassBooksExport,
     downloadAnyTableAsExcel,
     requestStop

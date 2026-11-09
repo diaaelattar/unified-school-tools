@@ -264,4 +264,40 @@ test('تقارير الدمج والأيتام: دقة تصنيف الحالات
   assert.strictEqual(capturedWb[0].rows.length, 2); // الحالتان فقط
 });
 
+test('runCustomEightColumnsExport: توليد كشف الطلاب المخصص (8 أعمدة: م، الإدارة، المدرسة، المرحلة، إسم الطالب، الكود، الصف، الرقم القومى)', async () => {
+  win.neprasDialog = {
+    triggerDownload: async (blob, filename) => ({ finalFileName: filename }),
+    open: () => {}
+  };
+  globalThis.XLSX = require('../xlsx.full.min.js');
+
+  const sample = [
+    {
+      name: 'أحمد محمد علي حسن',
+      national_id: '31501010100019',
+      code: '123456789',
+      grade: 'الصف الأول الإعدادي',
+      class_name: 'فصل 1/1',
+      stage: 'المرحلة الإعدادية',
+      school: 'مدرسة النهضة الإعدادية',
+      administration: 'إدارة شرق التعليمية'
+    },
+    {
+      name: 'فاطمة محمود إبراهيم',
+      national_id: '31502020100028',
+      code: '987654321',
+      grade: 'الصف الأول الإعدادي',
+      class_name: 'فصل 1/2',
+      stage: 'المرحلة الإعدادية',
+      school: 'مدرسة النهضة الإعدادية',
+      administration: 'إدارة شرق التعليمية'
+    }
+  ];
+
+  const res = await win.NeprasRecords.runCustomEightColumnsExport(sample);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.count, 2);
+  assert(res.filename.includes('كشف_الطلاب_المخصص'));
+});
+
 summary('records_and_print');
