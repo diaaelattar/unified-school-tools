@@ -2625,36 +2625,66 @@
   }
 
   // -------------------------------------------------------------
-  // (8.1) كشف الطلاب المخصص (8 أعمدة: م - الإدارة - المدرسة - المرحلة - إسم الطالب - الكود - الصف - الرقم القومى)
+  // (8.1) كشف الطلاب المخصص (9 أعمدة: م - الإدارة - المدرسة - المرحلة - إسم الطالب - الكود - الصف - الفصل - الرقم القومى)
   // -------------------------------------------------------------
+  function normalizeStageTitle(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+    const s = raw.trim();
+    if (!s) return '';
+    // استبعاد أسماء الصفوف إن وُضعت خطأ في حقل المرحلة
+    if (/^(الصف|صف|grade)\b/i.test(s)) return '';
+    if (/ابتدائي|الإبتدائي|الابتدائ/i.test(s)) return 'الابتدائية';
+    if (/إعدادي|اعدادي|الإعدادي|الاعدادي/i.test(s)) return 'الإعدادية';
+    if (/ثانوي\s*عام|ثانوية\s*عامة|ثانوي|الثانوي|الثانوية/i.test(s)) return 'الثانوية';
+    if (/فني|صناعي|تجاري|زراعي|فندقي/i.test(s)) return 'التعليم الفني';
+    if (/رياض|روضة|روضه|kg/i.test(s)) return 'رياض الأطفال';
+    return '';
+  }
+
   function resolveStudentStage(st, ctx) {
-    if (st && st.stage && typeof st.stage === 'string' && st.stage.trim()) return st.stage.trim();
-    if (st && st.stageName && typeof st.stageName === 'string' && st.stageName.trim()) return st.stageName.trim();
-    const grade = String((st && (st.grade || st.gradeName || st['الصف'])) || '').trim();
-    if (/ابتدائي/i.test(grade)) return 'المرحلة الابتدائية';
-    if (/إعدادي|اعدادي/i.test(grade)) return 'المرحلة الإعدادية';
-    if (/ثانوي\s*عام|ثانوية\s*عامة/i.test(grade)) return 'المرحلة الثانوية';
-    if (/ثانوي|فني|صناعي|تجاري|زراعي|فندقي/i.test(grade)) return 'التعليم الفني';
-    if (/رياض|روضة|kg/i.test(grade)) return 'رياض الأطفال';
+    // 1. فحص حقل المرحلة المباشر في سجل الطالب بعد استبعاد أسماء الصفوف
+    const direct = normalizeStageTitle(st?.stage || st?.stageName || st?.['المرحلة']);
+    if (direct) return direct;
 
-    const ctxStage = String((ctx && ctx.stage) || '').toUpperCase();
-    if (ctxStage === 'PRIMARY') return 'المرحلة الابتدائية';
-    if (ctxStage === 'PREP') return 'المرحلة الإعدادية';
-    if (ctxStage === 'GENERAL_SECONDARY') return 'المرحلة الثانوية';
-    if (ctxStage === 'TECHNICAL_SECONDARY') return 'التعليم الفني';
-    if (ctxStage === 'KG') return 'رياض الأطفال';
+    // 2. فحص اسم الصف إن كان يحمل اسم المرحلة صراحة (مثل: الصف الأول الإعدادي)
+    const gradeStr = String((st && (st.grade || st.gradeName || st['الصف'])) || '').trim();
+    const gradeStage = normalizeStageTitle(gradeStr);
+    if (gradeStage) return gradeStage;
 
-    const sch = String((ctx && ctx.school) || '').trim();
-    if (/ابتدائي/i.test(sch)) return 'المرحلة الابتدائية';
-    if (/إعدادي|اعدادي/i.test(sch)) return 'المرحلة الإعدادية';
-    if (/ثانوي/i.test(sch)) return 'المرحلة الثانوية';
-    if (/رياض/i.test(sch)) return 'رياض الأطفال';
+    // الصفوف الرابع والخامس والسادس خاصة حصرياً بالمرحلة الابتدائية في مصر
+    if (/الرابع|الخامس|السادس/i.test(gradeStr)) return 'الابتدائية';
 
-    return grade ? `المرحلة ${grade}` : 'المرحلة الرسمية';
+    // 3. فحص المرحلة المحددة في سياق المدرسة أو نافذة نبراس (PRIMARY / PREP / SEC)
+    const rawCtxStage = String((ctx && (ctx.stage || ctx.selectedStage || ctx.stageName)) || '').trim();
+    const ctxNorm = normalizeStageTitle(rawCtxStage);
+    if (ctxNorm) return ctxNorm;
+
+    const ctxUpper = rawCtxStage.toUpperCase();
+    if (ctxUpper === 'PRIMARY' || ctxUpper === '1') return 'الابتدائية';
+    if (ctxUpper === 'PREP' || ctxUpper === '2' || ctxUpper === '3') return 'الإعدادية';
+    if (ctxUpper === 'GENERAL_SECONDARY' || ctxUpper === '4' || ctxUpper === '5' || ctxUpper === '6') return 'الثانوية';
+    if (ctxUpper === 'TECHNICAL_SECONDARY') return 'التعليم الفني';
+    if (ctxUpper === 'KG') return 'رياض الأطفال';
+
+    // 4. فحص اسم المدرسة
+    const sch = String((ctx && ctx.school) || (st && (st.school || st.schoolName)) || '').trim();
+    const schoolStage = normalizeStageTitle(sch);
+    if (schoolStage) return schoolStage;
+
+    return 'الابتدائية';
+  }
+
+  function resolveStudentClass(st) {
+    if (!st) return '';
+    const raw = cleanText(st['الفصل'] || st.classRoom || st.class_number || '');
+    if (raw && raw !== 'عام') return raw;
+    const cn = cleanText(st.class_name || st.className || '');
+    if (cn && cn !== 'عام' && cn !== cleanText(st.grade || st['الصف'])) return cn;
+    return '';
   }
 
   async function runCustomEightColumnsExport(passedStudents = null, sortMode = 'gender_boys', options = {}) {
-    setRunning('custom_eight_columns', 'جاري إنشاء كشف الطلاب المخصص (8 أعمدة)...');
+    setRunning('custom_eight_columns', 'جاري إنشاء كشف الطلاب المخصص (9 أعمدة)...');
     try {
       let list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
       if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة.');
@@ -2669,10 +2699,20 @@
       }
 
       const ctx = await loadSchoolContext(list);
+      if (!ctx.stage) {
+        ctx.stage = options?.selectedStage || await selectedStage();
+      }
+      if (!ctx.stage && typeof chrome !== 'undefined' && chrome.storage?.local) {
+        try {
+          const stored = await chrome.storage.local.get(['neprasSelectedStudentStage', 'neprasSchoolStatsV1', 'neprasSchoolProfile']);
+          ctx.stage = stored?.neprasSelectedStudentStage || stored?.neprasSchoolStatsV1?.stage || stored?.neprasSchoolProfile?.stage || '';
+        } catch (_) {}
+      }
+
       const xlsxLib = await ensureXLSXLib();
       if (!xlsxLib) throw new Error('مكتبة Excel غير متوفرة في الصفحة.');
 
-      const headers = ['م', 'الإدارة', 'المدرسة', 'المرحلة', 'إسم الطالب', 'الكود', 'الصف', 'الرقم القومى'];
+      const headers = ['م', 'الإدارة', 'المدرسة', 'المرحلة', 'إسم الطالب', 'الكود', 'الصف', 'الفصل', 'الرقم القومى'];
 
       // ترتيب الطلاب: حسب الصف ثم الفصل ثم البنين ثم البنات أبجدياً
       const classGroups = groupStudentsByClass(list, sortMode);
@@ -2686,6 +2726,7 @@
           const name = cleanText(st.name || st.fullName || st['اسم التلميذ'] || '');
           const code = cleanText(st.code || st.studentCode || st['كود التلميذ'] || '');
           const grade = cleanText(st.grade || st.gradeName || st['الصف'] || '');
+          const classVal = resolveStudentClass(st);
           const nationalId = cleanText(st.national_id || st.nationalId || st['الرقم القومي'] || '');
 
           return [
@@ -2696,6 +2737,7 @@
             name,
             code,
             grade,
+            classVal,
             nationalId
           ];
         });
@@ -2707,14 +2749,15 @@
           { wch: 6 },  // م
           { wch: 22 }, // الإدارة
           { wch: 28 }, // المدرسة
-          { wch: 18 }, // المرحلة
+          { wch: 16 }, // المرحلة
           { wch: 34 }, // إسم الطالب
           { wch: 16 }, // الكود
-          { wch: 20 }, // الصف
+          { wch: 18 }, // الصف
+          { wch: 14 }, // الفصل
           { wch: 22 }  // الرقم القومى
         ];
         ws['!rows'] = [{ hpt: 28 }];
-        ws['!autofilter'] = { ref: `A1:H${dataRows.length + 1}` };
+        ws['!autofilter'] = { ref: `A1:I${dataRows.length + 1}` };
         ws['!freezeRow'] = 1;
 
         // تنسيق ترويسة الجدول (Header) باللون الأزرق الملكي والنص الأبيض
@@ -2732,10 +2775,16 @@
         // تنسيق خلايا البيانات (Data rows)
         dataRows.forEach((_, r) => {
           const rowNum = r + 2;
+          if (ws['I' + rowNum]) {
+            ws['I' + rowNum].t = 's';
+            ws['I' + rowNum].z = '@';
+            ws['I' + rowNum].s = { alignment: { horizontal: 'center' } };
+          }
           if (ws['H' + rowNum]) {
-            ws['H' + rowNum].t = 's';
-            ws['H' + rowNum].z = '@';
             ws['H' + rowNum].s = { alignment: { horizontal: 'center' } };
+          }
+          if (ws['G' + rowNum]) {
+            ws['G' + rowNum].s = { alignment: { horizontal: 'center' } };
           }
           if (ws['F' + rowNum]) {
             ws['F' + rowNum].t = 's';
@@ -3062,6 +3111,7 @@
     NEPRAS_RECORDS_MANAZEL: (r) => runManazelExport(r.students),
     NEPRAS_RECORDS_WORKERS: (r) => runWorkersExport(r.students),
     NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS: (r) => runCustomEightColumnsExport(r.students, r.sortMode, r),
+    NEPRAS_RECORDS_CUSTOM_NINE_COLUMNS: (r) => runCustomEightColumnsExport(r.students, r.sortMode, r),
     NEPRAS_RECORDS_CLASSBOOKS: (r) => runClassBooksExport(r),
     NEPRAS_RECORDS_DOWNLOAD_ANY_TABLE: () => downloadAnyTableAsExcel(),
     NEPRAS_RECORDS_DOWNLOAD_TEMPLATE: (r) => downloadBlankTemplate(r.templateKey),
@@ -3125,6 +3175,7 @@
     runManazelExport,
     runWorkersExport,
     runCustomEightColumnsExport,
+    runCustomNineColumnsExport: runCustomEightColumnsExport,
     runClassBooksExport,
     downloadAnyTableAsExcel,
     requestStop

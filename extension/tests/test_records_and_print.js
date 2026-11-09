@@ -264,9 +264,13 @@ test('تقارير الدمج والأيتام: دقة تصنيف الحالات
   assert.strictEqual(capturedWb[0].rows.length, 2); // الحالتان فقط
 });
 
-test('runCustomEightColumnsExport: توليد كشف الطلاب المخصص (8 أعمدة: م، الإدارة، المدرسة، المرحلة، إسم الطالب، الكود، الصف، الرقم القومى)', async () => {
+test('runCustomEightColumnsExport: توليد كشف الطلاب المخصص (9 أعمدة تشمل الفصل، وتحديد دقيق للمرحلة الابتدائية/الإعدادية)', async () => {
+  let downloadedBuffer = null;
   win.neprasDialog = {
-    triggerDownload: async (blob, filename) => ({ finalFileName: filename }),
+    triggerDownload: async (blob, filename) => {
+      downloadedBuffer = Buffer.from(await blob.arrayBuffer());
+      return { finalFileName: filename };
+    },
     open: () => {}
   };
   globalThis.XLSX = require('../xlsx.full.min.js');
@@ -288,16 +292,50 @@ test('runCustomEightColumnsExport: توليد كشف الطلاب المخصص (
       code: '987654321',
       grade: 'الصف الأول الإعدادي',
       class_name: 'فصل 1/2',
-      stage: 'المرحلة الإعدادية',
+      stage: 'الصف الأول', // اسم صف وُضع خطأً في حقل المرحلة
       school: 'مدرسة النهضة الإعدادية',
       administration: 'إدارة شرق التعليمية'
+    },
+    {
+      name: 'علي إبراهيم حسن',
+      national_id: '31803030100037',
+      code: '555666777',
+      grade: 'الصف الأول',
+      class_name: 'فصل 1/3',
+      school: 'مدرسة عمر بن الخطاب الابتدائية',
+      administration: 'إدارة غرب التعليمية'
     }
   ];
 
   const res = await win.NeprasRecords.runCustomEightColumnsExport(sample);
   assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.count, 2);
+  assert.strictEqual(res.count, 3);
   assert(res.filename.includes('كشف_الطلاب_المخصص'));
+  assert(downloadedBuffer && downloadedBuffer.length > 0);
+
+  // التحقق الدقيق من محتوى أوراق العمل
+  const wb = globalThis.XLSX.read(downloadedBuffer, { type: 'buffer' });
+  assert(wb.SheetNames.includes('كشف_الطلاب_الشامل'));
+  const sheet = wb.Sheets['كشف_الطلاب_الشامل'];
+  const jsonRows = globalThis.XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+  // 1. ترويسة الجدول: 9 أعمدة مطابقة (م، الإدارة، المدرسة، المرحلة، إسم الطالب، الكود، الصف، الفصل، الرقم القومى)
+  const headerRow = jsonRows[0];
+  assert.deepStrictEqual(headerRow, ['م', 'الإدارة', 'المدرسة', 'المرحلة', 'إسم الطالب', 'الكود', 'الصف', 'الفصل', 'الرقم القومى']);
+
+  // 2. التحقق من أعمدة الصف والفصل والمرحلة
+  // الطالب 1: إعدادي، فصل 1/1
+  assert.strictEqual(jsonRows[1][3], 'الإعدادية');
+  assert.strictEqual(jsonRows[1][6], 'الصف الأول الإعدادي');
+  assert.strictEqual(jsonRows[1][7], 'فصل 1/1');
+
+  // الطالب 2: المرحلة كانت تحمل 'الصف الأول' خطأً، وتم تصحيحها تلقائياً إلى 'الإعدادية' مع بقاء الفصل 'فصل 1/2'
+  assert.strictEqual(jsonRows[2][3], 'الإعدادية');
+  assert.strictEqual(jsonRows[2][7], 'فصل 1/2');
+
+  // الطالب 3: مدرسة ابتدائية، وتم التعرف على المرحلة 'الابتدائية'
+  assert.strictEqual(jsonRows[3][3], 'الابتدائية');
+  assert.strictEqual(jsonRows[3][7], 'فصل 1/3');
 });
 
 summary('records_and_print');

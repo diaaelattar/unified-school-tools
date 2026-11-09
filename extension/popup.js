@@ -3681,18 +3681,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.withButtonBusy ? window.withButtonBusy(btnRecordsWorkers, () => runRecordsAction("NEPRAS_RECORDS_WORKERS")) : runRecordsAction("NEPRAS_RECORDS_WORKERS");
   });
 
-  btnRecordsCustomEightCols?.addEventListener("click", () => {
+  btnRecordsCustomEightCols?.addEventListener("click", async () => {
     const selectedGrade = gradeSelect?.value || "";
+    let selectedStage = stageSelect?.value || "";
+    if (!selectedStage) {
+      try {
+        const stored = await chrome.storage.local.get("neprasSelectedStudentStage");
+        selectedStage = stored?.neprasSelectedStudentStage || "";
+      } catch (_) {}
+    }
     window.withButtonBusy
-      ? window.withButtonBusy(btnRecordsCustomEightCols, () => runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade }))
-      : runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade });
+      ? window.withButtonBusy(btnRecordsCustomEightCols, () => runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade, selectedStage }))
+      : runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade, selectedStage });
   });
 
-  btnStudentCustomEightCols?.addEventListener("click", () => {
+  btnStudentCustomEightCols?.addEventListener("click", async () => {
     const selectedGrade = gradeSelect?.value || "";
+    let selectedStage = stageSelect?.value || "";
+    if (!selectedStage) {
+      try {
+        const stored = await chrome.storage.local.get("neprasSelectedStudentStage");
+        selectedStage = stored?.neprasSelectedStudentStage || "";
+      } catch (_) {}
+    }
     window.withButtonBusy
-      ? window.withButtonBusy(btnStudentCustomEightCols, () => runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade }))
-      : runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade });
+      ? window.withButtonBusy(btnStudentCustomEightCols, () => runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade, selectedStage }))
+      : runRecordsAction("NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS", { selectedGrade, selectedStage });
   });
 
   // ===== استمارة الشهادة الإعدادية الإلكترونية (كشوف المسجلين والمتخلفين كاملة البيانات) =====
