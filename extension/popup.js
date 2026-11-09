@@ -1688,6 +1688,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+
+  function isStudentBoy(r) {
+    if (typeof NeprasEgypt?.isMale === "function") {
+      const m = NeprasEgypt.isMale(r);
+      if (typeof m === "boolean") return m;
+    }
+    const g = String(r?.gender || r?.["النوع"] || "").trim();
+    if (g.includes("بنين") || g.includes("ذكر")) return true;
+    const nid = String(r?.nationalId || r?.["الرقم القومي"] || "").replace(/\D/g, "");
+    if (nid.length === 14) return Number(nid[12]) % 2 === 1;
+    return false;
+  }
+
+  function isStudentGirl(r) {
+    if (typeof NeprasEgypt?.isMale === "function") {
+      const m = NeprasEgypt.isMale(r);
+      if (typeof m === "boolean") return !m;
+    }
+    const g = String(r?.gender || r?.["النوع"] || "").trim();
+    if (g.includes("بنات") || g.includes("انثى") || g.includes("أنثى")) return true;
+    const nid = String(r?.nationalId || r?.["الرقم القومي"] || "").replace(/\D/g, "");
+    if (nid.length === 14) return Number(nid[12]) % 2 === 0;
+    return false;
+  }
+
   function popupExpensesRowsByCategory(result, category) {
     const rows =
       Array.isArray(result?.rows)
@@ -1699,6 +1724,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? result.paidReportRows
         : [];
 
+    if (typeof category === "string" && category.startsWith("grade:")) {
+      const parts = category.split(":");
+      const gradeName = parts[1] || "";
+      const sub = parts[2] || "all";
+      const gradeRows = rows.filter(r => String(r.grade || "").trim() === gradeName.trim());
+      if (sub === "all") return gradeRows;
+      if (sub === "homes") return gradeRows.filter(r => r.isHome);
+      if (sub === "paid") return gradeRows.filter(r => !r.isHome && r.paid);
+      if (sub === "paid_full") return gradeRows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full");
+      if (sub === "paid_partial") return gradeRows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial");
+      if (sub === "paid_exempt") return gradeRows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full");
+      if (sub === "unpaid") return gradeRows.filter(r => !r.isHome && !r.paid);
+      if (sub === "unpaid_full") return gradeRows.filter(r => !r.isHome && !r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full");
+      if (sub === "unpaid_partial") return gradeRows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "partial");
+      if (sub === "unpaid_exempt") return gradeRows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "full");
+      return gradeRows;
+    }
+
+    if (category === "boys") return rows.filter(isStudentBoy);
+    if (category === "girls") return rows.filter(isStudentGirl);
+
     if (category === "homes") {
       return rows.filter(r => r.isHome);
     }
@@ -1709,10 +1755,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         : rows.filter(r => !r.isHome && r.paid);
     }
 
+    if (category === "paid_full") {
+      return rows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full");
+    }
+
+    if (category === "paid_partial") {
+      return rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial");
+    }
+
+    if (category === "paid_exempt") {
+      return rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full");
+    }
+
     if (category === "reportOnly") return paidReportRows.filter(r => r.__paidReportOnly);
 
     if (category === "unpaid") {
       return rows.filter(r => !r.isHome && !r.paid);
+    }
+
+    if (category === "unpaid_full") {
+      return rows.filter(r => !r.isHome && !r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full");
+    }
+
+    if (category === "unpaid_partial") {
+      return rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "partial");
+    }
+
+    if (category === "unpaid_exempt") {
+      return rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "full");
     }
 
     if (category === "allExemptions") {
@@ -1751,69 +1821,261 @@ document.addEventListener("DOMContentLoaded", async () => {
     return rows;
   }
 
+  let currentRenderedExpensesResult = null;
+
   function renderExpenses(result) {
-    const has =
-      !!(
-        result &&
-        Array.isArray(result.rows)
-      );
+    const has = !!(result && Array.isArray(result.rows));
+    currentRenderedExpensesResult = has ? result : null;
 
     if (expensesEmpty) expensesEmpty.hidden = has;
     if (expensesContent) expensesContent.hidden = !has;
     if (btnExpensesExport) NeprasButtons.disable(btnExpensesExport, has ? null : "لا توجد بيانات للتصدير. حلّل المصروفات والإعفاءات أولًا.");
+    const btnExpReport = document.getElementById("btn-expenses-export-report");
+    if (btnExpReport) NeprasButtons.disable(btnExpReport, has ? null : "لا توجد بيانات للتصدير.");
+    const btnPrintReport = document.getElementById("btn-expenses-print-report");
+    if (btnPrintReport) NeprasButtons.disable(btnPrintReport, has ? null : "لا توجد بيانات للطباعة.");
+
     if (!has) return;
 
+    const rows = result.rows;
     const set = (id, value) => {
       const el = document.getElementById(id);
       if (el) el.textContent = String(Number(value || 0));
     };
 
-    const cats = {
-      all: popupExpensesRowsByCategory(result, "all"),
-      homes: popupExpensesRowsByCategory(result, "homes"),
-      paid: popupExpensesRowsByCategory(result, "paid"),
-      reportOnly: popupExpensesRowsByCategory(result, "reportOnly"),
-      unpaid: popupExpensesRowsByCategory(result, "unpaid"),
-      allExemptions: popupExpensesRowsByCategory(result, "allExemptions"),
-      full: popupExpensesRowsByCategory(result, "fullExempt"),
-      partial: popupExpensesRowsByCategory(result, "partialExempt"),
-      due: popupExpensesRowsByCategory(result, "due"),
-      review: popupExpensesRowsByCategory(result, "review")
-    };
+    // Calculate core metrics
+    const total = rows.length;
+    const boys = rows.filter(isStudentBoy).length;
+    const girls = rows.filter(isStudentGirl).length;
+    const homes = rows.filter(r => r.isHome).length;
+    const regular = rows.filter(r => !r.isHome).length;
 
-    // قاعدة ثابتة: العدد على الكارت هو نفس عدد الصفوف التي ستفتح داخله.
-    set("expense-total", cats.all.length);
-    set("expense-homes", cats.homes.length);
-    set("expense-paid", cats.paid.length);
-    set("expense-report-only", cats.reportOnly.length);
-    set("expense-unpaid", cats.unpaid.length);
-    set("expense-all-exemptions", cats.allExemptions.length);
-    set("expense-full", cats.full.length);
-    set("expense-partial", cats.partial.length);
-    set("expense-due", cats.due.length);
-    set("expense-review", cats.review.length);
+    const paidFull = rows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+    const paidPartial = rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial").length;
+    const paidExempt = rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full").length;
+    const paidTotal = paidFull + paidPartial + paidExempt;
+
+    const unpaidFull = rows.filter(r => !r.isHome && !r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+    const unpaidPartial = rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "partial").length;
+    const unpaidExempt = rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "full").length;
+    const unpaidTotal = unpaidFull + unpaidPartial + unpaidExempt;
+
+    // Header Title, Date & Pill
+    const titleEl = document.getElementById("expenses-dashboard-title");
+    const dateEl = document.getElementById("expenses-dashboard-date");
+    const pillEl = document.getElementById("expenses-dashboard-pill");
+
+    let academicYearStr = "2026 - 2027";
+    try {
+      const now = new Date(result.generatedAt || Date.now());
+      const m = now.getMonth() + 1;
+      const y = now.getFullYear();
+      const startY = m >= 8 ? y : y - 1;
+      academicYearStr = `${startY} - ${startY + 1}`;
+    } catch (_) {}
+
+    if (titleEl) titleEl.textContent = `المصروفات الدراسية للعام المالي ${academicYearStr}`;
+
+    let whenFormatted = "";
+    try {
+      const d = new Date(result.generatedAt || Date.now());
+      whenFormatted = d.toLocaleDateString("ar-EG", { year: "numeric", month: "2-digit", day: "2-digit" });
+    } catch (_) { whenFormatted = ""; }
+    if (dateEl) dateEl.textContent = `آخر تحديث: ${whenFormatted || "اليوم"}`;
+
+    if (pillEl) {
+      pillEl.textContent = `قيد: ${total} (بنين: ${boys} • بنات: ${girls}) • انتظام: ${regular} • منازل: ${homes} • مسددون: ${paidTotal} • غير مسدد: ${unpaidTotal}`;
+    }
+
+    // 12 KPI Cards
+    set("expense-total", total);
+    set("expense-boys", boys);
+    set("expense-girls", girls);
+
+    set("expense-homes", homes);
+    set("expense-paid", paidTotal);
+    set("expense-unpaid", unpaidTotal);
+
+    set("expense-paid-full", paidFull);
+    set("expense-paid-partial", paidPartial);
+    set("expense-paid-exempt", paidExempt);
+
+    set("expense-unpaid-full", unpaidFull);
+    set("expense-unpaid-partial", unpaidPartial);
+    set("expense-unpaid-exempt", unpaidExempt);
+
+    // Compatibility items
+    const paidReportDetailed = Array.isArray(result?.paidReportRows) ? result.paidReportRows : [];
+    const reportOnly = paidReportDetailed.filter(r => r.__paidReportOnly).length;
+    set("expense-report-only", reportOnly);
+    set("expense-all-exemptions", rows.filter(r => r.exemptionClass !== "none").length);
+    set("expense-full", rows.filter(r => r.exemptionClass === "full").length);
+    set("expense-partial", rows.filter(r => r.exemptionClass === "partial").length);
+    set("expense-due", rows.filter(r => !r.isHome && !r.paid && (r.exemptionClass === "none" || r.exemptionClass === "partial")).length);
+    set("expense-review", rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "review").length);
 
     if (expensesMeta) {
-      let when = "";
-      try {
-        when = new Date(result.generatedAt).toLocaleString("ar-EG");
-      } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
-
-      const matchedCurrent =
-        cats.paid.filter(r => !r.__paidReportOnly).length;
-
-      const reportOnly =
-        cats.paid.filter(r => r.__paidReportOnly).length;
-
       expensesMeta.textContent =
-        `${when ? `آخر تحديث: ${when}` : ""}` +
-        ` • المسددون بالتقرير: ${cats.paid.length}` +
-        ` • المطابقون مع الطلاب الحاليين: ${matchedCurrent}` +
+        `المسددون بالتقرير: ${paidReportDetailed.length || paidTotal}` +
+        ` • المطابقون مع الطلاب الحاليين: ${paidTotal}` +
         ` • غير موجودين بالقائمة الحالية: ${reportOnly}` +
-        ` • منازل: ${cats.homes.length}` +
-        ` • غير المنازل: ${cats.all.length - cats.homes.length}`;
+        ` • منازل: ${homes}` +
+        ` • غير المنازل: ${regular}`;
+    }
+
+    // 1. Table: تحليل الصفوف الدراسية — المسدد وغير المسدد حسب الفئة
+    renderExpensesGradesTable(rows, total, paidFull, paidPartial, paidExempt, paidTotal, unpaidFull, unpaidPartial, unpaidExempt, unpaidTotal, homes);
+
+    // 2. Progress Bar
+    const pctNum = total > 0 ? (paidTotal / total) * 100 : 0;
+    const pctStr = pctNum.toFixed(1) + "%";
+    const pctEl = document.getElementById("expenses-progress-pct");
+    const fillEl = document.getElementById("expenses-progress-fill");
+    const subEl = document.getElementById("expenses-progress-sub");
+    if (pctEl) pctEl.textContent = pctStr;
+    if (fillEl) fillEl.style.width = Math.min(100, Math.max(0, pctNum)) + "%";
+    if (subEl) subEl.textContent = `${paidTotal} مسدد من ${total} قيد`;
+
+    // 3. Table: الملخص المالي
+    renderExpensesFinancialTable(total, boys, girls, paidFull, paidPartial, paidExempt, paidTotal, unpaidTotal, pctStr);
+  }
+
+  function getGradeSortRank(name) {
+    const s = String(name || "").trim();
+    if (s.includes("الاول") || s.includes("الأول") || s.includes("1")) return 1;
+    if (s.includes("الثاني") || s.includes("2")) return 2;
+    if (s.includes("الثالث") || s.includes("3")) return 3;
+    if (s.includes("الرابع") || s.includes("4")) return 4;
+    if (s.includes("الخامس") || s.includes("5")) return 5;
+    if (s.includes("السادس") || s.includes("6")) return 6;
+    return 99;
+  }
+
+  function renderExpensesGradesTable(rows, total, totPaidFull, totPaidPartial, totPaidExempt, totPaidTotal, totUnpaidFull, totUnpaidPartial, totUnpaidExempt, totUnpaidTotal, totHomes) {
+    const tbody = document.getElementById("expenses-grades-tbody");
+    const tfoot = document.getElementById("expenses-grades-tfoot");
+    if (!tbody) return;
+
+    // Extract unique grades
+    const gradesSet = new Set();
+    rows.forEach(r => {
+      const g = String(r.grade || "").trim();
+      if (g) gradesSet.add(g);
+    });
+
+    const gradesList = Array.from(gradesSet).sort((a, b) => {
+      const rA = getGradeSortRank(a);
+      const rB = getGradeSortRank(b);
+      if (rA !== rB) return rA - rB;
+      return a.localeCompare(b, "ar");
+    });
+
+    if (!gradesList.length) {
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:12px;color:#64748b;">لا توجد صفوف دراسية مسجلة.</td></tr>';
+      if (tfoot) tfoot.innerHTML = '';
+      return;
+    }
+
+    const rowsHtml = gradesList.map(gradeName => {
+      const gRows = rows.filter(r => String(r.grade || "").trim() === gradeName);
+      const gCount = gRows.length;
+      const gHomes = gRows.filter(r => r.isHome).length;
+
+      const gPaidFull = gRows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+      const gPaidPartial = gRows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial").length;
+      const gPaidExempt = gRows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full").length;
+      const gPaidTotal = gPaidFull + gPaidPartial + gPaidExempt;
+
+      const gUnpaidFull = gRows.filter(r => !r.isHome && !r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+      const gUnpaidPartial = gRows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "partial").length;
+      const gUnpaidExempt = gRows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "full").length;
+      const gUnpaidTotal = gUnpaidFull + gUnpaidPartial + gUnpaidExempt;
+
+      const gPct = gCount > 0 ? ((gPaidTotal / gCount) * 100).toFixed(1) + "%" : "0.0%";
+
+      return `<tr>
+        <td style="font-weight:700;">${escapeHtml(gradeName)}</td>
+        <td><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:all" style="font-weight:700;color:#1e3a5f;">${gCount}</button></td>
+        <td class="cell-green"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:paid_full">${gPaidFull}</button></td>
+        <td class="cell-green"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:paid_partial">${gPaidPartial}</button></td>
+        <td class="cell-green"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:paid_exempt">${gPaidExempt}</button></td>
+        <td class="cell-green" style="font-weight:800;background:#f0fdf4;"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:paid">${gPaidTotal}</button></td>
+        <td class="cell-red"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:unpaid_full">${gUnpaidFull}</button></td>
+        <td class="cell-red"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:unpaid_partial">${gUnpaidPartial}</button></td>
+        <td class="cell-red"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:unpaid_exempt">${gUnpaidExempt}</button></td>
+        <td class="cell-red" style="font-weight:800;background:#fef2f2;"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:unpaid">${gUnpaidTotal}</button></td>
+        <td><button type="button" class="btn-quiet expenses-stat" data-exp-cat="grade:${escapeHtml(gradeName)}:homes">${gHomes}</button></td>
+        <td class="cell-rate">${gPct}</td>
+      </tr>`;
+    }).join("");
+
+    tbody.innerHTML = rowsHtml;
+
+    if (tfoot) {
+      const overallRate = total > 0 ? ((totPaidTotal / total) * 100).toFixed(1) + "%" : "0.0%";
+      tfoot.innerHTML = `<tr style="background:#f8fafc;font-weight:800;">
+        <td style="font-weight:900;">الإجمالي</td>
+        <td><button type="button" class="btn-quiet expenses-stat" data-exp-cat="all" style="font-weight:900;color:#1e3a5f;">${total}</button></td>
+        <td class="cell-green"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="paid_full">${totPaidFull}</button></td>
+        <td class="cell-green"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="paid_partial">${totPaidPartial}</button></td>
+        <td class="cell-green"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="paid_exempt">${totPaidExempt}</button></td>
+        <td class="cell-green" style="font-weight:900;background:#dcfce7;"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="paid">${totPaidTotal}</button></td>
+        <td class="cell-red"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="unpaid_full">${totUnpaidFull}</button></td>
+        <td class="cell-red"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="unpaid_partial">${totUnpaidPartial}</button></td>
+        <td class="cell-red"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="unpaid_exempt">${totUnpaidExempt}</button></td>
+        <td class="cell-red" style="font-weight:900;background:#fee2e2;"><button type="button" class="btn-quiet expenses-stat" data-exp-cat="unpaid">${totUnpaidTotal}</button></td>
+        <td><button type="button" class="btn-quiet expenses-stat" data-exp-cat="homes">${totHomes}</button></td>
+        <td class="cell-rate" style="font-size:13px;font-weight:900;">${overallRate}</td>
+      </tr>`;
     }
   }
+
+  function renderExpensesFinancialTable(total, boys, girls, paidFull, paidPartial, paidExempt, paidTotal, unpaidTotal, pctStr) {
+    const tbody = document.getElementById("expenses-financial-tbody");
+    if (!tbody) return;
+
+    const tFull = Number(document.getElementById("tariff-full")?.value) || 395;
+    const tPartial = Number(document.getElementById("tariff-partial")?.value) || 259.91;
+    const tExempt = Number(document.getElementById("tariff-exempt")?.value) || 39.22;
+
+    const mFull = paidFull * tFull;
+    const mPartial = paidPartial * tPartial;
+    const mExempt = paidExempt * tExempt;
+    const mTotal = mFull + mPartial + mExempt;
+
+    function fmtMoney(num) {
+      if (num == null || isNaN(num) || num === 0) return "0";
+      return num.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    tbody.innerHTML = `
+      <tr>
+        <td style="font-weight:800;background:#f8fafc;">العدد</td>
+        <td style="font-weight:800;">${total}</td>
+        <td>${boys}</td>
+        <td>${girls}</td>
+        <td class="cell-green">${paidFull}</td>
+        <td class="cell-green">${paidPartial}</td>
+        <td class="cell-green">${paidExempt}</td>
+        <td class="cell-green" style="font-weight:900;background:#dcfce7;">${paidTotal}</td>
+        <td class="cell-red" style="font-weight:800;">${unpaidTotal}</td>
+        <td class="cell-rate">${pctStr}</td>
+      </tr>
+      <tr>
+        <td style="font-weight:800;background:#f8fafc;">المبلغ (ج)</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td class="cell-money">${fmtMoney(mFull)}</td>
+        <td class="cell-money">${fmtMoney(mPartial)}</td>
+        <td class="cell-money">${fmtMoney(mExempt)}</td>
+        <td class="cell-money" style="font-weight:900;font-size:13px;background:#dcfce7;">${fmtMoney(mTotal)}</td>
+        <td>—</td>
+        <td>—</td>
+      </tr>
+    `;
+  }
+
 
   async function loadSavedExpenses() {
     try {
@@ -1875,18 +2137,47 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
       }
 
-      const titleMap = {
-        all: "كل الطلاب",
-        homes: "طلاب المنازل",
-        paid: "المسددون حسب تقرير الوزارة",
-        reportOnly: "مسددون بالتقرير وغير موجودين حاليًا",
-        unpaid: "غير المسددين",
-        allExemptions: "كل الإعفاءات",
-        fullExempt: "المعفون وفق القرار",
-        partialExempt: "أصحاب التخفيض 50%",
-        due: "المطلوب منهم السداد",
-        review: "حالات تحتاج مراجعة"
-      };
+      let catTitle = "تفاصيل المصروفات";
+      if (expensesDetailCategory.startsWith("grade:")) {
+        const parts = expensesDetailCategory.split(":");
+        const gName = parts[1] || "";
+        const sub = parts[2] || "all";
+        const subTitles = {
+          all: "كل الطلاب",
+          homes: "طلاب المنازل",
+          paid: "إجمالي المسددين",
+          paid_full: "المسددون — سداد كامل",
+          paid_partial: "المسددون — أبناء عاملين (50%)",
+          paid_exempt: "المسددون — إعفاءات حسب القرار",
+          unpaid: "إجمالي غير المسددين",
+          unpaid_full: "غير مسدد — سداد كامل",
+          unpaid_partial: "غير مسدد — أبناء عاملين (50%)",
+          unpaid_exempt: "غير مسدد — إعفاءات حسب القرار"
+        };
+        catTitle = `${gName} — ${subTitles[sub] || sub}`;
+      } else {
+        const titleMap = {
+          all: "كل الطلاب المقيدين بالمدرسة",
+          boys: "الطلاب — بنين",
+          girls: "الطالبات — بنات",
+          homes: "طلاب المنازل",
+          paid: "إجمالي الطلاب المسددين",
+          paid_full: "المسددون — سداد كامل",
+          paid_partial: "المسددون — أبناء عاملين (سداد 50%)",
+          paid_exempt: "المسددون — إعفاءات حسب القرار",
+          unpaid: "إجمالي غير المسددين",
+          unpaid_full: "غير مسدد — سداد كامل",
+          unpaid_partial: "غير مسدد — أبناء عاملين (50%)",
+          unpaid_exempt: "غير مسدد — إعفاءات حسب القرار",
+          reportOnly: "مسددون بالتقرير وغير موجودين حاليًا",
+          allExemptions: "كل الإعفاءات المسجلة",
+          fullExempt: "المعفون وفق القرار",
+          partialExempt: "أصحاب التخفيض 50%",
+          due: "المطلوب منهم السداد",
+          review: "حالات تحتاج مراجعة"
+        };
+        catTitle = titleMap[expensesDetailCategory] || "تفاصيل المصروفات";
+      }
 
       expensesDetailRows =
         popupExpensesRowsByCategory(
@@ -1895,9 +2186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
 
       if (expensesDetailTitle) {
-        expensesDetailTitle.textContent =
-          titleMap[expensesDetailCategory] ||
-          "تفاصيل المصروفات";
+        expensesDetailTitle.textContent = catTitle;
       }
 
       renderExpensesDetailRows(
@@ -8064,3 +8353,111 @@ document.addEventListener("DOMContentLoaded", async () => {
     try { promise?.catch?.(() => {}); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
   }
 });
+
+  // Tariff change listeners
+  ["tariff-full", "tariff-partial", "tariff-exempt"].forEach(id => {
+    document.getElementById(id)?.addEventListener("input", () => {
+      if (!currentRenderedExpensesResult) return;
+      const rows = currentRenderedExpensesResult.rows;
+      const total = rows.length;
+      const boys = rows.filter(isStudentBoy).length;
+      const girls = rows.filter(isStudentGirl).length;
+      const paidFull = rows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+      const paidPartial = rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial").length;
+      const paidExempt = rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full").length;
+      const paidTotal = paidFull + paidPartial + paidExempt;
+      const unpaidTotal = rows.filter(r => !r.isHome && !r.paid).length;
+      const pctStr = total > 0 ? ((paidTotal / total) * 100).toFixed(1) + "%" : "0.0%";
+      renderExpensesFinancialTable(total, boys, girls, paidFull, paidPartial, paidExempt, paidTotal, unpaidTotal, pctStr);
+    });
+  });
+
+  // Delegated click handler for any .expenses-stat button
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".expenses-stat[data-exp-cat]");
+    if (btn) {
+      openExpensesDetails(btn.dataset.expCat || "all");
+    }
+  });
+
+  // Dedicated Table Export Button
+  document.getElementById("btn-expenses-export-report")?.addEventListener("click", () => {
+    const tFull = Number(document.getElementById("tariff-full")?.value) || 395;
+    const tPartial = Number(document.getElementById("tariff-partial")?.value) || 259.91;
+    const tExempt = Number(document.getElementById("tariff-exempt")?.value) || 39.22;
+    const run = async () => {
+      await navigateAndRun({
+        targetUrl: "https://student.emis.gov.eg/student/list",
+        siteHost: "student.emis.gov.eg",
+        messages: [{
+          action: "EXPORT_EXPENSES_REPORT_EXCEL",
+          tariffs: { tFull, tPartial, tExempt }
+        }]
+      });
+    };
+    const btn = document.getElementById("btn-expenses-export-report");
+    window.withButtonBusy ? window.withButtonBusy(btn, run) : run();
+  });
+
+  // Dedicated Print Button
+  document.getElementById("btn-expenses-print-report")?.addEventListener("click", () => {
+    if (!currentRenderedExpensesResult) return;
+    const printWrap = document.getElementById("expenses-report-container") || document.getElementById("expenses-content");
+    if (!printWrap) return;
+
+    const w = window.open("", "_blank", "width=1000,height=800");
+    if (!w) {
+      window.print();
+      return;
+    }
+    const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>تقرير تحليل المصروفات المدرسية</title>
+  <style>
+    body { font-family: Cairo, Tahoma, Arial, sans-serif; direction: rtl; padding: 20px; background: #fff; color: #111; }
+    h2 { text-align: center; color: #17436b; margin-bottom: 4px; font-size: 20px; }
+    .date { text-align: center; color: #64748b; font-size: 12px; margin-bottom: 12px; }
+    .pill { text-align: center; font-weight: bold; background: #f1f5f9; padding: 8px; border-radius: 9999px; border: 1px solid #cbd5e1; font-size: 13px; margin: 10px auto; max-width: 800px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+    .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; text-align: center; background: #f8fafc; }
+    .card.green { background: #f0fdf4; border-color: #bbf7d0; }
+    .card.green b { color: #15803d; }
+    .card.red { background: #fef2f2; border-color: #fecaca; }
+    .card.red b { color: #dc2626; }
+    .card b { font-size: 20px; display: block; margin-bottom: 2px; }
+    .card span { font-size: 12px; color: #475569; font-weight: bold; }
+    .banner { background: #1e3a5f; color: #fff; padding: 8px; font-weight: bold; text-align: center; border-radius: 8px 8px 0 0; margin-top: 16px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; margin-bottom: 10px; }
+    th, td { border: 1px solid #cbd5e1; padding: 6px; }
+    th { background: #f1f5f9; }
+    .th-green { background: #dcfce7; color: #166534; }
+    .th-red { background: #fee2e2; color: #991b1b; }
+    .cell-green { color: #15803d; font-weight: bold; }
+    .cell-red { color: #dc2626; font-weight: bold; }
+    .progress-bar { background: #e2e8f0; border-radius: 9999px; height: 14px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { background: #10b981; height: 100%; border-radius: 9999px; }
+    .tariffs { display: flex; justify-content: space-around; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; margin: 10px 0; font-weight: bold; }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  ${printWrap.innerHTML}
+  <script>
+    window.onload = function() {
+      // Remove interactive buttons in print
+      document.querySelectorAll('button').forEach(b => {
+        const span = document.createElement('span');
+        span.innerHTML = b.innerHTML;
+        b.parentNode.replaceChild(span, b);
+      });
+      window.print();
+    };
+  </script>
+</body>
+</html>`;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  });

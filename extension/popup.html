@@ -576,20 +576,189 @@
   </div>
   <div id="expenses-empty" class="school-stats-empty">آخر تحليل محفوظ يظل داخل الأداة ولا يتغير إلا عند الضغط على «تحليل المصروفات والإعفاءات».</div>
   <div id="expenses-content" hidden>
-    <div class="school-stats-meta" id="expenses-meta"></div>
-    <div class="school-stats-cards expenses-stats-cards">
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="all"><b id="expense-total">0</b><span>إجمالي الطلاب</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="homes"><b id="expense-homes">0</b><span>منازل</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="paid"><b id="expense-paid">0</b><span>المسددون</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="reportOnly"><b id="expense-report-only">0</b><span>مسددون بالتقرير وغير موجودين حاليًا</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="unpaid"><b id="expense-unpaid">0</b><span>غير المسددين</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="allExemptions"><b id="expense-all-exemptions">0</b><span>كل الإعفاءات</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="fullExempt"><b id="expense-full">0</b><span>إعفاء وفق القرار</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="partialExempt"><b id="expense-partial">0</b><span>تخفيض 50%</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="due"><b id="expense-due">0</b><span>مطلوب السداد</span></button>
-      <button class="btn-quiet stat-mini expenses-stat" data-exp-cat="review"><b id="expense-review">0</b><span>يحتاج مراجعة</span></button>
+    <!-- 1. Header & Context Banner -->
+    <div class="expenses-dashboard-header">
+      <h2 class="expenses-dashboard-title" id="expenses-dashboard-title">المصروفات الدراسية للعام المالي 2026 - 2027</h2>
+      <div class="expenses-dashboard-date" id="expenses-dashboard-date">آخر تحديث: —</div>
+      <div class="expenses-dashboard-pill" id="expenses-dashboard-pill">
+        قيد: 0 (بنين: 0 • بنات: 0) • انتظام: 0 • منازل: 0 • مسددون: 0 • غير مسدد: 0
+      </div>
     </div>
-    <div class="school-stats-empty expenses-note">طلاب «منازل» يظهرون في كارت مستقل ولا يدخلون ضمن غير المسددين أو المطلوب منهم السداد. «مطلوب السداد» يستبعد المعفيين وفق القرار، ويشمل أصحاب التخفيض 50% بالقيمة المخفضة.</div>
+
+    <!-- 2. 12 KPI Cards Grid (4 rows x 3 columns) -->
+    <div class="expenses-kpi-grid">
+      <!-- Row 1: القيد -->
+      <button type="button" class="expenses-kpi-card expenses-stat" data-exp-cat="all" title="عرض جميع الطلاب المقيدين">
+        <b id="expense-total">0</b>
+        <span>إجمالي القيد</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-stat" data-exp-cat="boys" title="عرض الطلاب البنين">
+        <b id="expense-boys">0</b>
+        <span>القيد — بنين</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-stat" data-exp-cat="girls" title="عرض الطالبات البنات">
+        <b id="expense-girls">0</b>
+        <span>القيد — بنات</span>
+      </button>
+
+      <!-- Row 2: منازل / المسددين / غير المسددين -->
+      <button type="button" class="expenses-kpi-card expenses-stat" data-exp-cat="homes" title="عرض طلاب المنازل">
+        <b id="expense-homes">0</b>
+        <span>منازل</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--green expenses-stat" data-exp-cat="paid" title="عرض جميع المسددين">
+        <b id="expense-paid">0</b>
+        <span>إجمالي المسددين</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--red expenses-stat" data-exp-cat="unpaid" title="عرض جميع غير المسددين">
+        <b id="expense-unpaid">0</b>
+        <span>إجمالي غير المسددين</span>
+      </button>
+
+      <!-- Row 3: المسددون حسب الفئة -->
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--green expenses-stat" data-exp-cat="paid_full" title="عرض المسددين سداد كامل">
+        <b id="expense-paid-full">0</b>
+        <span>سداد كامل</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--green expenses-stat" data-exp-cat="paid_partial" title="عرض المسددين أبناء عاملين 50%">
+        <b id="expense-paid-partial">0</b>
+        <span>المسددين — أبناء عاملين (سداد 50%)</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--green expenses-stat" data-exp-cat="paid_exempt" title="عرض المسددين إعفاءات حسب القرار">
+        <b id="expense-paid-exempt">0</b>
+        <span>المسددين — إعفاءات حسب القرار</span>
+      </button>
+
+      <!-- Row 4: غير المسددين حسب الفئة -->
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--red expenses-stat" data-exp-cat="unpaid_full" title="عرض غير المسددين سداد كامل">
+        <b id="expense-unpaid-full">0</b>
+        <span>غير مسدد — سداد كامل</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--red expenses-stat" data-exp-cat="unpaid_partial" title="عرض غير المسددين أبناء عاملين 50%">
+        <b id="expense-unpaid-partial">0</b>
+        <span>غير مسدد — أبناء عاملين (%50)</span>
+      </button>
+      <button type="button" class="expenses-kpi-card expenses-kpi-card--red expenses-stat" data-exp-cat="unpaid_exempt" title="عرض غير المسددين إعفاءات حسب القرار">
+        <b id="expense-unpaid-exempt">0</b>
+        <span>غير مسدد — إعفاءات حسب القرار</span>
+      </button>
+    </div>
+
+    <!-- Extra Links & Compatibility Items -->
+    <div class="school-stats-meta" id="expenses-meta" style="margin-bottom: 8px;"></div>
+    <div class="expenses-extra-links" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      <button type="button" class="n-btn n-btn--ghost n-btn--sm expenses-stat" data-exp-cat="reportOnly">مسددون بالتقرير وغير موجودين حاليًا (<b id="expense-report-only">0</b>)</button>
+      <button type="button" class="n-btn n-btn--ghost n-btn--sm expenses-stat" data-exp-cat="allExemptions">كل الإعفاءات (<b id="expense-all-exemptions">0</b>)</button>
+      <button type="button" class="n-btn n-btn--ghost n-btn--sm expenses-stat" data-exp-cat="fullExempt">إعفاء وفق القرار (<b id="expense-full">0</b>)</button>
+      <button type="button" class="n-btn n-btn--ghost n-btn--sm expenses-stat" data-exp-cat="partialExempt">تخفيض 50% (<b id="expense-partial">0</b>)</button>
+      <button type="button" class="n-btn n-btn--ghost n-btn--sm expenses-stat" data-exp-cat="due">مطلوب السداد (<b id="expense-due">0</b>)</button>
+      <button type="button" class="n-btn n-btn--ghost n-btn--sm expenses-stat" data-exp-cat="review">يحتاج مراجعة (<b id="expense-review">0</b>)</button>
+    </div>
+
+    <!-- 3. Table 1: تحليل الصفوف الدراسية — المسدد وغير المسدد حسب الفئة -->
+    <div class="expenses-section-card">
+      <div class="expenses-section-banner">
+        <span>تحليل الصفوف الدراسية — المسدد وغير المسدد حسب الفئة</span>
+      </div>
+      <div class="school-stats-table-wrap expenses-grades-wrap">
+        <table class="school-stats-table expenses-grades-table" id="expenses-grades-table">
+          <thead>
+            <tr>
+              <th rowspan="2" class="th-main">الصف</th>
+              <th rowspan="2" class="th-main">القيد</th>
+              <th colspan="4" class="th-group th-group--green">المسددون</th>
+              <th colspan="4" class="th-group th-group--red">غير المسددين</th>
+              <th rowspan="2" class="th-main">منازل</th>
+              <th rowspan="2" class="th-main">نسبة السداد</th>
+            </tr>
+            <tr>
+              <th class="th-sub th-sub--green">سداد كامل</th>
+              <th class="th-sub th-sub--green">أبناء عاملين</th>
+              <th class="th-sub th-sub--green">إعفاء</th>
+              <th class="th-sub th-sub--green-total">الإجمالي</th>
+              <th class="th-sub th-sub--red">سداد كامل</th>
+              <th class="th-sub th-sub--red">أبناء عاملين</th>
+              <th class="th-sub th-sub--red">إعفاء</th>
+              <th class="th-sub th-sub--red-total">الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody id="expenses-grades-tbody"></tbody>
+          <tfoot id="expenses-grades-tfoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- 4. Progress Bar -->
+    <div class="expenses-progress-section">
+      <div class="expenses-progress-header">
+        <span class="expenses-progress-title">نسبة السداد (المسددون ÷ إجمالي القيد)</span>
+        <span class="expenses-progress-pct" id="expenses-progress-pct">0.0%</span>
+      </div>
+      <div class="expenses-progress-track">
+        <div class="expenses-progress-fill" id="expenses-progress-fill" style="width: 0%;"></div>
+      </div>
+      <div class="expenses-progress-sub" id="expenses-progress-sub">0 مسدد من 0 قيد</div>
+    </div>
+
+    <!-- 5. Table 2: الملخص المالي -->
+    <div class="expenses-section-card">
+      <div class="expenses-section-banner">
+        <span>الملخص المالي</span>
+      </div>
+      <!-- Tariffs -->
+      <div class="expenses-tariffs-row">
+        <div class="expenses-tariff-box">
+          <span class="tariff-title">سداد كامل</span>
+          <div class="tariff-input-box">
+            <input type="number" step="0.01" class="tariff-input" id="tariff-full" value="395" title="قيمة السداد الكامل">
+          </div>
+        </div>
+        <div class="expenses-tariff-box">
+          <span class="tariff-title">أبناء عاملين (50%)</span>
+          <div class="tariff-input-box">
+            <input type="number" step="0.01" class="tariff-input" id="tariff-partial" value="259.91" title="قيمة سداد أبناء العاملين">
+          </div>
+        </div>
+        <div class="expenses-tariff-box">
+          <span class="tariff-title">إعفاءات حسب القرار</span>
+          <div class="tariff-input-box">
+            <input type="number" step="0.01" class="tariff-input" id="tariff-exempt" value="39.22" title="قيمة إعفاءات القرار">
+          </div>
+        </div>
+      </div>
+      <!-- Financial Table -->
+      <div class="school-stats-table-wrap expenses-financial-wrap">
+        <table class="school-stats-table expenses-financial-table" id="expenses-financial-table">
+          <thead>
+            <tr>
+              <th>البيان</th>
+              <th>القيد</th>
+              <th>بنين</th>
+              <th>بنات</th>
+              <th>سداد كامل</th>
+              <th>أبناء عاملين</th>
+              <th>إعفاءات</th>
+              <th>الإجمالي</th>
+              <th>غير مسددين</th>
+              <th>النسبة</th>
+            </tr>
+          </thead>
+          <tbody id="expenses-financial-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Actions for Report Table Export & Print -->
+    <div class="expenses-report-actions" style="display:flex;gap:10px;margin-top:14px;">
+      <button class="n-btn n-btn--secondary n-btn--block" id="btn-expenses-export-report" type="button">
+        <i data-icon="sheet"></i><span class="n-btn__label">تصدير جدول تحليل المصروفات Excel</span>
+      </button>
+      <button class="n-btn n-btn--ghost n-btn--block" id="btn-expenses-print-report" type="button">
+        <i data-icon="print"></i><span class="n-btn__label">طباعة تقرير التحليل المالي</span>
+      </button>
+    </div>
+
+    <div class="school-stats-empty expenses-note" style="margin-top:12px;">طلاب «منازل» يظهرون في كارت مستقل ولا يدخلون ضمن غير المسددين أو المطلوب منهم السداد. «مطلوب السداد» يستبعد المعفيين وفق القرار، ويشمل أصحاب التخفيض 50% بالقيمة المخفضة.</div>
   </div>
 </div>
 </section>

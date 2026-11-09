@@ -770,6 +770,168 @@ function neprasExpensesExcelHeaders() {
   ];
 }
 
+
+function neprasExpensesIsBoy(r) {
+  if (typeof window?.NeprasEgypt?.isMale === "function") {
+    const m = window.NeprasEgypt.isMale(r);
+    if (typeof m === "boolean") return m;
+  }
+  const g = String(r?.gender || r?.["النوع"] || "").trim();
+  if (g.includes("بنين") || g.includes("ذكر")) return true;
+  const nid = String(r?.nationalId || r?.["الرقم القومي"] || "").replace(/\D/g, "");
+  if (nid.length === 14) return Number(nid[12]) % 2 === 1;
+  return false;
+}
+
+function neprasExpensesIsGirl(r) {
+  if (typeof window?.NeprasEgypt?.isMale === "function") {
+    const m = window.NeprasEgypt.isMale(r);
+    if (typeof m === "boolean") return !m;
+  }
+  const g = String(r?.gender || r?.["النوع"] || "").trim();
+  if (g.includes("بنات") || g.includes("انثى") || g.includes("أنثى")) return true;
+  const nid = String(r?.nationalId || r?.["الرقم القومي"] || "").replace(/\D/g, "");
+  if (nid.length === 14) return Number(nid[12]) % 2 === 0;
+  return false;
+}
+
+function neprasBuildExpensesAnalysisSheets(result, tariffs = {}) {
+  const rows = Array.isArray(result?.rows) ? result.rows : [];
+  const tFull = Number(tariffs.tFull) || 395;
+  const tPartial = Number(tariffs.tPartial) || 259.91;
+  const tExempt = Number(tariffs.tExempt) || 39.22;
+
+  const total = rows.length;
+  const boys = rows.filter(neprasExpensesIsBoy).length;
+  const girls = rows.filter(neprasExpensesIsGirl).length;
+  const homes = rows.filter(r => r.isHome).length;
+
+  const totPaidFull = rows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+  const totPaidPartial = rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial").length;
+  const totPaidExempt = rows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full").length;
+  const totPaidTotal = totPaidFull + totPaidPartial + totPaidExempt;
+
+  const totUnpaidFull = rows.filter(r => !r.isHome && !r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+  const totUnpaidPartial = rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "partial").length;
+  const totUnpaidExempt = rows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "full").length;
+  const totUnpaidTotal = totUnpaidFull + totUnpaidPartial + totUnpaidExempt;
+
+  const overallRate = total > 0 ? ((totPaidTotal / total) * 100).toFixed(1) + "%" : "0.0%";
+
+  // 1. Table: تحليل الصفوف الدراسية
+  const gradesHeaders = [
+    "الصف", "القيد", "المسددون (سداد كامل)", "المسددون (أبناء عاملين)", "المسددون (إعفاء)", "إجمالي المسددين",
+    "غير المسددين (سداد كامل)", "غير المسددين (أبناء عاملين)", "غير المسددين (إعفاء)", "إجمالي غير المسددين",
+    "منازل", "نسبة السداد"
+  ];
+
+  const gradesSet = new Set();
+  rows.forEach(r => {
+    const g = String(r.grade || "").trim();
+    if (g) gradesSet.add(g);
+  });
+
+  const getRank = (name) => {
+    const s = String(name || "").trim();
+    if (s.includes("الاول") || s.includes("الأول") || s.includes("1")) return 1;
+    if (s.includes("الثاني") || s.includes("2")) return 2;
+    if (s.includes("الثالث") || s.includes("3")) return 3;
+    if (s.includes("الرابع") || s.includes("4")) return 4;
+    if (s.includes("الخامس") || s.includes("5")) return 5;
+    if (s.includes("السادس") || s.includes("6")) return 6;
+    return 99;
+  };
+
+  const gradesList = Array.from(gradesSet).sort((a, b) => {
+    const rA = getRank(a);
+    const rB = getRank(b);
+    if (rA !== rB) return rA - rB;
+    return a.localeCompare(b, "ar");
+  });
+
+  const gradesRows = gradesList.map(gradeName => {
+    const gRows = rows.filter(r => String(r.grade || "").trim() === gradeName);
+    const gCount = gRows.length;
+    const gHomes = gRows.filter(r => r.isHome).length;
+
+    const gPaidFull = gRows.filter(r => !r.isHome && r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+    const gPaidPartial = gRows.filter(r => !r.isHome && r.paid && r.exemptionClass === "partial").length;
+    const gPaidExempt = gRows.filter(r => !r.isHome && r.paid && r.exemptionClass === "full").length;
+    const gPaidTotal = gPaidFull + gPaidPartial + gPaidExempt;
+
+    const gUnpaidFull = gRows.filter(r => !r.isHome && !r.paid && r.exemptionClass !== "partial" && r.exemptionClass !== "full").length;
+    const gUnpaidPartial = gRows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "partial").length;
+    const gUnpaidExempt = gRows.filter(r => !r.isHome && !r.paid && r.exemptionClass === "full").length;
+    const gUnpaidTotal = gUnpaidFull + gUnpaidPartial + gUnpaidExempt;
+
+    const gPct = gCount > 0 ? ((gPaidTotal / gCount) * 100).toFixed(1) + "%" : "0.0%";
+
+    return [
+      gradeName, gCount, gPaidFull, gPaidPartial, gPaidExempt, gPaidTotal,
+      gUnpaidFull, gUnpaidPartial, gUnpaidExempt, gUnpaidTotal,
+      gHomes, gPct
+    ];
+  });
+
+  // Total footer row
+  gradesRows.push([
+    "الإجمالي", total, totPaidFull, totPaidPartial, totPaidExempt, totPaidTotal,
+    totUnpaidFull, totUnpaidPartial, totUnpaidExempt, totUnpaidTotal,
+    homes, overallRate
+  ]);
+
+  // 2. Table: الملخص المالي
+  const finHeaders = [
+    "البيان", "القيد", "بنين", "بنات", "سداد كامل", "أبناء عاملين (50%)", "إعفاءات حسب القرار", "إجمالي المسددين", "غير مسددين", "نسبة السداد"
+  ];
+
+  const mFull = totPaidFull * tFull;
+  const mPartial = totPaidPartial * tPartial;
+  const mExempt = totPaidExempt * tExempt;
+  const mTotal = mFull + mPartial + mExempt;
+
+  const finRows = [
+    ["العدد", total, boys, girls, totPaidFull, totPaidPartial, totPaidExempt, totPaidTotal, totUnpaidTotal, overallRate],
+    ["المبلغ (ج)", "—", "—", "—", Number(mFull.toFixed(2)), Number(mPartial.toFixed(2)), Number(mExempt.toFixed(2)), Number(mTotal.toFixed(2)), "—", "—"],
+    ["التعريفة المطبقة (ج)", "—", "—", "—", tFull, tPartial, tExempt, "—", "—", "—"]
+  ];
+
+  return [
+    {
+      name: "تحليل الصفوف الدراسية",
+      headers: gradesHeaders,
+      rows: gradesRows,
+      title: "تحليل الصفوف الدراسية — المسدد وغير المسدد حسب الفئة",
+      recordCount: total,
+      countLabel: "إجمالي القيد"
+    },
+    {
+      name: "الملخص المالي",
+      headers: finHeaders,
+      rows: finRows,
+      title: "الملخص المالي ومبالغ السداد المحصلة",
+      recordCount: totPaidTotal,
+      countLabel: "إجمالي المسددين"
+    }
+  ];
+}
+
+function neprasExportExpensesAnalysisReportExcel(result, tariffs = {}) {
+  if (!result?.rows?.length) {
+    throw new Error("لا توجد بيانات مصروفات محفوظة للتصدير.");
+  }
+  if (typeof window.neprasStudentBuildMultiSheetXlsx !== "function") {
+    throw new Error("محرك Excel متعدد الصفحات غير جاهز.");
+  }
+
+  const sheets = neprasBuildExpensesAnalysisSheets(result, tariffs);
+  const wb = {
+    __neprasStudentXlsxBytes: window.neprasStudentBuildMultiSheetXlsx(sheets)
+  };
+
+  downloadWorkbook(wb, "جدول_تحليل_المصروفات_والملخص_المالي", "تحليل المصروفات والملخص المالي");
+}
+
 function neprasExportExpensesExcel(result) {
   if (!result?.rows?.length) {
     throw new Error("لا توجد بيانات مصروفات محفوظة للتصدير.");
@@ -781,37 +943,14 @@ function neprasExportExpensesExcel(result) {
 
   const headers = neprasExpensesExcelHeaders();
 
-  const summaryHeaders = [
-    "البيان", "العدد"
-  ];
-
-  const summaryRows = [
-    ["إجمالي الطلاب", result.total],
-    ["طلاب المنازل", result.homes],
-    ["الطلاب غير المنازل", result.regular],
-    ["المسددون حسب تقرير الوزارة", result.paidReport ?? result.paid],
-    ["المسددون المطابقون للطلاب الحاليين", result.paidReportMatched ?? result.paid],
-    ["مسددون بالتقرير وغير موجودين حاليًا", neprasExpensesRowsByCategory(result, "reportOnly").length],
-    ["غير المسددين (بدون المنازل)", result.unpaid],
-    ["كل الإعفاءات", result.allExemptions],
-    ["المعفون وفق القرار", result.fullExempt],
-    ["أصحاب التخفيض 50%", result.partialExempt],
-    ["المطلوب منهم السداد", result.due],
-    ["يحتاج مراجعة", result.review]
-  ];
+  // 1. Add Analysis Sheets (Grades breakdown & Financial summary)
+  const analysisSheets = neprasBuildExpensesAnalysisSheets(result);
 
   const categories = [
     "all", "homes", "paid", "reportOnly", "unpaid", "allExemptions", "fullExempt", "partialExempt", "due", "review"
   ];
 
-  const sheets = [{
-    name: "ملخص المصروفات",
-    headers: summaryHeaders,
-    rows: summaryRows,
-    title: "ملخص المصروفات والإعفاءات",
-    recordCount: Number(result.total || 0),
-    countLabel: "إجمالي الطلاب"
-  }];
+  const sheets = [...analysisSheets];
 
   for (const category of categories) {
     const rows = neprasExpensesRowsByCategory(result, category);
@@ -829,7 +968,7 @@ function neprasExportExpensesExcel(result) {
     __neprasStudentXlsxBytes: window.neprasStudentBuildMultiSheetXlsx(sheets)
   };
 
-  downloadWorkbook(wb, "تحليل_المصروفات_والإعفاءات", "المصروفات والإعفاءات");
+  downloadWorkbook(wb, "تحليل_المصروفات_والإعفاءات_الشامل", "المصروفات والإعفاءات");
 }
 
 function neprasExportExpensesCategoryExcel(result, category) {
@@ -856,4 +995,5 @@ window.neprasAnalyzeExpensesAndExemptions = neprasAnalyzeExpensesAndExemptions;
 window.neprasExpensesRowsByCategory = neprasExpensesRowsByCategory;
 window.neprasExpensesCategoryTitle = neprasExpensesCategoryTitle;
 window.neprasExportExpensesExcel = neprasExportExpensesExcel;
+window.neprasExportExpensesAnalysisReportExcel = neprasExportExpensesAnalysisReportExcel;
 window.neprasExportExpensesCategoryExcel = neprasExportExpensesCategoryExcel;

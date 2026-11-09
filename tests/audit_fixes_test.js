@@ -2013,5 +2013,117 @@ async function test(name, fn) {
     assert.strictEqual(loadedFromOfficial.stats.total, 567, "Total students must be 567");
   });
 
+  await test("expenses: neprasBuildExpensesAnalysisSheets calculates exact grade and financial breakdown matching ministry dashboard", async () => {
+    // Load expenses module in a sandbox environment
+    const expensesCode = fs.readFileSync(path.join(__dirname, "../extension/modules/expenses.js"), "utf8");
+    const sandbox = {
+      window: {
+        NeprasEgypt: {
+          isMale: (r) => {
+            const nid = String(r?.nationalId || "").replace(/\D/g, "");
+            if (nid.length === 14) return Number(nid[12]) % 2 === 1;
+            return r?.gender === "بنين" || r?.gender === "ذكر";
+          }
+        }
+      },
+      downloadWorkbook: () => {},
+      console
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(expensesCode, sandbox);
+
+    // Build mock students matching the exact dashboard in user screenshot:
+    // Grade 1: 319 students (paid: 258 full, 4 partial, 40 exempt = 302; unpaid: 9 full, 0 partial, 8 exempt = 17)
+    // Grade 2: 265 students (paid: 18 full, 2 partial, 10 exempt = 30; unpaid: 189 full, 6 partial, 40 exempt = 235)
+    // Grade 3: 236 students (paid: 170 full, 4 partial, 57 exempt = 231; unpaid: 1 full, 0 partial, 4 exempt = 5)
+    // Total = 820 (paid = 563: 446 full, 10 partial, 107 exempt; unpaid = 257: 199 full, 6 partial, 52 exempt)
+    const mockRows = [];
+    function addGroup(grade, count, paid, excClass) {
+      for (let i = 0; i < count; i++) {
+        mockRows.push({
+          grade,
+          isHome: false,
+          paid,
+          exemptionClass: excClass,
+          gender: mockRows.length % 2 === 0 ? "بنين" : "بنات"
+        });
+      }
+    }
+    // Grade 1
+    addGroup("الصف الأول", 258, true, "none");
+    addGroup("الصف الأول", 4, true, "partial");
+    addGroup("الصف الأول", 40, true, "full");
+    addGroup("الصف الأول", 9, false, "none");
+    addGroup("الصف الأول", 0, false, "partial");
+    addGroup("الصف الأول", 8, false, "full");
+    // Grade 2
+    addGroup("الصف الثاني", 18, true, "none");
+    addGroup("الصف الثاني", 2, true, "partial");
+    addGroup("الصف الثاني", 10, true, "full");
+    addGroup("الصف الثاني", 189, false, "none");
+    addGroup("الصف الثاني", 6, false, "partial");
+    addGroup("الصف الثاني", 40, false, "full");
+    // Grade 3
+    addGroup("الصف الثالث", 170, true, "none");
+    addGroup("الصف الثالث", 4, true, "partial");
+    addGroup("الصف الثالث", 57, true, "full");
+    addGroup("الصف الثالث", 1, false, "none");
+    addGroup("الصف الثالث", 0, false, "partial");
+    addGroup("الصف الثالث", 4, false, "full");
+
+    assert.strictEqual(mockRows.length, 820, "Total rows must be 820");
+
+    const mockResult = {
+      total: 820,
+      rows: mockRows
+    };
+
+    const tariffs = { tFull: 395, tPartial: 259.91, tExempt: 39.22 };
+    const sheets = sandbox.neprasBuildExpensesAnalysisSheets(mockResult, tariffs);
+    assert.strictEqual(sheets.length, 2, "Must build 2 analysis sheets");
+
+    const gradesSheet = sheets[0];
+    assert.strictEqual(gradesSheet.name, "تحليل الصفوف الدراسية");
+    // 3 grades + 1 total row = 4 rows
+    assert.strictEqual(gradesSheet.rows.length, 4);
+
+    // Total footer row verification
+    const totalRow = gradesSheet.rows[3];
+    assert.strictEqual(totalRow[0], "الإجمالي");
+    assert.strictEqual(totalRow[1], 820, "Total count");
+    assert.strictEqual(totalRow[2], 446, "Paid full");
+    assert.strictEqual(totalRow[3], 10, "Paid partial (50%)");
+    assert.strictEqual(totalRow[4], 107, "Paid exempt");
+    assert.strictEqual(totalRow[5], 563, "Total paid");
+    assert.strictEqual(totalRow[6], 199, "Unpaid full");
+    assert.strictEqual(totalRow[7], 6, "Unpaid partial (50%)");
+    assert.strictEqual(totalRow[8], 52, "Unpaid exempt");
+    assert.strictEqual(totalRow[9], 257, "Total unpaid");
+    assert.strictEqual(totalRow[10], 0, "Homes");
+    assert.strictEqual(totalRow[11], "68.7%", "Payment percentage");
+
+    // Financial Sheet verification
+    const finSheet = sheets[1];
+    assert.strictEqual(finSheet.name, "الملخص المالي");
+    const countRow = finSheet.rows[0];
+    assert.strictEqual(countRow[1], 820, "Count: Total");
+    assert.strictEqual(countRow[4], 446, "Count: Paid Full");
+    assert.strictEqual(countRow[5], 10, "Count: Paid Partial");
+    assert.strictEqual(countRow[6], 107, "Count: Paid Exempt");
+    assert.strictEqual(countRow[7], 563, "Count: Paid Total");
+    assert.strictEqual(countRow[8], 257, "Count: Unpaid Total");
+    assert.strictEqual(countRow[9], "68.7%", "Count: Rate");
+
+    const amountRow = finSheet.rows[1];
+    // 446 * 395 = 176170
+    assert.strictEqual(amountRow[4], 176170, "Amount: Paid Full");
+    // 10 * 259.91 = 2599.1
+    assert.strictEqual(amountRow[5], 2599.1, "Amount: Paid Partial");
+    // 107 * 39.22 = 4196.54
+    assert.strictEqual(amountRow[6], 4196.54, "Amount: Paid Exempt");
+    // Total = 176170 + 2599.1 + 4196.54 = 182965.64
+    assert.strictEqual(amountRow[7], 182965.64, "Amount: Total collected");
+  });
+
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);
 })();

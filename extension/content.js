@@ -1000,6 +1000,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === "EXPORT_EXPENSES_REPORT_EXCEL") {
+    chrome.storage.local.get("neprasExpensesAnalysisV1").then(data => {
+      try {
+        window.neprasExportExpensesAnalysisReportExcel?.(
+          data?.neprasExpensesAnalysisV1,
+          request.tariffs || {}
+        );
+      } catch (error) {
+        window.neprasDialog?.alert(error?.message || String(error), {
+          type: "error",
+          title: "تعذر تصدير جدول التحليل المالي"
+        });
+      }
+    });
+    sendResponse({ status: "started" });
+    return true;
+  }
+
   if (request.action === "PRIME_STUDENT_API_SESSION") {
     (async () => {
       try {
