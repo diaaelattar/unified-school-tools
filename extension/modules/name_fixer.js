@@ -319,15 +319,19 @@
             if (byCode) return byCode.value;
 
             const clean = raw.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
-            if (isLang2 && /لا توجد|بدون|لا يوجد/.test(clean)) return '0';
+            
+            // خيارات بوابة وزارة التربية والتعليم الرسمية:
+            // 1 = إنجليزية، 2 = فرنسية، 3 = ألمانية، 4 = إيطالية، 5 = أسبانية، 6 = صينية، 7 = معفي (للغة 2)، 8 = روسية، 9 = يابانية
+            if (isLang2 && /لا توجد|بدون|لا يوجد|معفي|اعفاء|معفى/.test(clean)) return '7';
             if (/عربي/.test(clean) && !isLang2) return '1';
-            if (/انجليز|انكليز|english/.test(clean)) return isLang2 ? '1' : '2';
-            if (/فرنس|french/.test(clean)) return isLang2 ? '2' : '3';
-            if (/المان|deutsch|german/.test(clean)) return isLang2 ? '3' : '4';
-            if (/ايطال|italian/.test(clean)) return isLang2 ? '4' : '5';
-            if (/اسبان|spanish/.test(clean)) return isLang2 ? '5' : '6';
-            if (/صين|chinese/.test(clean)) return '7';
-            if (/يابان|japanese/.test(clean)) return '9';
+            if (/انجليز|انكليز|english|eng/.test(clean)) return '1';
+            if (/فرنس|فرنساوي|french|fren/.test(clean)) return '2';
+            if (/المان|deutsch|german|germ/.test(clean)) return '3';
+            if (/ايطال|italian|ital/.test(clean)) return '4';
+            if (/اسبان|spanish|span/.test(clean)) return '5';
+            if (/صين|chinese|chin/.test(clean)) return '6';
+            if (/روس|russian|russ/.test(clean)) return '8';
+            if (/يابان|japanese|japan/.test(clean)) return '9';
 
             const match = opts.find(o =>
                 o.text.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').includes(clean)
@@ -2907,12 +2911,12 @@ body.nf-dark-mode {
                 const policy = await Store.get('nf_damg_lang_policy', 'empty');
                 const isOverwrite = (policy === 'overwrite');
 
-                const targetLang1 = studentRow?.lang1 || await Store.get('nf_default_lang1', '');
-                const targetLang2 = studentRow?.lang2 || await Store.get('nf_default_lang2', '');
+                const targetLang1 = studentRow ? (studentRow.lang1 || '') : (await Store.get('nf_default_lang1', ''));
+                const targetLang2 = studentRow ? (studentRow.lang2 || '') : (await Store.get('nf_default_lang2', ''));
                 const targetDamg  = (studentRow && studentRow.damg !== undefined && studentRow.damg !== '' && studentRow.damg !== null)
-                    ? studentRow.damg : await Store.get('nf_default_damg', '');
-                const targetDiv   = studentRow?.division || await Store.get('nf_default_division', '');
-                const targetSpec  = studentRow?.specialization || await Store.get('nf_default_spec', '');
+                    ? studentRow.damg : (studentRow ? '' : await Store.get('nf_default_damg', ''));
+                const targetDiv   = studentRow ? (studentRow.division || '') : (await Store.get('nf_default_division', ''));
+                const targetSpec  = studentRow ? (studentRow.specialization || '') : (await Store.get('nf_default_spec', ''));
 
                 // 1) اللغة الأولى (languageId1)
                 const lang1 = document.querySelector('select[formcontrolname="languageId1"]');

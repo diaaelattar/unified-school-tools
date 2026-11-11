@@ -2175,16 +2175,15 @@ async function test(name, fn) {
 
   await test("name_fixer: resolveLanguageCode maps first and second languages accurately", () => {
     const { resolveLanguageCode } = NameFixerModule.Utils;
-    // Lang 1
-    assert.strictEqual(resolveLanguageCode("اللغة العربية", false), "1");
-    assert.strictEqual(resolveLanguageCode("اللغة الإنجليزية", false), "2");
-    assert.strictEqual(resolveLanguageCode("لغة فرنسية", false), "3");
+    // Official Ministry Language Codes (languageId1: 1=English, 2=French, 3=German, 4=Italian, 5=Spanish, 6=Chinese, 8=Russian, 9=Japanese)
+    assert.strictEqual(resolveLanguageCode("اللغة الإنجليزية", false), "1");
+    assert.strictEqual(resolveLanguageCode("لغة فرنسية", false), "2");
+    assert.strictEqual(resolveLanguageCode("لغة المانية", false), "3");
     assert.strictEqual(resolveLanguageCode("ياباني", false), "9");
 
     // Lang 2
-    assert.strictEqual(resolveLanguageCode("لا توجد", true), "0");
-    assert.strictEqual(resolveLanguageCode("بدون", true), "0");
-    assert.strictEqual(resolveLanguageCode("لغة انجليزية", true), "1");
+    assert.strictEqual(resolveLanguageCode("لا توجد", true), "7");
+    assert.strictEqual(resolveLanguageCode("معفي", true), "7");
     assert.strictEqual(resolveLanguageCode("لغة فرنسية", true), "2");
     assert.strictEqual(resolveLanguageCode("لغة المانية", true), "3");
     assert.strictEqual(resolveLanguageCode("لغة ايطالية", true), "4");
@@ -2240,19 +2239,19 @@ async function test(name, fn) {
     ];
 
     const map = parseExcelStudentMap(mockRows);
-    assert.strictEqual(map["987654321"].lang1, "2");
-    assert.strictEqual(map["987654321"].lang2, "2");
+    assert.strictEqual(map["987654321"].lang1, "1"); // الإنجليزية = 1
+    assert.strictEqual(map["987654321"].lang2, "2"); // الفرنسية = 2
     assert.strictEqual(map["987654321"].damg, "0");
     assert.strictEqual(map["987654321"].division, "4");
     assert.strictEqual(map["987654321"].specialization, "3");
 
     assert.strictEqual(map["112233445"].lang1, "1");
-    assert.strictEqual(map["112233445"].lang2, "0");
+    assert.strictEqual(map["112233445"].lang2, "7");
     assert.strictEqual(map["112233445"].damg, "1");
 
     // Match via 14-digit National ID directly
     assert.ok(map["30801010123456"], "map must index by 14-digit nationalId");
-    assert.strictEqual(map["30801010123456"].lang1, "3"); // الفرنسية = 3
+    assert.strictEqual(map["30801010123456"].lang1, "2"); // الفرنسية = 2
     assert.strictEqual(map["30801010123456"].damg, "0");
 
     // Test 2D matrix format with top banner/title rows and Arabic numerals
