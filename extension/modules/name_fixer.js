@@ -267,6 +267,10 @@
                 if (nativeSetter) nativeSetter.call(el, strVal);
                 else el.value = strVal;
             } catch (_) { el.value = strVal; }
+            const opt = Array.from(el.options || []).find(o => String(o.value).trim() === strVal);
+            if (opt) {
+                opt.selected = true;
+            }
             el.dispatchEvent(new Event('change', { bubbles: true }));
             el.dispatchEvent(new Event('input',  { bubbles: true }));
             el.dispatchEvent(new Event('blur',   { bubbles: true }));
@@ -401,16 +405,18 @@
                     lang1: -1, lang2: -1, div: -1, spec: -1
                 };
 
+                // 1) البحث عن صف الرؤوس بالكلمات المفتاحية دون تقييد متزمت لطول الخلية
                 for (let r = 0; r < Math.min(rows.length, 15); r++) {
                     const row = rows[r];
                     if (!Array.isArray(row)) continue;
                     const nonEmpty = row.filter(c => String(c || '').trim().length > 0);
-                    if (nonEmpty.length < 2) continue; // تخطي صفوف العناوين والترويسات المنفردة بالأعلى
+                    if (nonEmpty.length < 2) continue; // تخطي صفوف العناوين الترويسية الفردية
 
                     let hasIdHeader = false;
                     for (let c = 0; c < row.length; c++) {
                         const cell = normKey(row[c]);
-                        if (cell.length <= 25 && (/^(كود|كود الطالب|كود التلميذ|الكود|code|studentcode|id)$/i.test(cell) || (cell.includes('كود') && cell.length <= 15) || /^(الرقم القومي|قومي|nationalid|nid)$/i.test(cell) || (cell.includes('قوم') && cell.length <= 15))) {
+                        if (cell.includes('كود') || cell.includes('code') || cell.includes('student') || cell.includes('id') || cell.includes('جلوس') ||
+                            cell.includes('قوم') || cell.includes('national') || cell.includes('nid')) {
                             hasIdHeader = true;
                             break;
                         }
@@ -419,21 +425,21 @@
                         headerRowIdx = r;
                         for (let c = 0; c < row.length; c++) {
                             const cell = normKey(row[c]);
-                            if (colIndices.code === -1 && (/^(كود|كود الطالب|كود التلميذ|الكود|code|studentcode|id)$/i.test(cell) || (cell.includes('كود') && cell.length <= 15))) {
+                            if (colIndices.code === -1 && (cell.includes('كود') || cell.includes('code') || cell.includes('student') || cell.includes('id') || cell.includes('جلوس'))) {
                                 colIndices.code = c;
-                            } else if (colIndices.nid === -1 && (/^(الرقم القومي|قومي|nationalid|nid)$/i.test(cell) || (cell.includes('قوم') && cell.length <= 15))) {
+                            } else if (colIndices.nid === -1 && (cell.includes('قوم') || cell.includes('national') || cell.includes('nid'))) {
                                 colIndices.nid = c;
-                            } else if (colIndices.name === -1 && (/^(اسم|اسم الطالب|اسم التلميذ|الاسم|name|fullname)$/i.test(cell) || (cell.includes('اسم') && cell.length <= 15))) {
+                            } else if (colIndices.name === -1 && (cell.includes('اسم') || cell.includes('name') || cell.includes('طالب') || cell.includes('تلميذ'))) {
                                 colIndices.name = c;
-                            } else if (colIndices.damg === -1 && (/^(دمج|الموقف من الدمج|نوع الاعاقه|نوع الاعاقة|حاله الدمج|حالة الدمج|اعاقه|اعاقة|disability|damg)$/i.test(cell) || (cell.includes('دمج') && cell.length <= 20) || (cell.includes('اعاق') && cell.length <= 20))) {
+                            } else if (colIndices.damg === -1 && (cell.includes('دمج') || cell.includes('اعاق') || cell.includes('تربي') || cell.includes('disability') || cell.includes('damg'))) {
                                 colIndices.damg = c;
-                            } else if (colIndices.lang1 === -1 && (cell.includes('اولي') || cell.includes('اولى') || /^(lang1|language1)$/i.test(cell))) {
+                            } else if (colIndices.lang1 === -1 && (cell.includes('اولي') || cell.includes('اولى') || cell.includes('lang1') || cell.includes('لغه 1') || cell.includes('لغة 1'))) {
                                 colIndices.lang1 = c;
-                            } else if (colIndices.lang2 === -1 && (cell.includes('ثاني') || /^(lang2|language2)$/i.test(cell))) {
+                            } else if (colIndices.lang2 === -1 && (cell.includes('ثاني') || cell.includes('lang2') || cell.includes('لغه 2') || cell.includes('لغة 2'))) {
                                 colIndices.lang2 = c;
-                            } else if (colIndices.div === -1 && (cell.includes('شعب') || /^(division|section)$/i.test(cell))) {
+                            } else if (colIndices.div === -1 && (cell.includes('شعب') || cell.includes('division') || cell.includes('section'))) {
                                 colIndices.div = c;
-                            } else if (colIndices.spec === -1 && (cell.includes('تخصص') || /^(specialization|spec)$/i.test(cell))) {
+                            } else if (colIndices.spec === -1 && (cell.includes('تخصص') || cell.includes('specialization') || cell.includes('spec'))) {
                                 colIndices.spec = c;
                             }
                         }
@@ -441,42 +447,61 @@
                     }
                 }
 
+                // 2) استنتاج قيمي ذكي (Value-based deduction) لأي عمود لم يتحدد من الترويسة أو في حال غياب الترويسة
                 const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0;
+                for (let r = startRow; r < Math.min(rows.length, startRow + 20); r++) {
+                    const row = rows[r];
+                    if (!Array.isArray(row)) continue;
+                    for (let c = 0; c < row.length; c++) {
+                        const val = String(row[c] || '').trim();
+                        if (!val) continue;
+                        const cleanDigits = Utils.cleanDigitString(val);
+                        
+                        if (colIndices.code === -1 && cleanDigits.length >= 6 && cleanDigits.length <= 10 && /^[0-9]+$/.test(cleanDigits)) {
+                            colIndices.code = c;
+                        } else if (colIndices.nid === -1 && cleanDigits.length === 14 && /^[0-9]{14}$/.test(cleanDigits)) {
+                            colIndices.nid = c;
+                        }
+                        if (colIndices.damg === -1 && !/^[0-9]+$/.test(val) && Utils.resolveDisabilityCode(val) !== null) {
+                            colIndices.damg = c;
+                        }
+                    }
+                }
+
                 for (let r = startRow; r < rows.length; r++) {
                     const row = rows[r];
                     if (!Array.isArray(row) || row.length === 0) continue;
 
-                    let rawCode = colIndices.code >= 0 ? row[colIndices.code] : (colIndices.nid === -1 ? row[0] : '');
-                    let rawNid = colIndices.nid >= 0 ? row[colIndices.nid] : '';
+                    let rawCode = colIndices.code >= 0 ? row[colIndices.code] : '';
+                    let rawNid  = colIndices.nid >= 0 ? row[colIndices.nid] : '';
                     let rawName = colIndices.name >= 0 ? row[colIndices.name] : '';
                     let rawDamg = colIndices.damg >= 0 ? row[colIndices.damg] : '';
-                    let rawL1 = colIndices.lang1 >= 0 ? row[colIndices.lang1] : '';
-                    let rawL2 = colIndices.lang2 >= 0 ? row[colIndices.lang2] : '';
-                    let rawDiv = colIndices.div >= 0 ? row[colIndices.div] : '';
+                    let rawL1   = colIndices.lang1 >= 0 ? row[colIndices.lang1] : '';
+                    let rawL2   = colIndices.lang2 >= 0 ? row[colIndices.lang2] : '';
+                    let rawDiv  = colIndices.div >= 0 ? row[colIndices.div] : '';
                     let rawSpec = colIndices.spec >= 0 ? row[colIndices.spec] : '';
 
-                    // دعم ذكي للملفات البسيطة بدون ترويسة (مثلاً كود في العمود الأول، ودمج في العمود الثاني أو الثالث)
-                    if (headerRowIdx === -1 && row.length >= 2) {
-                        const c0 = Utils.cleanDigitString(row[0]);
-                        if (c0.length === 14) rawNid = c0;
-                        else if (c0.length >= 6) rawCode = c0;
-
-                        const c1 = String(row[1] ?? '').trim();
-                        if (Utils.resolveDisabilityCode(c1) !== null) {
-                            rawDamg = c1;
-                        } else {
-                            rawName = c1;
-                            for (let c = 2; c < row.length; c++) {
-                                const val = String(row[c] ?? '').trim();
-                                if (Utils.resolveDisabilityCode(val) !== null && !rawDamg) {
-                                    rawDamg = val;
-                                }
+                    // فحص بديل ذكي لكل خلية بالصف في حال كانت الأعمدة مختلفة
+                    if (!rawDamg) {
+                        for (let c = 0; c < row.length; c++) {
+                            if (c === colIndices.code || c === colIndices.nid || c === colIndices.name) continue;
+                            const v = String(row[c] || '').trim();
+                            if (v && Utils.resolveDisabilityCode(v) !== null) {
+                                rawDamg = v;
+                                break;
                             }
+                        }
+                    }
+                    if (!rawCode && !rawNid) {
+                        for (let c = 0; c < row.length; c++) {
+                            const cd = Utils.cleanDigitString(row[c]);
+                            if (cd.length === 14 && /^[0-9]{14}$/.test(cd)) { rawNid = cd; break; }
+                            if (cd.length >= 6 && cd.length <= 10 && /^[0-9]+$/.test(cd)) { rawCode = cd; break; }
                         }
                     }
 
                     const code = Utils.cleanDigitString(rawCode);
-                    const nid = Utils.cleanDigitString(rawNid);
+                    const nid  = Utils.cleanDigitString(rawNid);
                     const name = String(rawName ?? '').trim();
                     const damg = Utils.resolveDisabilityCode(rawDamg);
 
@@ -493,7 +518,6 @@
                         specialization: Utils.resolveSpecializationCode(rawSpec)
                     };
 
-                    // التأكد أن الكود لا يقل عن 5 أرقام لتجنب أرقام المسلسل (1، 2، 3)
                     if (code && code.length >= 5 && /^[0-9]+$/.test(code)) map[code] = entry;
                     if (nid && /^[0-9]{14}$/.test(nid)) map[nid] = entry;
                 }
@@ -507,22 +531,30 @@
                         const ak = normKey(k);
                         const valStr = String(v ?? '').trim();
 
-                        if (/^(studentcode|code|كود الطالب|كود التلميذ|الكود|كود)$/i.test(lk) || /كود/.test(ak)) {
+                        if (ak.includes('كود') || lk.includes('code') || lk.includes('student') || ak.includes('جلوس')) {
                             code = Utils.cleanDigitString(valStr);
-                        } else if (/^(nationalid|nid|national_id|الرقم القومي|الرقم القومى|الرقم_القومي|قومي)$/i.test(lk) || /قوم/.test(ak)) {
+                        } else if (ak.includes('قوم') || lk.includes('national') || lk.includes('nid')) {
                             nid = Utils.cleanDigitString(valStr);
-                        } else if (/^(fullname|name|اسم الطالب|اسم التلميذ|الاسم)$/i.test(lk) || /اسم/.test(ak)) {
+                        } else if (ak.includes('اسم') || lk.includes('name')) {
                             name = valStr;
-                        } else if (ak.includes('اولي') || ak.includes('اولى') || /^(lang1|language1)$/i.test(lk)) {
+                        } else if (ak.includes('اولي') || ak.includes('اولى') || lk.includes('lang1') || ak.includes('لغه 1') || ak.includes('لغة 1')) {
                             l1 = valStr;
-                        } else if (ak.includes('ثاني') || /^(lang2|language2)$/i.test(lk)) {
+                        } else if (ak.includes('ثاني') || lk.includes('lang2') || ak.includes('لغه 2') || ak.includes('لغة 2')) {
                             l2 = valStr;
-                        } else if (/دمج|اعاق/.test(ak) || /^(damg|disability|disabilityid)$/i.test(lk)) {
+                        } else if (ak.includes('دمج') || ak.includes('اعاق') || ak.includes('تربي') || lk.includes('disability') || lk.includes('damg')) {
                             damg = valStr;
-                        } else if (/شعب/.test(ak) || /^(division|section)$/i.test(lk)) {
+                        } else if (ak.includes('شعب') || lk.includes('division') || lk.includes('section')) {
                             div = valStr;
-                        } else if (/تخصص/.test(ak) || /^(specialization|spec)$/i.test(lk)) {
+                        } else if (ak.includes('تخصص') || lk.includes('specialization') || lk.includes('spec')) {
                             spec = valStr;
+                        } else {
+                            // فحص قيمة الحقل المباشرة
+                            if (!damg && Utils.resolveDisabilityCode(valStr) !== null) damg = valStr;
+                            if (!code && !nid) {
+                                const cd = Utils.cleanDigitString(valStr);
+                                if (cd.length === 14 && /^[0-9]{14}$/.test(cd)) nid = cd;
+                                else if (cd.length >= 6 && cd.length <= 10 && /^[0-9]+$/.test(cd)) code = cd;
+                            }
                         }
                     }
 
@@ -538,7 +570,7 @@
                         specialization: Utils.resolveSpecializationCode(spec)
                     };
 
-                    if (code && /^[0-9]+$/.test(code)) map[code] = entry;
+                    if (code && code.length >= 5 && /^[0-9]+$/.test(code)) map[code] = entry;
                     if (nid && /^[0-9]{14}$/.test(nid)) map[nid] = entry;
                 }
             }
@@ -1697,16 +1729,28 @@ body.nf-dark-mode {
                         return;
                     }
                     await Store.set('nf_excel_student_map', map);
+                    await Store.set('nf_mode', 'lang_spec_damg');
+
+                    const modeRadio = document.getElementById('nf-mode-lang-spec');
+                    if (modeRadio) modeRadio.checked = true;
+                    const lsBox = document.getElementById('nf-lang-spec-box');
+                    if (lsBox) lsBox.style.display = '';
+
                     const badge = document.getElementById('nf-excel-status-badge');
                     if (badge) badge.textContent = `✅ تم ربط كشف مخصص لـ ${count} طالب`;
 
-                    const codes = Object.keys(map);
+                    const uniqueCodes = new Set();
+                    for (const entry of Object.values(map)) {
+                        if (entry.studentCode) uniqueCodes.add(entry.studentCode);
+                        else if (entry.nationalId) uniqueCodes.add(entry.nationalId);
+                    }
+                    const codes = Array.from(uniqueCodes);
                     const codesInput = document.getElementById('nf-codes-input');
-                    if (codesInput && (!codesInput.value.trim() || codesInput.value.trim().split('\n').length <= 1)) {
+                    if (codesInput) {
                         codesInput.value = codes.join('\n');
                         document.getElementById('nf-stat-total').textContent = codes.length;
                     }
-                    showToast(`✅ تم استيراد وتخصيص بيانات ${count} طالب من الملف بنجاح`, 'success');
+                    showToast(`✅ تم استيراد وتخصيص بيانات ${codes.length} طالب من الملف بنجاح`, 'success');
                 } catch (err) {
                     console.error('[NameFixer] Excel parse error:', err);
                     showToast('حدث خطأ أثناء قراءة ملف الإكسيل!', 'error');
@@ -2831,25 +2875,41 @@ body.nf-dark-mode {
             }
 
             // ── تعديل اللغات والتخصص وحالة الدمج والشعبة ──
-            if (isLangSpec) {
+            const excelMap = await Store.get('nf_excel_student_map', null);
+            const hasExcelMap = (excelMap && typeof excelMap === 'object' && Object.keys(excelMap).length > 0);
+
+            if (isLangSpec || hasExcelMap) {
                 console.log('%c[نبراس] نمط "تعديل اللغات والتخصص والدمج" جاري فحص الحقول للطالب: ' + currentCode, 'color:#059669;font-weight:bold');
-                const excelMap = await Store.get('nf_excel_student_map', null);
-                let studentRow = (excelMap && typeof excelMap === 'object' && currentCode) ? excelMap[currentCode] : null;
-                if (!studentRow && excelMap && typeof excelMap === 'object') {
-                    const nidInput = document.querySelector('input[formcontrolname="nationalId"]') ||
-                                     document.querySelector('input[formcontrolname="nid"]') ||
-                                     document.querySelector('input[formcontrolname="national_id"]');
-                    const nidVal = (nidInput?.value || '').trim();
-                    if (nidVal && excelMap[nidVal]) {
-                        studentRow = excelMap[nidVal];
+                
+                let studentRow = null;
+                if (hasExcelMap) {
+                    const urlId = Utils.extractStudentId(window.location.href);
+                    const codeInp = document.querySelector('input[formcontrolname="studentCode"], input[formcontrolname="code"], input[formcontrolname="id"]');
+                    const codeVal = Utils.cleanDigitString(codeInp?.value);
+                    const nidInp = document.querySelector('input[formcontrolname="nationalId"], input[formcontrolname="nid"], input[formcontrolname="national_id"]');
+                    const nidVal = Utils.cleanDigitString(nidInp?.value);
+
+                    if (currentCode && excelMap[currentCode]) studentRow = excelMap[currentCode];
+                    else if (urlId && excelMap[urlId]) studentRow = excelMap[urlId];
+                    else if (codeVal && excelMap[codeVal]) studentRow = excelMap[codeVal];
+                    else if (nidVal && excelMap[nidVal]) studentRow = excelMap[nidVal];
+                    else {
+                        for (const inp of Array.from(document.querySelectorAll('input'))) {
+                            const val = Utils.cleanDigitString(inp.value);
+                            if (val && val.length >= 6 && excelMap[val]) {
+                                studentRow = excelMap[val];
+                                break;
+                            }
+                        }
                     }
                 }
+
                 const policy = await Store.get('nf_damg_lang_policy', 'empty');
                 const isOverwrite = (policy === 'overwrite');
 
                 const targetLang1 = studentRow?.lang1 || await Store.get('nf_default_lang1', '');
                 const targetLang2 = studentRow?.lang2 || await Store.get('nf_default_lang2', '');
-                const targetDamg  = (studentRow && studentRow.damg !== undefined && studentRow.damg !== '')
+                const targetDamg  = (studentRow && studentRow.damg !== undefined && studentRow.damg !== '' && studentRow.damg !== null)
                     ? studentRow.damg : await Store.get('nf_default_damg', '');
                 const targetDiv   = studentRow?.division || await Store.get('nf_default_division', '');
                 const targetSpec  = studentRow?.specialization || await Store.get('nf_default_spec', '');
@@ -2857,9 +2917,10 @@ body.nf-dark-mode {
                 // 1) اللغة الأولى (languageId1)
                 const lang1 = document.querySelector('select[formcontrolname="languageId1"]');
                 if (lang1 && targetLang1) {
-                    const curVal = lang1.value;
+                    const curVal = String(lang1.value ?? '').trim();
                     const isBlank = !curVal || curVal === '0' || curVal === '-1';
-                    if (isOverwrite ? (curVal !== targetLang1) : isBlank) {
+                    const shouldApply = studentRow ? (curVal !== targetLang1) : (isOverwrite ? (curVal !== targetLang1) : isBlank);
+                    if (shouldApply) {
                         const before = (lang1.options[lang1.selectedIndex]?.text || lang1.value || '').trim();
                         Utils.setAngularSelectValue(lang1, targetLang1);
                         const txt = (CONFIG.LANG1_OPTIONS.find(o => o.value === targetLang1) || {}).text || targetLang1;
@@ -2871,9 +2932,10 @@ body.nf-dark-mode {
                 // 2) اللغة الثانية (languageId2)
                 const lang2 = document.querySelector('select[formcontrolname="languageId2"]');
                 if (lang2 && targetLang2) {
-                    const curVal = lang2.value;
+                    const curVal = String(lang2.value ?? '').trim();
                     const isBlank = !curVal || curVal === '-1'; // 0 تعني 'لا توجد'
-                    if (isOverwrite ? (curVal !== targetLang2) : isBlank) {
+                    const shouldApply = studentRow ? (curVal !== targetLang2) : (isOverwrite ? (curVal !== targetLang2) : isBlank);
+                    if (shouldApply) {
                         const before = (lang2.options[lang2.selectedIndex]?.text || lang2.value || '').trim();
                         Utils.setAngularSelectValue(lang2, targetLang2);
                         const txt = (CONFIG.LANG2_OPTIONS.find(o => o.value === targetLang2) || {}).text || targetLang2;
@@ -2894,10 +2956,15 @@ body.nf-dark-mode {
                         damgSel = container?.querySelector('select') || null;
                     }
                 }
-                if (damgSel && targetDamg !== '') {
-                    const curVal = damgSel.value;
-                    const isBlank = !curVal || curVal === '-1';
-                    if (isOverwrite ? (curVal !== targetDamg) : isBlank) {
+                if (damgSel && targetDamg !== '' && targetDamg !== null && targetDamg !== undefined) {
+                    const curVal = String(damgSel.value ?? '').trim();
+                    // إذا كان الطالب مذكوراً في شيت الإكسيل، نطبق دمج الإكسيل دائماً طالما يختلف عن القيمة الحالية
+                    // أما إذا كانت قيمة عامة، فتطبق حسب السياسة (أو إذا كانت القيمة الحالية '0' لا يوجد والمستهدف إعاقة)
+                    const shouldApply = studentRow 
+                        ? (curVal !== targetDamg) 
+                        : (isOverwrite ? (curVal !== targetDamg) : (!curVal || curVal === '-1' || (curVal === '0' && targetDamg !== '0')));
+
+                    if (shouldApply) {
                         const before = (damgSel.options[damgSel.selectedIndex]?.text || damgSel.value || '').trim();
                         Utils.setAngularSelectValue(damgSel, targetDamg);
                         const txt = (CONFIG.DISABILITY_OPTIONS.find(o => o.value === targetDamg) || {}).text || targetDamg;
