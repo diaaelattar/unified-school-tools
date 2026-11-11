@@ -4964,8 +4964,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
 
-      return { year, school, dir, admin, affairs, principal, safeName, stage, logo: currentSchoolLogo || null };
+      const metaResult = { year, school, dir, admin, affairs, principal, safeName, stage, logo: currentSchoolLogo || null };
+      return metaResult;
     }
+    window.getStatsCenterMeta = getStatsCenterMeta;
 
     async function initStatsCenterMeta() {
       try {
@@ -8351,11 +8353,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 🚀 تفعيل وحدات التحكم المعمارية الحديثة (Modern Modular Controllers)
   try {
-    globalThis.NeprasCardsController?.init?.({ showNotice: showNeprasPopupNotice, getSchoolMeta: getStatsCenterMeta });
-    globalThis.NeprasAttendanceController?.init?.({ showNotice: showNeprasPopupNotice, getSchoolMeta: getStatsCenterMeta });
+    const metaGetter = window.getStatsCenterMeta || (typeof getStatsCenterMeta === "function" ? getStatsCenterMeta : () => ({}));
+    globalThis.NeprasCardsController?.init?.({ showNotice: showNeprasPopupNotice, getSchoolMeta: metaGetter });
+    globalThis.NeprasAttendanceController?.init?.({ showNotice: showNeprasPopupNotice, getSchoolMeta: metaGetter });
     globalThis.NeprasStatsController?.init?.({
       showNotice: showNeprasPopupNotice,
-      getSchoolMeta: getStatsCenterMeta,
+      getSchoolMeta: metaGetter,
       getCachedStudents: () => window.neprasCachedStudentsList || []
     });
   } catch (err) {
