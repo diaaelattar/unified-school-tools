@@ -474,6 +474,9 @@
     const isIntegrated =
       rawIntegratedFlag === 'نعم' ||
       row.integrated === true ||
+      row.is_merged === true ||
+      row.isIntegrated === true ||
+      row['الدمج'] === 'نعم' ||
       hasObstacleId ||
       (!isNonDamgText(rawDamg) && rawDamg !== 'لا');
     const integrationType = isIntegrated
@@ -1087,15 +1090,30 @@
       .map(normalizeStudentRecord)
       .filter(st => st.isIntegrated);
 
-    const numCols = 7;
+    const numCols = 10;
     let sheet = createSheetHeader(`كشف حصر طلاب الدمج التربوي (ذوي الهمم) — ${meta.school} (${meta.year})`, numCols, meta.year, meta.school, meta.dir, meta.admin);
-    const headers = [{ v: 'م', s: sHead }, { v: 'اسم الطالب', s: sHead }, { v: 'النوع', s: sHead }, { v: 'الرقم القومي', s: sHead }, { v: 'الصف', s: sHead }, { v: 'الفصل', s: sHead }, { v: 'نوع الإعاقة / الدمج', s: sHead }];
+    const headers = [
+      { v: 'م', s: sHead },
+      { v: 'اسم الطالب', s: sHead },
+      { v: 'كود الطالب', s: sHead },
+      { v: 'الرقم القومي', s: sHead },
+      { v: 'الصف', s: sHead },
+      { v: 'الفصل', s: sHead },
+      { v: 'النوع', s: sHead },
+      { v: 'نوع التعليم', s: sHead },
+      { v: 'نوع الإعاقة / الدمج', s: sHead },
+      { v: 'حالة القيد', s: sHead }
+    ];
     sheet.aoa.push(headers);
     sheet.rowHeights.push({ hpt: 28 });
     sheet.startRow++;
 
     if (integratedStudents.length === 0) {
-      sheet.aoa.push([{ v: 'لا يوجد طلاب مسجلون كحالات دمج في هذه البيانات.', t: 's', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }]);
+      sheet.aoa.push([
+        { v: 'لا يوجد طلاب مسجلون كحالات دمج في هذه البيانات.', t: 's', s: sData },
+        { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData },
+        { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }, { v: '', s: sData }
+      ]);
       sheet.merges.push({ s: { r: sheet.startRow, c: 0 }, e: { r: sheet.startRow, c: numCols - 1 } });
       sheet.rowHeights.push({ hpt: 26 });
       sheet.startRow++;
@@ -1111,11 +1129,14 @@
         const rowData = [
           { v: idx + 1, t: 'n', s: sData },
           { v: st.name || '', s: sData },
-          { v: cleanGender, s: sData },
+          { v: st.code || '', t: 's', s: sData },
           { v: st.nid || '', t: 's', s: sData },
           { v: st.grade || '', s: sData },
           { v: st.cls || '', s: sData },
-          { v: st.integrationType || 'دمج تربوي', s: sData }
+          { v: cleanGender, s: sData },
+          { v: st.mode || '', s: sData },
+          { v: st.integrationType || 'دمج تربوي', s: sData },
+          { v: st.status || '', s: sData }
         ];
         sheet.aoa.push(rowData);
         sheet.rowHeights.push({ hpt: 24 });
@@ -1128,7 +1149,18 @@
     ws['!merges'] = sheet.merges;
     ws['!rows'] = sheet.rowHeights;
     ws['!views'] = [{ rightToLeft: true }];
-    ws['!cols'] = [{ wch: 6 }, { wch: 35 }, { wch: 10 }, { wch: 22 }, { wch: 15 }, { wch: 10 }, { wch: 30 }];
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 32 },
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 24 },
+      { wch: 14 }
+    ];
     return ws;
   }
 

@@ -3257,6 +3257,8 @@ function normalizeDeepStudent(st) {
     "الفصل": classRoom,
     "الشعبة": section,
     "التخصص": specialization,
+    "اللغة الأولى": lang1,
+    "اللغة الثانية": lang2,
     "اللغة الأجنبية الأولى": lang1,
     "اللغة الأجنبية الثانية": lang2,
     "الموقف من الدمج": damg,

@@ -48,13 +48,42 @@
             { value: '1', text: 'لغة انجليزية' }, { value: '2', text: 'لغة فرنسية' },
             { value: '3', text: 'لغة المانية' },  { value: '4', text: 'لغة ايطالية' },
             { value: '5', text: 'لغة اسبانية' },  { value: '6', text: 'لغة صينية' },
-            { value: '8', text: 'لغة روسية' }
+            { value: '8', text: 'لغة روسية' },    { value: '9', text: 'لغة يابانية' }
         ],
         LANG2_OPTIONS: [
+            { value: '7', text: 'معفي' },
             { value: '2', text: 'لغة فرنسية' }, { value: '3', text: 'لغة المانية' },
             { value: '4', text: 'لغة ايطالية' }, { value: '5', text: 'لغة اسبانية' },
-            { value: '6', text: 'لغة صينية' },   { value: '7', text: 'معفي' },
-            { value: '8', text: 'لغة روسية' }
+            { value: '6', text: 'لغة صينية' },   { value: '8', text: 'لغة روسية' },
+            { value: '9', text: 'لغة يابانية' }, { value: '1', text: 'لغة انجليزية' }
+        ],
+        DISABILITY_OPTIONS: [
+            { value: '-1', text: 'اختر--' },
+            { value: '0',  text: 'لا يوجد' },
+            { value: '1',  text: 'إعاقه بصرية' },
+            { value: '2',  text: 'إعاقه سمعية' },
+            { value: '3',  text: 'إعاقه ذهنية' },
+            { value: '4',  text: 'شلل دماغى' },
+            { value: '5',  text: 'توحد' },
+            { value: '6',  text: 'متلازمة داون' },
+            { value: '7',  text: 'إعاقه حركية' },
+            { value: '8',  text: 'بطء التعلم' }
+        ],
+        DIVISION_OPTIONS: [
+            { value: '1',   text: 'عام' },
+            { value: '2',   text: 'ادبي' },
+            { value: '3',   text: 'علمي' },
+            { value: '203', text: 'بكالوريا مسار الطب وعلوم الحياة' },
+            { value: '204', text: 'بكالوريا مسار الهندسة وعلوم الحاسب' },
+            { value: '205', text: 'بكالوريا مسار الاعمال' },
+            { value: '206', text: 'بكالوريا مسار الادب والفنون' }
+        ],
+        SPECIALIZATION_OPTIONS: [
+            { value: '1',   text: 'عام' },
+            { value: '676', text: 'مسار الطب وعلوم الحياة (676)' },
+            { value: '677', text: 'مسار الهندسة وعلوم الحاسب (677)' },
+            { value: '678', text: 'مسار الاعمال (678)' },
+            { value: '679', text: 'مسار الادب والفنون (679)' }
         ],
         REG_STATUS_OPTIONS: [
             { value: '1',  text: 'ناجح ومنقول' },
@@ -93,7 +122,7 @@
                 'nf_failed_codes', 'nf_fixed_count', 'nf_batch_size',
                 'nf_batch_start_index', 'nf_list_page_url',
                 'nf_auto_retry_count', 'nf_start_time', 'nf_target_level_val',
-                'nf_paused_banner'
+                'nf_paused_banner', 'nf_excel_student_map'
             ];
             return new Promise(r => chrome.storage.local.remove(PROGRESS_KEYS, r));
         }
@@ -123,7 +152,10 @@
             paused_class_empty    : '⏸ توقف — الفصل فارغ',
             paused_address_invalid: '⏸ توقف — العنوان غير صحيح',
             paused_contact_invalid: '⏸ توقف — تليفون/محمول غير صحيح',
-            skipped_save_error    : '⏭️ تم التخطي — خطأ أثناء الحفظ'
+            skipped_save_error    : '⏭️ تم التخطي — خطأ أثناء الحفظ',
+            lang_spec_fixed       : '🌐 تم تعديل اللغات/التخصص/الدمج',
+            division_disabled     : 'ℹ️ الشعبة معطلة بالصف',
+            spec_disabled         : 'ℹ️ التخصص معطل بالصف'
         },
         LOG_MAX_ENTRIES: 2000,   // يُطبَّق في الخلفية (NEPRAS_NAME_FIXER_LOG)
         _mem: [],                // احتياطي في ذاكرة الصفحة إن تعذّرت الخلفية (يضيع عند تغيير الصفحة)
@@ -224,6 +256,306 @@
             el.dispatchEvent(new Event('input',  { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
             el.dispatchEvent(new Event('blur',   { bubbles: true }));
+        },
+
+        setAngularSelectValue(el, val) {
+            if (!el) return;
+            const strVal = String(val ?? '').trim();
+            try {
+                const proto = Object.getPrototypeOf(el);
+                const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                if (nativeSetter) nativeSetter.call(el, strVal);
+                else el.value = strVal;
+            } catch (_) { el.value = strVal; }
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('input',  { bubbles: true }));
+            el.dispatchEvent(new Event('blur',   { bubbles: true }));
+        },
+
+        resolveDisabilityCode(val) {
+            if (val == null) return '';
+            const raw = String(val).trim();
+            if (!raw) return '';
+            // تطابق مباشر مع الكود الرقمي (0 إلى 8)
+            const byCode = CONFIG.DISABILITY_OPTIONS.find(o => o.value === raw);
+            if (byCode) return byCode.value;
+
+            const clean = raw.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
+            if (/سليم|غير دمج|بدون دمج|عادي|لا يوجد/.test(clean)) return '0';
+            // قائمة خيارات صفحة الوزارة الرسمية (disabilityId من 0 إلى 8):
+            // 1: إعاقه بصرية
+            if (/بصري|بصريه|كفيف|مكفوف|ضعاف البصر|ضعيف البصر/.test(clean)) return '1';
+            // 2: إعاقه سمعية
+            if (/سمعي|سمعيه|صم|اصم|ضعاف السمع|ضعيف السمع/.test(clean)) return '2';
+            // 3: إعاقه ذهنية
+            if (/ذهني|ذهنيه|فكر|عقلي/.test(clean)) return '3';
+            // 4: شلل دماغى
+            if (/شلل دماغي|شلل دماغى/.test(clean)) return '4';
+            // 5: توحد
+            if (/توحد|طيف/.test(clean)) return '5';
+            // 6: متلازمة داون
+            if (/داون|منغولي/.test(clean)) return '6';
+            // 7: إعاقه حركية
+            if (/حركي|حركيه|شلل اطفال|بتر/.test(clean)) return '7';
+            // 8: بطء التعلم
+            if (/بطء|بطي|صعوبات تعلم|تشتت/.test(clean)) return '8';
+
+            const match = CONFIG.DISABILITY_OPTIONS.find(o =>
+                o.text.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').includes(clean)
+            );
+            return match ? match.value : '';
+        },
+
+        resolveLanguageCode(val, isLang2 = false) {
+            if (val == null) return '';
+            const raw = String(val).trim();
+            if (!raw) return '';
+            const opts = isLang2 ? CONFIG.LANG2_OPTIONS : CONFIG.LANG1_OPTIONS;
+            const byCode = opts.find(o => o.value === raw);
+            if (byCode) return byCode.value;
+
+            const clean = raw.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
+            if (isLang2 && /لا توجد|بدون|لا يوجد/.test(clean)) return '0';
+            if (/عربي/.test(clean) && !isLang2) return '1';
+            if (/انجليز|انكليز|english/.test(clean)) return isLang2 ? '1' : '2';
+            if (/فرنس|french/.test(clean)) return isLang2 ? '2' : '3';
+            if (/المان|deutsch|german/.test(clean)) return isLang2 ? '3' : '4';
+            if (/ايطال|italian/.test(clean)) return isLang2 ? '4' : '5';
+            if (/اسبان|spanish/.test(clean)) return isLang2 ? '5' : '6';
+            if (/صين|chinese/.test(clean)) return '7';
+            if (/يابان|japanese/.test(clean)) return '9';
+
+            const match = opts.find(o =>
+                o.text.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').includes(clean)
+            );
+            return match ? match.value : '';
+        },
+
+        resolveDivisionCode(val) {
+            if (val == null) return '';
+            const raw = String(val).trim();
+            if (!raw) return '';
+            const byCode = CONFIG.DIVISION_OPTIONS.find(o => o.value === raw);
+            if (byCode) return byCode.value;
+
+            const clean = raw.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
+            if (/علوم/.test(clean)) return '4';
+            if (/رياض/.test(clean)) return '5';
+            if (/لغات/.test(clean)) return '6';
+            if (/ادبي/.test(clean)) return '2';
+            if (/علمي/.test(clean)) return '3';
+            if (/عام/.test(clean)) return '1';
+
+            const match = CONFIG.DIVISION_OPTIONS.find(o =>
+                o.text.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').includes(clean)
+            );
+            return match ? match.value : '';
+        },
+
+        resolveSpecializationCode(val) {
+            if (val == null) return '';
+            const raw = String(val).trim();
+            if (!raw) return '';
+            const byCode = CONFIG.SPECIALIZATION_OPTIONS.find(o => o.value === raw);
+            if (byCode) return byCode.value;
+
+            const clean = raw.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
+            if (/علوم/.test(clean)) return '3';
+            if (/رياض/.test(clean)) return '4';
+            if (/لغات/.test(clean)) return '5';
+            if (/ادبي/.test(clean)) return '2';
+            if (/عام/.test(clean)) return '1';
+
+            const match = CONFIG.SPECIALIZATION_OPTIONS.find(o =>
+                o.text.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').includes(clean)
+            );
+            return match ? match.value : '';
+        },
+
+        cleanDigitString(val) {
+            if (val === undefined || val === null) return '';
+            let s = String(val).trim();
+            s = s.replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+                 .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0));
+            s = s.replace(/\.0+$/, '');
+            return s.replace(/[\s,]/g, '');
+        },
+
+        parseExcelStudentMap(rows) {
+            if (!Array.isArray(rows) || rows.length === 0) return {};
+            const map = {};
+
+            const normKey = (s) => String(s || '').trim()
+                .replace(/[\u064B-\u065F]/g, '')
+                .replace(/[إأآا]/g, 'ا')
+                .replace(/ى/g, 'ي')
+                .replace(/ة/g, 'ه')
+                .toLowerCase();
+
+            const isMatrix = Array.isArray(rows[0]);
+
+            if (isMatrix) {
+                let headerRowIdx = -1;
+                const colIndices = {
+                    code: -1, nid: -1, name: -1, damg: -1,
+                    lang1: -1, lang2: -1, div: -1, spec: -1
+                };
+
+                for (let r = 0; r < Math.min(rows.length, 15); r++) {
+                    const row = rows[r];
+                    if (!Array.isArray(row)) continue;
+                    const nonEmpty = row.filter(c => String(c || '').trim().length > 0);
+                    if (nonEmpty.length < 2) continue; // تخطي صفوف العناوين والترويسات المنفردة بالأعلى
+
+                    let hasIdHeader = false;
+                    for (let c = 0; c < row.length; c++) {
+                        const cell = normKey(row[c]);
+                        if (cell.length <= 25 && (/^(كود|كود الطالب|كود التلميذ|الكود|code|studentcode|id)$/i.test(cell) || (cell.includes('كود') && cell.length <= 15) || /^(الرقم القومي|قومي|nationalid|nid)$/i.test(cell) || (cell.includes('قوم') && cell.length <= 15))) {
+                            hasIdHeader = true;
+                            break;
+                        }
+                    }
+                    if (hasIdHeader) {
+                        headerRowIdx = r;
+                        for (let c = 0; c < row.length; c++) {
+                            const cell = normKey(row[c]);
+                            if (colIndices.code === -1 && (/^(كود|كود الطالب|كود التلميذ|الكود|code|studentcode|id)$/i.test(cell) || (cell.includes('كود') && cell.length <= 15))) {
+                                colIndices.code = c;
+                            } else if (colIndices.nid === -1 && (/^(الرقم القومي|قومي|nationalid|nid)$/i.test(cell) || (cell.includes('قوم') && cell.length <= 15))) {
+                                colIndices.nid = c;
+                            } else if (colIndices.name === -1 && (/^(اسم|اسم الطالب|اسم التلميذ|الاسم|name|fullname)$/i.test(cell) || (cell.includes('اسم') && cell.length <= 15))) {
+                                colIndices.name = c;
+                            } else if (colIndices.damg === -1 && (/^(دمج|الموقف من الدمج|نوع الاعاقه|نوع الاعاقة|حاله الدمج|حالة الدمج|اعاقه|اعاقة|disability|damg)$/i.test(cell) || (cell.includes('دمج') && cell.length <= 20) || (cell.includes('اعاق') && cell.length <= 20))) {
+                                colIndices.damg = c;
+                            } else if (colIndices.lang1 === -1 && (cell.includes('اولي') || cell.includes('اولى') || /^(lang1|language1)$/i.test(cell))) {
+                                colIndices.lang1 = c;
+                            } else if (colIndices.lang2 === -1 && (cell.includes('ثاني') || /^(lang2|language2)$/i.test(cell))) {
+                                colIndices.lang2 = c;
+                            } else if (colIndices.div === -1 && (cell.includes('شعب') || /^(division|section)$/i.test(cell))) {
+                                colIndices.div = c;
+                            } else if (colIndices.spec === -1 && (cell.includes('تخصص') || /^(specialization|spec)$/i.test(cell))) {
+                                colIndices.spec = c;
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 0;
+                for (let r = startRow; r < rows.length; r++) {
+                    const row = rows[r];
+                    if (!Array.isArray(row) || row.length === 0) continue;
+
+                    let rawCode = colIndices.code >= 0 ? row[colIndices.code] : (colIndices.nid === -1 ? row[0] : '');
+                    let rawNid = colIndices.nid >= 0 ? row[colIndices.nid] : '';
+                    let rawName = colIndices.name >= 0 ? row[colIndices.name] : '';
+                    let rawDamg = colIndices.damg >= 0 ? row[colIndices.damg] : '';
+                    let rawL1 = colIndices.lang1 >= 0 ? row[colIndices.lang1] : '';
+                    let rawL2 = colIndices.lang2 >= 0 ? row[colIndices.lang2] : '';
+                    let rawDiv = colIndices.div >= 0 ? row[colIndices.div] : '';
+                    let rawSpec = colIndices.spec >= 0 ? row[colIndices.spec] : '';
+
+                    // دعم ذكي للملفات البسيطة بدون ترويسة (مثلاً كود في العمود الأول، ودمج في العمود الثاني أو الثالث)
+                    if (headerRowIdx === -1 && row.length >= 2) {
+                        const c0 = Utils.cleanDigitString(row[0]);
+                        if (c0.length === 14) rawNid = c0;
+                        else if (c0.length >= 6) rawCode = c0;
+
+                        const c1 = String(row[1] ?? '').trim();
+                        if (Utils.resolveDisabilityCode(c1) !== null) {
+                            rawDamg = c1;
+                        } else {
+                            rawName = c1;
+                            for (let c = 2; c < row.length; c++) {
+                                const val = String(row[c] ?? '').trim();
+                                if (Utils.resolveDisabilityCode(val) !== null && !rawDamg) {
+                                    rawDamg = val;
+                                }
+                            }
+                        }
+                    }
+
+                    const code = Utils.cleanDigitString(rawCode);
+                    const nid = Utils.cleanDigitString(rawNid);
+                    const name = String(rawName ?? '').trim();
+                    const damg = Utils.resolveDisabilityCode(rawDamg);
+
+                    if (!code && !nid) continue;
+
+                    const entry = {
+                        studentCode: code,
+                        nationalId: nid,
+                        fullName: name,
+                        lang1: Utils.resolveLanguageCode(rawL1, false),
+                        lang2: Utils.resolveLanguageCode(rawL2, true),
+                        damg: damg,
+                        division: Utils.resolveDivisionCode(rawDiv),
+                        specialization: Utils.resolveSpecializationCode(rawSpec)
+                    };
+
+                    // التأكد أن الكود لا يقل عن 5 أرقام لتجنب أرقام المسلسل (1، 2، 3)
+                    if (code && code.length >= 5 && /^[0-9]+$/.test(code)) map[code] = entry;
+                    if (nid && /^[0-9]{14}$/.test(nid)) map[nid] = entry;
+                }
+            } else {
+                for (const row of rows) {
+                    if (!row || typeof row !== 'object') continue;
+                    let code = '', nid = '', l1 = '', l2 = '', damg = '', div = '', spec = '', name = '';
+
+                    for (const [k, v] of Object.entries(row)) {
+                        const lk = k.trim().toLowerCase();
+                        const ak = normKey(k);
+                        const valStr = String(v ?? '').trim();
+
+                        if (/^(studentcode|code|كود الطالب|كود التلميذ|الكود|كود)$/i.test(lk) || /كود/.test(ak)) {
+                            code = Utils.cleanDigitString(valStr);
+                        } else if (/^(nationalid|nid|national_id|الرقم القومي|الرقم القومى|الرقم_القومي|قومي)$/i.test(lk) || /قوم/.test(ak)) {
+                            nid = Utils.cleanDigitString(valStr);
+                        } else if (/^(fullname|name|اسم الطالب|اسم التلميذ|الاسم)$/i.test(lk) || /اسم/.test(ak)) {
+                            name = valStr;
+                        } else if (ak.includes('اولي') || ak.includes('اولى') || /^(lang1|language1)$/i.test(lk)) {
+                            l1 = valStr;
+                        } else if (ak.includes('ثاني') || /^(lang2|language2)$/i.test(lk)) {
+                            l2 = valStr;
+                        } else if (/دمج|اعاق/.test(ak) || /^(damg|disability|disabilityid)$/i.test(lk)) {
+                            damg = valStr;
+                        } else if (/شعب/.test(ak) || /^(division|section)$/i.test(lk)) {
+                            div = valStr;
+                        } else if (/تخصص/.test(ak) || /^(specialization|spec)$/i.test(lk)) {
+                            spec = valStr;
+                        }
+                    }
+
+                    const resolvedDamg = Utils.resolveDisabilityCode(damg);
+                    const entry = {
+                        studentCode: code,
+                        nationalId: nid,
+                        fullName: name,
+                        lang1: Utils.resolveLanguageCode(l1, false),
+                        lang2: Utils.resolveLanguageCode(l2, true),
+                        damg: resolvedDamg,
+                        division: Utils.resolveDivisionCode(div),
+                        specialization: Utils.resolveSpecializationCode(spec)
+                    };
+
+                    if (code && /^[0-9]+$/.test(code)) map[code] = entry;
+                    if (nid && /^[0-9]{14}$/.test(nid)) map[nid] = entry;
+                }
+            }
+            return map;
+        },
+
+        buildLangSpecDamgTemplate() {
+            return [
+                {
+                    'كود الطالب': '123456789',
+                    'كود التلميذ': '123456789',
+                    'اسم الطالب': 'اسم الطالب (اختياري)',
+                    'الموقف من الدمج': 'إعاقه حركية (أو: إعاقه بصرية / سمعية / ذهنية / لا يوجد)',
+                    'اللغة الأولى': 'لغة انجليزية',
+                    'اللغة الثانية': 'لغة فرنسية'
+                }
+            ];
         },
 
         findLabelForInput(el) {
@@ -857,6 +1189,12 @@ body.nf-dark-mode {
             const defLang1      = await Store.get('nf_default_lang1', '');
             const defLang2      = await Store.get('nf_default_lang2', '');
             const defRegStatus  = await Store.get('nf_default_reg_status', '');
+            const defDamg       = await Store.get('nf_default_damg', '');
+            const defDivision   = await Store.get('nf_default_division', '');
+            const defSpec       = await Store.get('nf_default_spec', '');
+            const langSpecPolicy = await Store.get('nf_damg_lang_policy', 'empty');
+            const excelStudentMap = await Store.get('nf_excel_student_map', null);
+            const excelMapCount = excelStudentMap && typeof excelStudentMap === 'object' ? Object.keys(excelStudentMap).length : 0;
             const manualWait    = await Store.get('nf_manual_wait_sec', CONFIG.MANUAL_WAIT_SEC);
             const saveErrWait   = await Store.get('nf_save_error_wait_sec', CONFIG.SAVE_ERROR_WAIT_SEC);
             const saveErrWaitOpts = [10,15,20,30,45,60]
@@ -864,16 +1202,28 @@ body.nf-dark-mode {
             const manualWaitOpts = [[60,'دقيقة'],[120,'دقيقتان'],[180,'3 دقائق'],[300,'5 دقائق'],[600,'10 دقائق'],[900,'15 دقيقة']]
                 .map(([v,t]) => `<option value="${v}" ${Number(manualWait) === v ? 'selected' : ''}>${t}</option>`).join('');
 
-            const lang1Opts = ['<option value="">— بدون قيمة افتراضية —</option>']
+            const lang1Opts = ['<option value="">— بدون تغيير —</option>']
                 .concat(CONFIG.LANG1_OPTIONS.map(o =>
                     `<option value="${Utils.escapeHtml(o.value)}" ${o.value === defLang1 ? 'selected' : ''}>${Utils.escapeHtml(o.text)}</option>`)).join('');
-            const lang2Opts = ['<option value="">— بدون قيمة افتراضية —</option>']
+            const lang2Opts = ['<option value="">— بدون تغيير —</option>']
                 .concat(CONFIG.LANG2_OPTIONS.map(o =>
                     `<option value="${Utils.escapeHtml(o.value)}" ${o.value === defLang2 ? 'selected' : ''}>${Utils.escapeHtml(o.text)}</option>`)).join('');
 
-            const regStatusOpts = ['<option value="">— بدون قيمة افتراضية —</option>']
+            const regStatusOpts = ['<option value="">— بدون تغيير —</option>']
                 .concat(CONFIG.REG_STATUS_OPTIONS.map(o =>
                     `<option value="${Utils.escapeHtml(o.value)}" ${o.value === defRegStatus ? 'selected' : ''}>${Utils.escapeHtml(o.text)}</option>`)).join('');
+
+            const damgOpts = ['<option value="">— بدون تغيير —</option>']
+                .concat(CONFIG.DISABILITY_OPTIONS.map(o =>
+                    `<option value="${Utils.escapeHtml(o.value)}" ${o.value === defDamg ? 'selected' : ''}>${Utils.escapeHtml(o.text)}</option>`)).join('');
+
+            const divOpts = ['<option value="">— بدون تغيير —</option>']
+                .concat(CONFIG.DIVISION_OPTIONS.map(o =>
+                    `<option value="${Utils.escapeHtml(o.value)}" ${o.value === defDivision ? 'selected' : ''}>${Utils.escapeHtml(o.text)}</option>`)).join('');
+
+            const specOpts = ['<option value="">— بدون تغيير —</option>']
+                .concat(CONFIG.SPECIALIZATION_OPTIONS.map(o =>
+                    `<option value="${Utils.escapeHtml(o.value)}" ${o.value === defSpec ? 'selected' : ''}>${Utils.escapeHtml(o.text)}</option>`)).join('');
 
             if (isDark) document.body.classList.add('nf-dark-mode');
 
@@ -939,12 +1289,16 @@ body.nf-dark-mode {
     <label style="font-weight:700;margin-bottom:8px;display:block;">🎯 نمط تشغيل الأداة:</label>
     <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:normal;">
-        <input type="radio" name="nf-op-mode" id="nf-mode-full" value="full" ${opMode !== 'extra_only' ? 'checked' : ''}>
+        <input type="radio" name="nf-op-mode" id="nf-mode-full" value="full" ${opMode === 'full' ? 'checked' : ''}>
         <span>🔤 <b>تنقية الأسماء</b> + البيانات الإضافية (اختياري)</span>
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:normal;">
         <input type="radio" name="nf-op-mode" id="nf-mode-extra" value="extra_only" ${opMode === 'extra_only' ? 'checked' : ''}>
         <span>📋 <b>تعديل البيانات الإضافية فقط</b> (العنوان واللغات) دون مساس بالأسماء</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:normal;">
+        <input type="radio" name="nf-op-mode" id="nf-mode-lang-spec" value="lang_spec_damg" ${opMode === 'lang_spec_damg' ? 'checked' : ''}>
+        <span>🌐 <b>تعديل اللغات والتخصص وحالة الدمج</b> (الشعبة / التخصص / الدمج / اللغات)</span>
       </label>
     </div>
   </div>
@@ -995,13 +1349,71 @@ body.nf-dark-mode {
 
   <div class="nf-divider"></div>
 
-  <div class="nf-row" id="nf-extra-check-row" style="display:${opMode === 'extra_only' ? 'none' : 'flex'};align-items:center;gap:8px;">
+  <!-- صندوق اللغات والتخصص والدمج الجديد -->
+  <div id="nf-lang-spec-box" style="${opMode === 'lang_spec_damg' ? '' : 'display:none;'}">
+    <div class="nf-row" style="background:var(--nf-bg2);border:1px solid var(--nf-border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <label style="font-weight:700;margin-bottom:6px;display:block;">🌐 سياسة تعديل اللغات والتخصص والدمج:</label>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-weight:normal;">
+          <input type="radio" name="nf-lang-spec-policy" id="nf-ls-policy-empty" value="empty" ${langSpecPolicy !== 'overwrite' ? 'checked' : ''}>
+          <span>ملء الحقول <b>الفارغة فقط</b> (لحماية المسجل مسبقاً)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-weight:normal;">
+          <input type="radio" name="nf-lang-spec-policy" id="nf-ls-policy-overwrite" value="overwrite" ${langSpecPolicy === 'overwrite' ? 'checked' : ''}>
+          <span><b>استبدال وتوحيد الجميع</b> (إجباري لكل طالب بالقائمة)</span>
+        </label>
+      </div>
+      <div style="font-size:11px;color:var(--nf-sub);margin-top:6px;line-height:1.6;">
+        ℹ️ الشعبة والتخصص إن كانا معطّلين بالصف (مثل الابتدائي أو الإعدادي أو أولى ثانوي) سيتم تخطيهما تلقائياً دون أي توقف أو أخطاء.
+      </div>
+    </div>
+
+    <div class="nf-row">
+      <label>اللغة الأولى المستهدفة</label>
+      <select id="nf-ls-lang1" class="nf-select">${lang1Opts}</select>
+    </div>
+    <div class="nf-row">
+      <label>اللغة الثانية المستهدفة</label>
+      <select id="nf-ls-lang2" class="nf-select">${lang2Opts}</select>
+    </div>
+    <div class="nf-row">
+      <label>الموقف من الدمج (حالة الإعاقة)</label>
+      <select id="nf-ls-damg" class="nf-select">${damgOpts}</select>
+    </div>
+    <div class="nf-row">
+      <label>الشعبة المستهدفة (للثانوي)</label>
+      <select id="nf-ls-division" class="nf-select">${divOpts}</select>
+    </div>
+    <div class="nf-row">
+      <label>التخصص المستهدف (للثانوي)</label>
+      <select id="nf-ls-spec" class="nf-select">${specOpts}</select>
+    </div>
+
+    <!-- استيراد كشف Excel مخصص للطلاب -->
+    <div class="nf-row" style="background:var(--nf-bg2);border:1px solid var(--nf-border);border-radius:10px;padding:10px 12px;margin-top:10px;">
+      <label style="font-weight:700;margin-bottom:6px;display:block;">📊 كشف مخصص لكل طالب (اختياري عبر Excel):</label>
+      <div style="font-size:11px;color:var(--nf-sub);margin-bottom:8px;line-height:1.5;">
+        يمكنك رفع شيت إكسيل يحتوي على أكواد الطلاب وتخصيص لغة/دمج/شعبة لكل طالب على حدة:
+      </div>
+      <input type="file" id="nf-lang-spec-file" accept=".xlsx,.xls,.csv" style="display:none;">
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <button id="nf-btn-upload-file" class="nf-btn nf-btn-purple" style="flex:1;margin-bottom:0;padding:7px 10px;font-size:11.5px;">📁 استيراد شيت إكسيل</button>
+        <button id="nf-btn-download-template" class="nf-btn nf-btn-ghost" style="flex:1;margin-bottom:0;padding:7px 10px;font-size:11.5px;">📥 تحميل النموذج</button>
+      </div>
+      <div id="nf-excel-status-badge" style="font-size:11px;color:var(--nf-primary);font-weight:700;margin-top:4px;">
+        ${excelMapCount > 0 ? `✅ تم ربط كشف مخصص لـ ${excelMapCount} طالب` : '⚪ لم يتم رفع شيت مخصص (سيتم تطبيق الاختيارات أعلاه)'}
+      </div>
+      ${excelMapCount > 0 ? '<button id="nf-btn-clear-excel-map" class="nf-btn nf-btn-ghost" style="margin-top:6px;padding:4px 8px;font-size:10.5px;color:var(--nf-danger);">🗑 إلغاء ربط الشيت</button>' : ''}
+    </div>
+  </div>
+
+  <div class="nf-row" id="nf-extra-check-row" style="display:${(opMode === 'extra_only' || opMode === 'lang_spec_damg') ? 'none' : 'flex'};align-items:center;gap:8px;">
     <input type="checkbox" id="nf-extra-enabled" style="width:16px;height:16px;" ${extraEnabled ? 'checked' : ''}>
     <label for="nf-extra-enabled" style="margin:0;text-transform:none;font-size:12.5px;cursor:pointer;">
       تصحيح إضافي: العنوان الافتراضي / اللغات / حالة القيد
     </label>
   </div>
-  <div id="nf-extra-box" style="${(opMode === 'extra_only' || extraEnabled) ? '' : 'display:none;'}">
+  <div id="nf-extra-box" style="${opMode === 'lang_spec_damg' ? 'display:none;' : ((opMode === 'extra_only' || extraEnabled) ? '' : 'display:none;')}">
     <div class="nf-row" style="background:var(--nf-bg2);border:1px solid var(--nf-border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
       <label style="font-weight:700;margin-bottom:6px;display:block;">⚙️ سياسة تطبيق العنوان واللغات:</label>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:11.5px;">
@@ -1040,8 +1452,8 @@ body.nf-dark-mode {
 
   <button id="nf-btn-toggle" class="nf-btn ${isRunning ? 'nf-btn-danger' : 'nf-btn-primary'}">${
     isRunning
-      ? (opMode === 'extra_only' ? '⏹ إيقاف تعديل البيانات' : '⏹ إيقاف التنقية')
-      : (opMode === 'extra_only' ? '▶️ بدء / استكمال تعديل البيانات الإضافية' : '▶️ بدء / استكمال تنقية الأسماء')
+      ? (opMode === 'lang_spec_damg' ? '⏹ إيقاف تعديل اللغات والتخصص والدمج' : (opMode === 'extra_only' ? '⏹ إيقاف تعديل البيانات' : '⏹ إيقاف التنقية'))
+      : (opMode === 'lang_spec_damg' ? '▶️ بدء / استكمال تعديل اللغات والتخصص والدمج' : (opMode === 'extra_only' ? '▶️ بدء / استكمال تعديل البيانات الإضافية' : '▶️ بدء / استكمال تنقية الأسماء'))
   }</button>
   <button id="nf-btn-skip" class="nf-btn nf-btn-skip" ${isRunning ? '' : 'disabled'}>⏭ تخطي الطالب الحالي</button>
 
@@ -1099,7 +1511,11 @@ body.nf-dark-mode {
                     await Store.set('nf_running', false);
                     this.updateStatus('متوقف', false);
                     this._setToggleBtn(false);
-                    showToast(opMode === 'extra_only' ? 'تم إيقاف تعديل البيانات' : 'تم إيقاف التنقية', 'warning');
+                    showToast(
+                        opMode === 'lang_spec_damg' ? 'تم إيقاف تعديل اللغات والتخصص والدمج' :
+                        (opMode === 'extra_only' ? 'تم إيقاف تعديل البيانات' : 'تم إيقاف التنقية'),
+                        'warning'
+                    );
                 } else {
                     const sel = document.getElementById('nf-level-select');
                     if (sel.value === '-1' || sel.options.length <= 1) {
@@ -1112,6 +1528,18 @@ body.nf-dark-mode {
                         const defReg  = document.getElementById('nf-default-reg-status')?.value || '';
                         if (!defAddr && !defL1 && !defL2 && !defReg) {
                             showToast('يرجى تحديد بيان إضافي واحد على الأقل لتطبيقه (عنوان أو لغة أو حالة قيد).', 'warning');
+                            return;
+                        }
+                    } else if (opMode === 'lang_spec_damg') {
+                        const defL1   = document.getElementById('nf-ls-lang1')?.value || '';
+                        const defL2   = document.getElementById('nf-ls-lang2')?.value || '';
+                        const defDamg = document.getElementById('nf-ls-damg')?.value || '';
+                        const defDiv  = document.getElementById('nf-ls-division')?.value || '';
+                        const defSpec = document.getElementById('nf-ls-spec')?.value || '';
+                        const excelMap = await Store.get('nf_excel_student_map', null);
+                        const hasExcel = excelMap && typeof excelMap === 'object' && Object.keys(excelMap).length > 0;
+                        if (!defL1 && !defL2 && !defDamg && !defDiv && !defSpec && !hasExcel) {
+                            showToast('يرجى تحديد حقل واحد على الأقل لتطبيقه (لغة أو دمج أو شعبة) أو استيراد كشف Excel.', 'warning');
                             return;
                         }
                     }
@@ -1171,16 +1599,25 @@ body.nf-dark-mode {
             const onModeChange = async (mode) => {
                 await Store.set('nf_mode', mode);
                 const isExtra = (mode === 'extra_only');
+                const isLangSpec = (mode === 'lang_spec_damg');
                 const extraBox = document.getElementById('nf-extra-box');
                 const extraCheckRow = document.getElementById('nf-extra-check-row');
                 const extraCheck = document.getElementById('nf-extra-enabled');
-                if (extraCheckRow) extraCheckRow.style.display = isExtra ? 'none' : 'flex';
+                const langSpecBox = document.getElementById('nf-lang-spec-box');
+                if (extraCheckRow) extraCheckRow.style.display = (isExtra || isLangSpec) ? 'none' : 'flex';
                 if (extraBox) {
-                    extraBox.style.display = (isExtra || extraCheck?.checked) ? '' : 'none';
+                    extraBox.style.display = (!isLangSpec && (isExtra || extraCheck?.checked)) ? '' : 'none';
+                }
+                if (langSpecBox) {
+                    langSpecBox.style.display = isLangSpec ? '' : 'none';
                 }
                 const running = await Store.get('nf_running', false);
                 this._setToggleBtn(running);
-                showToast(isExtra ? 'تم تفعيل نمط "تعديل البيانات الإضافية فقط"' : 'تم تفعيل نمط "تنقية الأسماء"', 'info');
+                showToast(
+                    isLangSpec ? 'تم تفعيل نمط "تعديل اللغات والتخصص والدمج"' :
+                    (isExtra ? 'تم تفعيل نمط "تعديل البيانات الإضافية فقط"' : 'تم تفعيل نمط "تنقية الأسماء"'),
+                    'info'
+                );
             };
 
             document.getElementById('nf-mode-full')?.addEventListener('change', e => {
@@ -1188,6 +1625,131 @@ body.nf-dark-mode {
             });
             document.getElementById('nf-mode-extra')?.addEventListener('change', e => {
                 if (e.target.checked) onModeChange('extra_only');
+            });
+            document.getElementById('nf-mode-lang-spec')?.addEventListener('change', e => {
+                if (e.target.checked) onModeChange('lang_spec_damg');
+            });
+
+            // سياسات تعديل اللغات والتخصص والدمج
+            document.getElementById('nf-ls-policy-empty')?.addEventListener('change', async e => {
+                if (e.target.checked) {
+                    await Store.set('nf_damg_lang_policy', 'empty');
+                    showToast('تم ضبط السياسة: ملء الحقول الفارغة فقط', 'info');
+                }
+            });
+            document.getElementById('nf-ls-policy-overwrite')?.addEventListener('change', async e => {
+                if (e.target.checked) {
+                    await Store.set('nf_damg_lang_policy', 'overwrite');
+                    showToast('تم ضبط السياسة: استبدال وتوحيد الجميع إجبارياً', 'info');
+                }
+            });
+            document.getElementById('nf-ls-lang1')?.addEventListener('change', async e => {
+                await Store.set('nf_default_lang1', e.target.value);
+            });
+            document.getElementById('nf-ls-lang2')?.addEventListener('change', async e => {
+                await Store.set('nf_default_lang2', e.target.value);
+            });
+            document.getElementById('nf-ls-damg')?.addEventListener('change', async e => {
+                await Store.set('nf_default_damg', e.target.value);
+            });
+            document.getElementById('nf-ls-division')?.addEventListener('change', async e => {
+                await Store.set('nf_default_division', e.target.value);
+            });
+            document.getElementById('nf-ls-spec')?.addEventListener('change', async e => {
+                await Store.set('nf_default_spec', e.target.value);
+            });
+
+            // استيراد ملف Excel مخصص
+            document.getElementById('nf-btn-upload-file')?.addEventListener('click', () => {
+                document.getElementById('nf-lang-spec-file')?.click();
+            });
+
+            document.getElementById('nf-lang-spec-file')?.addEventListener('change', async e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                    let XLSX = window.XLSX;
+                    if (!XLSX) {
+                        if (typeof globalThis.neprasEnsureLib === 'function') {
+                            XLSX = await globalThis.neprasEnsureLib('xlsx').catch(() => null);
+                        } else if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+                            await chrome.runtime.sendMessage({ action: 'NEPRAS_ENSURE_LIB', lib: 'xlsx' }).catch(() => null);
+                            XLSX = window.XLSX;
+                        }
+                    }
+
+                    let rows = [];
+                    if (XLSX && typeof XLSX.read === 'function') {
+                        const buffer = await file.arrayBuffer();
+                        const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
+                        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+                        // مصفوفة 2D Matrix تضمن التقاط الأعمدة حتى لو كان بأعلى الملف عناوين أو صفوف مدمجة
+                        rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '', raw: false });
+                    } else {
+                        const text = await file.text();
+                        const lines = text.split(/\r?\n/).filter(Boolean);
+                        rows = lines.map(line => line.split(',').map(c => c.trim().replace(/^["']|["']$/g, '')));
+                    }
+                    const map = Utils.parseExcelStudentMap(rows);
+                    const count = Object.keys(map).length;
+                    if (count === 0) {
+                        showToast('لم يتم العثور على أي أكواد طلاب صالحة بالملف!', 'error');
+                        return;
+                    }
+                    await Store.set('nf_excel_student_map', map);
+                    const badge = document.getElementById('nf-excel-status-badge');
+                    if (badge) badge.textContent = `✅ تم ربط كشف مخصص لـ ${count} طالب`;
+
+                    const codes = Object.keys(map);
+                    const codesInput = document.getElementById('nf-codes-input');
+                    if (codesInput && (!codesInput.value.trim() || codesInput.value.trim().split('\n').length <= 1)) {
+                        codesInput.value = codes.join('\n');
+                        document.getElementById('nf-stat-total').textContent = codes.length;
+                    }
+                    showToast(`✅ تم استيراد وتخصيص بيانات ${count} طالب من الملف بنجاح`, 'success');
+                } catch (err) {
+                    console.error('[NameFixer] Excel parse error:', err);
+                    showToast('حدث خطأ أثناء قراءة ملف الإكسيل!', 'error');
+                }
+            });
+
+            document.getElementById('nf-btn-download-template')?.addEventListener('click', async () => {
+                let XLSX = window.XLSX;
+                if (!XLSX) {
+                    if (typeof globalThis.neprasEnsureLib === 'function') {
+                        XLSX = await globalThis.neprasEnsureLib('xlsx').catch(() => null);
+                    } else if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+                        await chrome.runtime.sendMessage({ action: 'NEPRAS_ENSURE_LIB', lib: 'xlsx' }).catch(() => null);
+                        XLSX = window.XLSX;
+                    }
+                }
+                const template = Utils.buildLangSpecDamgTemplate();
+                if (XLSX && typeof XLSX.utils?.json_to_sheet === 'function') {
+                    const ws = XLSX.utils.json_to_sheet(template);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
+                    XLSX.writeFile(wb, 'نموذج_تعديل_اللغات_والتخصص_والدمج_نبراس.xlsx');
+                } else {
+                    const headers = Object.keys(template[0]);
+                    const csvContent = '\uFEFF' + [
+                        headers.join(','),
+                        ...template.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
+                    ].join('\r\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'نموذج_تعديل_اللغات_والتخصص_والدمج_نبراس.csv';
+                    a.click();
+                }
+                showToast('📥 تم تنزيل نموذج شيت التعديل', 'success');
+            });
+
+            document.getElementById('nf-btn-clear-excel-map')?.addEventListener('click', async () => {
+                await Store.remove('nf_excel_student_map');
+                const badge = document.getElementById('nf-excel-status-badge');
+                if (badge) badge.textContent = '⚪ تم إلغاء ربط الشيت المخصص';
+                document.getElementById('nf-btn-clear-excel-map')?.remove();
+                showToast('تم إلغاء ربط كشف الإكسيل المخصص', 'info');
             });
 
             document.getElementById('nf-policy-empty')?.addEventListener('change', async e => {
@@ -1322,9 +1884,12 @@ body.nf-dark-mode {
         _setToggleBtn(running) {
             const btn = document.getElementById('nf-btn-toggle');
             if (btn) {
+                const isLangSpec = document.getElementById('nf-mode-lang-spec')?.checked;
                 const isExtra = document.getElementById('nf-mode-extra')?.checked;
                 btn.className = `nf-btn ${running ? 'nf-btn-danger' : 'nf-btn-primary'}`;
-                if (isExtra) {
+                if (isLangSpec) {
+                    btn.textContent = running ? '⏹ إيقاف تعديل اللغات والتخصص والدمج' : '▶️ بدء / استكمال تعديل اللغات والتخصص والدمج';
+                } else if (isExtra) {
                     btn.textContent = running ? '⏹ إيقاف تعديل البيانات' : '▶️ بدء / استكمال تعديل البيانات الإضافية';
                 } else {
                     btn.textContent = running ? '⏹ إيقاف التنقية' : '▶️ بدء / استكمال تنقية الأسماء';
@@ -2052,7 +2617,11 @@ body.nf-dark-mode {
                     showToast(`⚠️ تعذر معالجة ${failedCodes.length} أكواد بعد ${CONFIG.MAX_AUTO_RETRY} محاولات.`, 'error');
                 } else {
                     const opMode = await Store.get('nf_mode', 'full');
-                    showToast(opMode === 'extra_only' ? '🎉 اكتمل تعديل البيانات الإضافية! جميع الأكواد بنجاح.' : '🎉 اكتملت التنقية! جميع الأكواد بنجاح.', 'success');
+                    showToast(
+                        opMode === 'lang_spec_damg' ? '🎉 اكتمل تعديل اللغات والتخصص والدمج! جميع الأكواد بنجاح.' :
+                        (opMode === 'extra_only' ? '🎉 اكتمل تعديل البيانات الإضافية! جميع الأكواد بنجاح.' : '🎉 اكتملت التنقية! جميع الأكواد بنجاح.'),
+                        'success'
+                    );
                     Utils.playDone();
                 }
 
@@ -2111,8 +2680,13 @@ body.nf-dark-mode {
             const currentCode = targetCodes[currentIdx];
             const opMode      = await Store.get('nf_mode', 'full');
             const isExtraOnly = (opMode === 'extra_only');
+            const isLangSpec  = (opMode === 'lang_spec_damg');
 
-            showToast(isExtraOnly ? 'جاري فحص وتعديل البيانات الإضافية للطالب...' : 'جاري فحص وتنقية اسم الطالب...', 'info');
+            showToast(
+                isLangSpec ? 'جاري فحص وتعديل اللغات والتخصص والدمج للطالب...' :
+                (isExtraOnly ? 'جاري فحص وتعديل البيانات الإضافية للطالب...' : 'جاري فحص وتنقية اسم الطالب...'),
+                'info'
+            );
 
             let elapsed = 0;
             let formLoaded = false;
@@ -2140,41 +2714,45 @@ body.nf-dark-mode {
                 return;
             }
 
-            // ── تنقية حقول الاسم (يتم تخطيها بالكامل في نمط البيانات الإضافية فقط) ──
+            // ── تنقية حقول الاسم (يتم تخطيها بالكامل في نمط البيانات الإضافية ونمط اللغات والتخصص) ──
             let namesCleaned  = false;
             let nameFieldsSeen = 0;
             const changes = [];
             const checked = [];
 
             if (!isExtraOnly) {
-                console.log('%c[منقّي الأسماء] بدء فحص الحقول...', 'color:#0d9488;font-weight:bold');
-                pageInputs().forEach(el => {
-                    if (el.tagName.toLowerCase() !== 'input') return;
-                    if (['hidden', 'submit', 'button', 'checkbox', 'radio'].includes(el.type?.toLowerCase())) return;
+                if (!isLangSpec) {
+                    console.log('%c[منقّي الأسماء] بدء فحص الحقول...', 'color:#0d9488;font-weight:bold');
+                    pageInputs().forEach(el => {
+                        if (el.tagName.toLowerCase() !== 'input') return;
+                        if (['hidden', 'submit', 'button', 'checkbox', 'radio'].includes(el.type?.toLowerCase())) return;
 
-                    const label      = Utils.findLabelForInput(el);
-                    const byControl  = Utils.isNameFormControl(el);
-                    const byLabel    = Utils.isNameField(label);
-                    const isName     = byControl || byLabel;
-                    const ctrlAttr   = el.getAttribute('formcontrolname') || '';
-                    console.log(`  · formcontrolname="${ctrlAttr}" id="${el.id}" name="${el.name}" label="${label}" byControl=${byControl} byLabel=${byLabel} value="${el.value}"`);
-                    if (!isName) return;
+                        const label      = Utils.findLabelForInput(el);
+                        const byControl  = Utils.isNameFormControl(el);
+                        const byLabel    = Utils.isNameField(label);
+                        const isName     = byControl || byLabel;
+                        const ctrlAttr   = el.getAttribute('formcontrolname') || '';
+                        console.log(`  · formcontrolname="${ctrlAttr}" id="${el.id}" name="${el.name}" label="${label}" byControl=${byControl} byLabel=${byLabel} value="${el.value}"`);
+                        if (!isName) return;
 
-                    nameFieldsSeen++;
-                    const original = el.value;
-                    const cleaned  = Utils.normalizeArabicName(original);
-                    checked.push({ field: ctrlAttr, label, value: original });
-                    if (cleaned && cleaned !== original) {
-                        console.log(`    ✏️ تغيير: "${original}" → "${cleaned}"`);
-                        Utils.setInputValueAngular(el, cleaned);
-                        namesCleaned = true;
-                        changes.push({ field: ctrlAttr, label, before: original, after: cleaned });
+                        nameFieldsSeen++;
+                        const original = el.value;
+                        const cleaned  = Utils.normalizeArabicName(original);
+                        checked.push({ field: ctrlAttr, label, value: original });
+                        if (cleaned && cleaned !== original) {
+                            console.log(`    ✏️ تغيير: "${original}" → "${cleaned}"`);
+                            Utils.setInputValueAngular(el, cleaned);
+                            namesCleaned = true;
+                            changes.push({ field: ctrlAttr, label, before: original, after: cleaned });
+                        }
+                    });
+
+                    if (nameFieldsSeen === 0) {
+                        showToast('⚠️ لم يتم التعرّف على أي حقل اسم في هذه الصفحة! افتح الكونسول (F12) لمراجعة قائمة الحقول.', 'error');
+                        await Log.add({ code: currentCode || '', status: 'no_name_fields', changes: [], checked: [] });
                     }
-                });
-
-                if (nameFieldsSeen === 0) {
-                    showToast('⚠️ لم يتم التعرّف على أي حقل اسم في هذه الصفحة! افتح الكونسول (F12) لمراجعة قائمة الحقول.', 'error');
-                    await Log.add({ code: currentCode || '', status: 'no_name_fields', changes: [], checked: [] });
+                } else {
+                    console.log('%c[نبراس] نمط "تعديل اللغات والتخصص والدمج" مفعّل — لن يتم تعديل الأسماء.', 'color:#059669;font-weight:bold');
                 }
             } else {
                 console.log('%c[منقّي الأسماء] نمط "البيانات الإضافية فقط" مفعّل — لن يتم تعديل الأسماء.', 'color:#3b82f6;font-weight:bold');
@@ -2182,7 +2760,7 @@ body.nf-dark-mode {
 
             // ── تصحيح البيانات الإضافية (العنوان / اللغات / حالة القيد) ──
             let otherFieldsChanged = false;
-            const extraEnabled   = isExtraOnly || (await Store.get('nf_extra_enabled', false));
+            const extraEnabled   = !isLangSpec && (isExtraOnly || (await Store.get('nf_extra_enabled', false)));
             const extraOverwrite = await Store.get('nf_extra_overwrite', false);
 
             if (extraEnabled) {
@@ -2252,6 +2830,128 @@ body.nf-dark-mode {
                 }
             }
 
+            // ── تعديل اللغات والتخصص وحالة الدمج والشعبة ──
+            if (isLangSpec) {
+                console.log('%c[نبراس] نمط "تعديل اللغات والتخصص والدمج" جاري فحص الحقول للطالب: ' + currentCode, 'color:#059669;font-weight:bold');
+                const excelMap = await Store.get('nf_excel_student_map', null);
+                let studentRow = (excelMap && typeof excelMap === 'object' && currentCode) ? excelMap[currentCode] : null;
+                if (!studentRow && excelMap && typeof excelMap === 'object') {
+                    const nidInput = document.querySelector('input[formcontrolname="nationalId"]') ||
+                                     document.querySelector('input[formcontrolname="nid"]') ||
+                                     document.querySelector('input[formcontrolname="national_id"]');
+                    const nidVal = (nidInput?.value || '').trim();
+                    if (nidVal && excelMap[nidVal]) {
+                        studentRow = excelMap[nidVal];
+                    }
+                }
+                const policy = await Store.get('nf_damg_lang_policy', 'empty');
+                const isOverwrite = (policy === 'overwrite');
+
+                const targetLang1 = studentRow?.lang1 || await Store.get('nf_default_lang1', '');
+                const targetLang2 = studentRow?.lang2 || await Store.get('nf_default_lang2', '');
+                const targetDamg  = (studentRow && studentRow.damg !== undefined && studentRow.damg !== '')
+                    ? studentRow.damg : await Store.get('nf_default_damg', '');
+                const targetDiv   = studentRow?.division || await Store.get('nf_default_division', '');
+                const targetSpec  = studentRow?.specialization || await Store.get('nf_default_spec', '');
+
+                // 1) اللغة الأولى (languageId1)
+                const lang1 = document.querySelector('select[formcontrolname="languageId1"]');
+                if (lang1 && targetLang1) {
+                    const curVal = lang1.value;
+                    const isBlank = !curVal || curVal === '0' || curVal === '-1';
+                    if (isOverwrite ? (curVal !== targetLang1) : isBlank) {
+                        const before = (lang1.options[lang1.selectedIndex]?.text || lang1.value || '').trim();
+                        Utils.setAngularSelectValue(lang1, targetLang1);
+                        const txt = (CONFIG.LANG1_OPTIONS.find(o => o.value === targetLang1) || {}).text || targetLang1;
+                        changes.push({ field: 'languageId1', label: 'اللغة الأولى', before, after: txt });
+                        otherFieldsChanged = true;
+                    }
+                }
+
+                // 2) اللغة الثانية (languageId2)
+                const lang2 = document.querySelector('select[formcontrolname="languageId2"]');
+                if (lang2 && targetLang2) {
+                    const curVal = lang2.value;
+                    const isBlank = !curVal || curVal === '-1'; // 0 تعني 'لا توجد'
+                    if (isOverwrite ? (curVal !== targetLang2) : isBlank) {
+                        const before = (lang2.options[lang2.selectedIndex]?.text || lang2.value || '').trim();
+                        Utils.setAngularSelectValue(lang2, targetLang2);
+                        const txt = (CONFIG.LANG2_OPTIONS.find(o => o.value === targetLang2) || {}).text || targetLang2;
+                        changes.push({ field: 'languageId2', label: 'اللغة الثانية', before, after: txt });
+                        otherFieldsChanged = true;
+                    }
+                }
+
+                // 3) الموقف من الدمج (disabilityId / obstacleId)
+                let damgSel = document.querySelector('select[formcontrolname="disabilityId"]') ||
+                              document.querySelector('select[formcontrolname="obstacleId"]');
+                if (!damgSel) {
+                    // بحث بديل ذكي عن select الدمج عبر الـ Label المجاور
+                    const allLabels = Array.from(document.querySelectorAll('label, .form-label'));
+                    const damgLabel = allLabels.find(l => /الموقف من الدمج|نوع الاعاق|الدمج/i.test((l.textContent || '').trim()));
+                    if (damgLabel) {
+                        const container = damgLabel.closest('.form-field, .forms-row, .col-md-6, .col-sm-6, .form-group') || damgLabel.parentElement;
+                        damgSel = container?.querySelector('select') || null;
+                    }
+                }
+                if (damgSel && targetDamg !== '') {
+                    const curVal = damgSel.value;
+                    const isBlank = !curVal || curVal === '-1';
+                    if (isOverwrite ? (curVal !== targetDamg) : isBlank) {
+                        const before = (damgSel.options[damgSel.selectedIndex]?.text || damgSel.value || '').trim();
+                        Utils.setAngularSelectValue(damgSel, targetDamg);
+                        const txt = (CONFIG.DISABILITY_OPTIONS.find(o => o.value === targetDamg) || {}).text || targetDamg;
+                        changes.push({ field: 'disabilityId', label: 'الموقف من الدمج', before, after: txt });
+                        otherFieldsChanged = true;
+                    }
+                }
+
+                // 4) الشعبة (divisionId) — مع فحص التعطيل بأمان تام
+                const divSel = document.querySelector('select[formcontrolname="divisionId"]');
+                if (divSel) {
+                    if (divSel.disabled) {
+                        console.log('[نبراس] حقل الشعبة معطل في هذا الصف الدراسي — تم التخطي بدون أخطاء.');
+                    } else if (targetDiv) {
+                        const curVal = divSel.value;
+                        const isBlank = !curVal || curVal === '0' || curVal === '-1';
+                        if (isOverwrite ? (curVal !== targetDiv) : isBlank) {
+                            const before = (divSel.options[divSel.selectedIndex]?.text || divSel.value || '').trim();
+                            Utils.setAngularSelectValue(divSel, targetDiv);
+                            const txt = (CONFIG.DIVISION_OPTIONS.find(o => o.value === targetDiv) || {}).text || targetDiv;
+                            changes.push({ field: 'divisionId', label: 'الشعبة', before, after: txt });
+                            otherFieldsChanged = true;
+                            // إتاحة وقت كافٍ لـ Angular لإعادة بناء خيارات قائمة التخصص التابعة
+                            await Utils.sleep(CONFIG.WAIT_SHORT);
+                        }
+                    }
+                }
+
+                // 5) التخصص (specializationId) — مع فحص التعطيل والمطابقة التلقائية للشعبة
+                if (!targetSpec) {
+                    if (targetDiv === '203') targetSpec = '676';
+                    else if (targetDiv === '204') targetSpec = '677';
+                    else if (targetDiv === '205') targetSpec = '678';
+                    else if (targetDiv === '206') targetSpec = '679';
+                    else if (targetDiv === '1') targetSpec = '1';
+                }
+                const specSel = document.querySelector('select[formcontrolname="specializationId"]');
+                if (specSel) {
+                    if (specSel.disabled) {
+                        console.log('[نبراس] حقل التخصص معطل في هذا الصف الدراسي — تم التخطي بدون أخطاء.');
+                    } else if (targetSpec) {
+                        const curVal = specSel.value;
+                        const isBlank = !curVal || curVal === '0' || curVal === '-1';
+                        if (isOverwrite ? (curVal !== targetSpec) : isBlank) {
+                            const before = (specSel.options[specSel.selectedIndex]?.text || specSel.value || '').trim();
+                            Utils.setAngularSelectValue(specSel, targetSpec);
+                            const txt = (CONFIG.SPECIALIZATION_OPTIONS.find(o => o.value === targetSpec) || {}).text || targetSpec;
+                            changes.push({ field: 'specializationId', label: 'التخصص', before, after: txt });
+                            otherFieldsChanged = true;
+                        }
+                    }
+                }
+            }
+
             // ── فحص الفصل/العنوان/التليفون/المحمول (يعمل دائمًا) — أي خطأ يمنع الحفظ ──
             let manualFixed = false;
             const problems = Fixer.collectProblems(extraEnabled);
@@ -2300,7 +3000,7 @@ body.nf-dark-mode {
 
             // ── الحفظ ──
             if (namesCleaned || otherFieldsChanged || manualFixed) {
-                showToast(`✏️ تم رصد ${changes.length} تعديل (من أصل ${nameFieldsSeen} حقل اسم فُحص)، جاري حفظ التعديل...`, 'info');
+                showToast(`✏️ تم رصد ${changes.length} تعديل، جاري حفظ التعديل...`, 'info');
                 await Utils.sleep(CONFIG.WAIT_SHORT);
                 const findSaveBtn = () => Array.from(document.querySelectorAll('button, input[type="submit"]'))
                     .find(b => CONFIG.SELECTORS.SAVE_BTN_REGEX.test((b.innerText || b.value || '').trim()));
@@ -2342,7 +3042,8 @@ body.nf-dark-mode {
                         }
                         const fixedCount = await Store.get('nf_fixed_count', 0);
                         await Store.set('nf_fixed_count', fixedCount + 1);
-                        await Log.add({ code: currentCode || '', status: 'fixed', changes, checked });
+                        const statusLabel = isLangSpec ? 'lang_spec_fixed' : 'fixed';
+                        await Log.add({ code: currentCode || '', status: statusLabel, changes, checked });
                         await Utils.sleep(CONFIG.WAIT_MED);
                     } else {
                         showToast('⏭ تعذّر الحفظ ولم يُصحَّح في المهلة — تم تخطي الطالب.', 'warning');
@@ -2355,11 +3056,18 @@ body.nf-dark-mode {
                         });
                     }
                 } else {
-                    showToast(isExtraOnly ? '⚠️ تم تعديل البيانات الإضافية محلياً، لكن لم يُعثر على زر الحفظ بالصفحة' : '⚠️ تم تنقية الاسم محلياً، لكن لم يُعثر على زر الحفظ بالصفحة', 'warning');
+                    showToast(
+                        isLangSpec ? '⚠️ تم تعديل اللغات والتخصص والدمج محلياً، لكن لم يُعثر على زر الحفظ بالصفحة' :
+                        (isExtraOnly ? '⚠️ تم تعديل البيانات الإضافية محلياً، لكن لم يُعثر على زر الحفظ بالصفحة' : '⚠️ تم تنقية الاسم محلياً، لكن لم يُعثر على زر الحفظ بالصفحة'),
+                        'warning'
+                    );
                     await Log.add({ code: currentCode || '', status: 'save_button_missing', changes, checked });
                 }
-            } else if (!isExtraOnly && nameFieldsSeen > 0) {
+            } else if (!isExtraOnly && !isLangSpec && nameFieldsSeen > 0) {
                 showToast(`الاسم نظيف بالفعل (فُحص ${nameFieldsSeen} حقل)، لا حاجة للتعديل.`, 'info');
+                await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
+            } else if (isLangSpec) {
+                showToast('بيانات اللغات والتخصص والدمج مطابقة بالفعل، لا حاجة للتعديل.', 'info');
                 await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
             } else if (isExtraOnly) {
                 showToast('البيانات الإضافية مطابقة بالفعل، لا حاجة للتعديل.', 'info');
@@ -2402,6 +3110,21 @@ body.nf-dark-mode {
                 await UI.populateLevels();
                 await UI.updateStats();
             }
+
+            // تطبيق ومزامنة نمط التشغيل المختار (تنقية أسماء مقابل تعديل اللغات والدمج والشعب)
+            try {
+                const currentMode = await Store.get('nf_mode', 'full');
+                if (currentMode === 'lang_spec_damg') {
+                    const r = document.getElementById('nf-mode-lang-spec');
+                    if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+                } else if (currentMode === 'extra_only') {
+                    const r = document.getElementById('nf-mode-extra');
+                    if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+                } else {
+                    const r = document.getElementById('nf-mode-full');
+                    if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+                }
+            } catch (_) {}
             return true;
         })().finally(() => { panelJob = null; });
         return panelJob;
@@ -2490,5 +3213,17 @@ body.nf-dark-mode {
     }
 
     console.log(`[نبراس] وحدة ${globalThis.NeprasBrand?.tools?.nameFixer || 'منقّي أسماء الطلاب'} ${VER} جاهزة`);
+
+    const NeprasNameFixer = {
+        CONFIG,
+        Store,
+        Log,
+        Utils,
+        UI,
+        Fixer,
+        showPanel
+    };
+    if (typeof window !== 'undefined') window.NeprasNameFixer = NeprasNameFixer;
+    if (typeof module !== 'undefined' && module.exports) module.exports = NeprasNameFixer;
 
 })();

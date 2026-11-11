@@ -256,9 +256,11 @@
     const isPosText = Boolean(directText && !negatives.test(directText));
     const isFlag = Boolean(
       r?.is_merged ||
+      r?.isIntegrated === true ||
       r?.integrated === 'نعم' ||
       r?.integrated === true ||
       r?.__neprasStatsIntegrated === 'نعم' ||
+      r?.['الدمج'] === 'نعم' ||
       raw?.isIntegrated === true ||
       raw?.isIntegrated === 1 ||
       raw?.isIntegrated === 'true'
@@ -400,7 +402,13 @@
       guardian: cleanText(r?.guardian || r?.guardianName || r?.fatherFullName || r?.fatherName || r?.['اسم الوالد'] || raw.guardianName || ''),
       guardian_job: cleanText(r?.guardian_job || raw.guardianJob || ''),
       address: cleanText(r?.address || r?.['العنوان'] || raw.address || ''),
-      nationality: cleanText(r?.nationality || r?.['الجنسية'] || raw.nationality || '')
+      nationality: cleanText(r?.nationality || r?.['الجنسية'] || raw.nationality || ''),
+      lang1: cleanText(r?.lang1 || r?.['اللغة الأولى'] || r?.['اللغة الاجنبية الأولى'] || r?.['اللغة الأجنبية الأولى'] || r?.['اللغة الاجنبية الاولى'] || raw.firstLanguageName || raw.firstLangName || ''),
+      lang2: cleanText(r?.lang2 || r?.['اللغة الثانية'] || r?.['اللغة الاجنبية الثانية'] || r?.['اللغة الأجنبية الثانية'] || r?.['اللغة الاجنبية الثانيه'] || raw.secondLanguageName || raw.secondLangName || ''),
+      section: cleanText(r?.section || r?.['الشعبة'] || r?.['الشعبة الدراسية'] || r?.['الشعبه'] || raw.generalName || raw.sectionName || ''),
+      specialization: cleanText(r?.specialization || r?.['التخصص'] || r?.['التخصص الدراسي'] || raw.specialName || raw.specializationName || ''),
+      damg: mergeInfo.isMerged ? (mergeInfo.mergeType || 'دمج تعليمي') : 'لا يوجد',
+      rawRow: r
     };
   }
 
@@ -482,23 +490,33 @@
       const deepMatch = (rc && deepByKey.get(`c:${rc}`)) || (rn && deepByKey.get(`n:${rn}`)) || null;
       const expMatch = (rc && expByKey.get(`c:${rc}`)) || (rn && expByKey.get(`n:${rn}`)) || null;
       if (!deepMatch && !expMatch) return r;
-      return {
-        ...(deepMatch || {}),
-        ...(expMatch ? {
-          exemptionType: expMatch.exemptionType || expMatch.exemptionLabel || '',
-          exemptionClass: expMatch.exemptionClass || '',
-          exemptionPercent: expMatch.exemptionPercent,
-          paid: expMatch.paid,
-          financeStatus: expMatch.financeStatus || ''
-        } : {}),
-        ...r
-      };
+
+      const merged = { ...(deepMatch || {}) };
+      for (const [k, v] of Object.entries(r)) {
+        if (v !== undefined && v !== null && String(v).trim() !== '') {
+          merged[k] = v;
+        }
+      }
+      if (expMatch) {
+        merged.exemptionType = expMatch.exemptionType || expMatch.exemptionLabel || merged.exemptionType || '';
+        merged.exemptionClass = expMatch.exemptionClass || merged.exemptionClass || '';
+        if (expMatch.exemptionPercent != null) merged.exemptionPercent = expMatch.exemptionPercent;
+        if (expMatch.paid != null) merged.paid = expMatch.paid;
+        merged.financeStatus = expMatch.financeStatus || merged.financeStatus || '';
+      }
+      return merged;
     };
 
-    // 1. API الوزارة (أسرع وأدق). المصدر نفسه الذي تستعمله «إحصاء المدرسة» و«قوائم الفصول»:
-    //    خطة صفوف المرحلة المختارة (أو قائمة الصف الظاهرة في الصفحة إن لم تُختر مرحلة) + جلب ثابت بإعادة المحاولة.
-    //    فشل أي صف يوقف العملية باسم الصف بدل أن يُنتج كشفًا ناقصًا بصمت.
-    if (typeof window.neprasApiTryRowsForGrade === 'function' && typeof neprasStatsFetchStageRows === 'function') {
+    // المصدر المرجعي الموحّد: إذا توفر السجل الشامل المحفوظ (neprasCachedStudentsList) نعتمد عليه أولاً
+    if (cachedList && cachedList.length) {
+      cachedList.forEach((st) => {
+        const enriched = enrichStudentRow(st);
+        students.push(studentFromApiRow(enriched, enriched.grade || enriched['الصف'] || enriched.className || '', students.length + 1));
+      });
+    }
+
+    // 1. إذا لم يتوفر السجل الشامل المحفوظ، نستخدم API الوزارة
+    if (!students.length && typeof window.neprasApiTryRowsForGrade === 'function' && typeof neprasStatsFetchStageRows === 'function') {
       apiTried = true;
       stage = await selectedStage();
       let perGrade = [];
@@ -509,19 +527,11 @@
       } catch (err) {
         const msg = String((err && err.message) || err || '');
         if ((err && err.code === 'USER_STOPPED') || msg.includes('USER_STOPPED')) throw new Error('تم إلغاء العملية.');
-        if (msg !== 'GRADE_PLAN_EMPTY' && !cachedList.length) throw err; // خطة فارغة أو توفر السجل الشامل: ننتقل للبديل
+        if (msg !== 'GRADE_PLAN_EMPTY') throw err;
       }
       for (const { grade, rows } of perGrade) {
         rows.forEach((r) => students.push(studentFromApiRow(enrichStudentRow(r), grade.text, students.length + 1)));
       }
-    }
-
-    // 2. إذا لم ترجع الـ API أي طلاب، نعتمد أولاً على السجل الشامل المحفوظ (neprasCachedStudentsList) لأنه أدق وأغنى من جدول الصفحة الجزئي
-    if (!students.length && cachedList.length) {
-      cachedList.forEach((st) => {
-        const enriched = enrichStudentRow(st);
-        students.push(studentFromApiRow(enriched, enriched.grade || enriched['الصف'] || enriched.className || '', students.length + 1));
-      });
     }
 
     // 3. إذا لم تتوفر بيانات في السجل الشامل، نقوم بمسح جدول الصفحة الحالي بدون اختلاق بيانات افتراضية
@@ -2842,6 +2852,171 @@
     }
   }
 
+  // (8.2) كشف مخصص للرفع وتحديث البيانات على موقع الوزارة (لغات وشعب ودمج وتخصص)
+  // الأعمدة الرسمية المطلوبة: كود التلميذ - اسم التلميذ - اللغة الأولى - اللغة الثانية - الموقف من الدمج - الشعبة - التخصص
+  async function runMinistryUploadSheetExport(passedStudents = null, sortMode = 'gender_boys', options = {}) {
+    setRunning('ministry_upload_sheet', 'جاري إنشاء كشف الرفع وتحديث البيانات لموقع الوزارة...');
+    try {
+      let list = (passedStudents && passedStudents.length) ? passedStudents : await fetchAllSchoolStudents();
+      if (!list.length) throw new Error('لم يتم العثور على أي طلاب في المدرسة.');
+
+      if (options && options.selectedGrade && typeof options.selectedGrade === 'string') {
+        const targetGrd = options.selectedGrade.trim();
+        const filtered = list.filter(st => {
+          const g = String(st.grade || st.gradeName || st['الصف'] || '').trim();
+          return g === targetGrd || g.includes(targetGrd) || targetGrd.includes(g);
+        });
+        if (filtered.length) list = filtered;
+      }
+
+      const ctx = await loadSchoolContext(list);
+      const xlsxLib = await ensureXLSXLib();
+      if (!xlsxLib) throw new Error('مكتبة Excel غير متوفرة في الصفحة.');
+
+      // الأعمدة الرسمية المطلوبة للرفع على موقع الوزارة بدقة تامة
+      const headers = [
+        'كود التلميذ',
+        'اسم التلميذ',
+        'اللغة الأولى',
+        'اللغة الثانية',
+        'الموقف من الدمج',
+        'الشعبة',
+        'التخصص'
+      ];
+
+      // ترتيب الطلاب: حسب الصف ثم الفصل ثم البنين ثم البنات أبجدياً
+      const classGroups = groupStudentsByClass(list, sortMode);
+      const sortedAll = classGroups.flatMap(g => g.students);
+
+      const dataRows = sortedAll.map((st) => {
+        // كود موقع بيانات التلميذ الرسمي
+        const code = cleanDigits(st.code || st.studentCode || st['كود التلميذ'] || st['كود الطالب'] || '');
+        const name = cleanText(st.name || st.fullName || st['اسم التلميذ'] || '');
+        const lang1 = cleanText(st.lang1 || st['اللغة الأولى'] || st['اللغة الأجنبية الأولى'] || st['اللغة الاجنبية الاولى'] || '');
+        const lang2 = cleanText(st.lang2 || st['اللغة الثانية'] || st['اللغة الأجنبية الثانية'] || st['اللغة الاجنبية الثانيه'] || '');
+
+        // الموقف من الدمج: القيمة الرسمية (لا يوجد) أو نوع الدمج الفعلي
+        const rawDamg = cleanText(st.damg || st['الموقف من الدمج'] || st['نوع الدمج'] || st.integrationType || st.merge_type || '');
+        const isIntegrated = Boolean(
+          st.is_merged ||
+          st.integrated === 'نعم' ||
+          st.integrated === true ||
+          st.__neprasStatsIntegrated === 'نعم' ||
+          st['الدمج'] === 'نعم' ||
+          (rawDamg && !/^(لا|لا يوجد|لايوجد|غير مدمج|0|false|-|—)$/i.test(rawDamg))
+        );
+        const damgVal = isIntegrated
+          ? ((rawDamg && !/^(لا|لا يوجد|لايوجد|غير مدمج|0|false|-|—|نعم)$/i.test(rawDamg)) ? rawDamg : (st.merge_type || 'دمج تعليمي'))
+          : 'لا يوجد';
+
+        const section = cleanText(st.section || st['الشعبة'] || st['الشعبة الدراسية'] || '');
+        const specialization = cleanText(st.specialization || st['التخصص'] || st['التخصص الدراسي'] || '');
+
+        return [
+          code,
+          name,
+          lang1,
+          lang2,
+          damgVal,
+          section,
+          specialization
+        ];
+      });
+
+      const buildSheet = (rowsArr) => {
+        const aoa = [headers, ...rowsArr];
+        const ws = xlsxLib.utils.aoa_to_sheet(aoa);
+
+        ws['!cols'] = [
+          { wch: 16 }, // كود التلميذ
+          { wch: 36 }, // اسم التلميذ
+          { wch: 18 }, // اللغة الأولى
+          { wch: 18 }, // اللغة الثانية
+          { wch: 22 }, // الموقف من الدمج
+          { wch: 18 }, // الشعبة
+          { wch: 22 }  // التخصص
+        ];
+        ws['!rows'] = [{ hpt: 26 }];
+        ws['!views'] = [{ rightToLeft: true }];
+        ws['!autofilter'] = { ref: `A1:G${rowsArr.length + 1}` };
+        ws['!freezeRow'] = 1;
+
+        // تنسيق ترويسة الجدول بالأزرق الرسمي والنص الأبيض
+        headers.forEach((_, c) => {
+          const col = colLetter(c);
+          if (ws[col + '1']) {
+            ws[col + '1'].s = {
+              fill: { fgColor: { rgb: '1E3A8A' } },
+              font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+              alignment: { horizontal: 'center', vertical: 'center' }
+            };
+          }
+        });
+
+        // تنسيق خلايا البيانات: كود التلميذ كنص صريح لتفادي الترميز العلمي
+        rowsArr.forEach((_, r) => {
+          const rowNum = r + 2;
+          if (ws['A' + rowNum]) {
+            ws['A' + rowNum].t = 's';
+            ws['A' + rowNum].z = '@';
+            ws['A' + rowNum].s = { alignment: { horizontal: 'center' } };
+          }
+          if (ws['C' + rowNum]) ws['C' + rowNum].s = { alignment: { horizontal: 'center' } };
+          if (ws['D' + rowNum]) ws['D' + rowNum].s = { alignment: { horizontal: 'center' } };
+          if (ws['E' + rowNum]) ws['E' + rowNum].s = { alignment: { horizontal: 'center' } };
+          if (ws['F' + rowNum]) ws['F' + rowNum].s = { alignment: { horizontal: 'center' } };
+          if (ws['G' + rowNum]) ws['G' + rowNum].s = { alignment: { horizontal: 'center' } };
+        });
+
+        return ws;
+      };
+
+      const wb = xlsxLib.utils.book_new();
+      if (!wb.Workbook) wb.Workbook = {};
+      wb.Workbook.Views = [{ RTL: true }];
+
+      // الورقة الرئيسية الموحدة للرفع على الموقع
+      const masterWs = buildSheet(dataRows);
+      xlsxLib.utils.book_append_sheet(wb, masterWs, 'بيانات_الرفع');
+
+      // تجميع حسب الصفوف إذا كانت هناك صفوف متعددة
+      const gradesSet = new Set(sortedAll.map(s => s.grade).filter(Boolean));
+      if (gradesSet.size > 1) {
+        for (const gName of gradesSet) {
+          const gradeRows = dataRows.filter((_, idx) => sortedAll[idx]?.grade === gName);
+          if (gradeRows.length) {
+            const gWs = buildSheet(gradeRows);
+            const safeSheetName = typeof neprasXlsxSafeSheetName === 'function'
+              ? neprasXlsxSafeSheetName(gName, new Set(wb.SheetNames))
+              : gName.slice(0, 31).replace(/[\\/*?[\]:]/g, '_');
+            xlsxLib.utils.book_append_sheet(wb, gWs, safeSheetName);
+          }
+        }
+      }
+
+      if (isAborted()) throw new Error('تم إلغاء العملية.');
+
+      let bytes = null;
+      const styledConverter = window.neprasXlsxConvertWorkbookToStyledPackage || (typeof neprasXlsxConvertWorkbookToStyledPackage === 'function' ? neprasXlsxConvertWorkbookToStyledPackage : null);
+      if (styledConverter) {
+        try {
+          bytes = styledConverter(wb);
+        } catch (_) {}
+      }
+      if (!bytes) {
+        bytes = xlsxLib.write(wb, { bookType: 'xlsx', type: 'array' });
+      }
+
+      const schoolClean = String(ctx.school || 'المدرسة').replace(/[/\\?*:[\]]/g, '-').trim();
+      const filename = `كشف_الرفع_وتحديث_الموقع_${schoolClean}_${NeprasEgypt.todayStamp()}.xlsx`;
+      await deliverNeprasBinary(bytes, filename, 'كشوف الطلاب');
+      reportStatus(`✅ تم إنشاء وتنزيل كشف الرفع وتحديث الموقع بنجاح (${dataRows.length} طالب).`);
+      return { ok: true, count: dataRows.length, filename };
+    } finally {
+      clearRunning();
+    }
+  }
+
   // (9) أداة تفريغ وتحميل أي جدول معروض بالصفحة فوراً
   async function downloadAnyTableAsExcel() {
     setRunning('any_table', 'جاري فحص وتفريغ الجدول المعروض...');
@@ -3112,6 +3287,7 @@
     NEPRAS_RECORDS_WORKERS: (r) => runWorkersExport(r.students),
     NEPRAS_RECORDS_CUSTOM_EIGHT_COLUMNS: (r) => runCustomEightColumnsExport(r.students, r.sortMode, r),
     NEPRAS_RECORDS_CUSTOM_NINE_COLUMNS: (r) => runCustomEightColumnsExport(r.students, r.sortMode, r),
+    NEPRAS_RECORDS_MINISTRY_UPLOAD_SHEET: (r) => runMinistryUploadSheetExport(r.students, r.sortMode, r),
     NEPRAS_RECORDS_CLASSBOOKS: (r) => runClassBooksExport(r),
     NEPRAS_RECORDS_DOWNLOAD_ANY_TABLE: () => downloadAnyTableAsExcel(),
     NEPRAS_RECORDS_DOWNLOAD_TEMPLATE: (r) => downloadBlankTemplate(r.templateKey),
@@ -3176,6 +3352,7 @@
     runWorkersExport,
     runCustomEightColumnsExport,
     runCustomNineColumnsExport: runCustomEightColumnsExport,
+    runMinistryUploadSheetExport,
     runClassBooksExport,
     downloadAnyTableAsExcel,
     requestStop

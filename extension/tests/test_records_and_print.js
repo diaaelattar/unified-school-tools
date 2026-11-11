@@ -338,4 +338,87 @@ test('runCustomEightColumnsExport: توليد كشف الطلاب المخصص (
   assert.strictEqual(jsonRows[3][7], 'فصل 1/3');
 });
 
+test('runMinistryUploadSheetExport: توليد كشف الرفع وتحديث الموقع بالـ 7 أعمدة الرسمية', async () => {
+  let downloadedBuffer = null;
+  win.neprasDialog = {
+    triggerDownload: async (blob, filename) => {
+      downloadedBuffer = Buffer.from(await blob.arrayBuffer());
+      return { finalFileName: filename };
+    },
+    open: () => {}
+  };
+  globalThis.XLSX = require('../xlsx.full.min.js');
+
+  const uploadSample = [
+    {
+      name: 'محمود السيد عبد الله',
+      code: '87654321',
+      studentCode: '87654321',
+      national_id: '31501010100019',
+      grade: 'الصف الأول الثانوي',
+      class_name: 'فصل 1/1',
+      lang1: 'اللغة الإنجليزية',
+      lang2: 'اللغة الفرنسية',
+      damg: 'ضعف سمع',
+      is_merged: true,
+      section: 'علمي',
+      specialization: 'عام'
+    },
+    {
+      name: 'زينب أحمد إبراهيم',
+      code: '12349876',
+      studentCode: '12349876',
+      national_id: '31502020100028',
+      grade: 'الصف الأول الثانوي',
+      class_name: 'فصل 1/2',
+      lang1: 'اللغة الإنجليزية',
+      lang2: 'اللغة الألمانية',
+      damg: '',
+      is_merged: false,
+      section: 'أدبي',
+      specialization: 'أدبي'
+    }
+  ];
+
+  const res = await win.NeprasRecords.runMinistryUploadSheetExport(uploadSample);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.count, 2);
+  assert(res.filename.includes('كشف_الرفع_وتحديث_الموقع'));
+  assert(downloadedBuffer && downloadedBuffer.length > 0);
+
+  const wb = globalThis.XLSX.read(downloadedBuffer, { type: 'buffer' });
+  assert(wb.SheetNames.includes('بيانات_الرفع'));
+  const sheet = wb.Sheets['بيانات_الرفع'];
+  const jsonRows = globalThis.XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+  // 1. ترويسة الجدول: 7 أعمدة رسمية مطابقة تماماً
+  assert.deepStrictEqual(jsonRows[0], [
+    'كود التلميذ',
+    'اسم التلميذ',
+    'اللغة الأولى',
+    'اللغة الثانية',
+    'الموقف من الدمج',
+    'الشعبة',
+    'التخصص'
+  ]);
+
+  // 2. الطالب الأول (دمج): الكود، الاسم، اللغات، موقف الدمج الفعلي، الشعبة، التخصص
+  assert.strictEqual(jsonRows[1][0], '87654321');
+  assert.strictEqual(jsonRows[1][1], 'محمود السيد عبد الله');
+  assert.strictEqual(jsonRows[1][2], 'اللغة الإنجليزية');
+  assert.strictEqual(jsonRows[1][3], 'اللغة الفرنسية');
+  assert.strictEqual(jsonRows[1][4], 'ضعف سمع');
+  assert.strictEqual(jsonRows[1][5], 'علمي');
+  assert.strictEqual(jsonRows[1][6], 'عام');
+
+  // 3. الطالب الثاني (عادي): موقف الدمج الرسمي 'لا يوجد'
+  assert.strictEqual(jsonRows[2][0], '12349876');
+  assert.strictEqual(jsonRows[2][1], 'زينب أحمد إبراهيم');
+  assert.strictEqual(jsonRows[2][2], 'اللغة الإنجليزية');
+  assert.strictEqual(jsonRows[2][3], 'اللغة الألمانية');
+  assert.strictEqual(jsonRows[2][4], 'لا يوجد');
+  assert.strictEqual(jsonRows[2][5], 'أدبي');
+  assert.strictEqual(jsonRows[2][6], 'أدبي');
+});
+
 summary('records_and_print');

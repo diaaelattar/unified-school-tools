@@ -412,7 +412,7 @@
     const lengthSel = document.querySelector('select[name*="length"], .dataTables_length select');
     if (lengthSel) {
       const opts = Array.from(lengthSel.options || []);
-      const opt100 = opts.find(o => o.value === "100" || o.value === "50" || parseInt(o.value) >= 100);
+      const opt100 = opts.find(o => o.value === "-1" || o.text.includes("الكل") || o.text.toLowerCase().includes("all") || o.value === "100" || o.value === "50" || parseInt(o.value) >= 100);
       const targetOpt = opt100 || opts[opts.length - 1];
       if (targetOpt && lengthSel.value !== targetOpt.value) {
         setAngularSelectValue(lengthSel, targetOpt.value);

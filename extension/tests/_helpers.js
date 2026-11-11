@@ -13,12 +13,27 @@ function loadGlobals(...files) {
 }
 
 let failures = 0, passes = 0;
+let queue = Promise.resolve();
+
 function test(name, fn) {
-  try { fn(); passes++; console.log('  ✓ ' + name); }
-  catch (e) { failures++; console.log('  ✗ ' + name + '\n      ' + (e && e.message || e)); }
+  queue = queue.then(async () => {
+    try {
+      await fn();
+      passes++;
+      console.log('  ✓ ' + name);
+    } catch (e) {
+      failures++;
+      console.log('  ✗ ' + name + '\n      ' + (e && e.message || e));
+    }
+  });
 }
+
 function summary(title) {
-  console.log(`${title}: ${passes} ناجح، ${failures} فاشل`);
-  process.exitCode = failures ? 1 : 0;
+  queue = queue.then(() => {
+    console.log(`${title}: ${passes} ناجح، ${failures} فاشل`);
+    process.exitCode = failures ? 1 : 0;
+  });
+  return queue;
 }
+
 module.exports = { ROOT, read, loadGlobals, test, summary };

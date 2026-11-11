@@ -2125,5 +2125,151 @@ async function test(name, fn) {
     assert.strictEqual(amountRow[7], 182965.64, "Amount: Total collected");
   });
 
+  // 6. Name Fixer & Language / Track / Disability Auto-Navigator Tests
+  const nameFixerSrc = fs.readFileSync(path.resolve(__dirname, "../extension/modules/name_fixer.js"), "utf8");
+  const nameFixerScope = {
+    window: {},
+    console,
+    setTimeout,
+    clearTimeout,
+    document: {
+      readyState: "complete",
+      addEventListener: () => {},
+      querySelectorAll: () => [],
+      querySelector: () => null,
+      getElementById: () => null,
+      createElement: () => ({ appendChild: () => {}, append: () => {}, style: {}, addEventListener: () => {} }),
+      head: { appendChild: () => {} },
+      body: { appendChild: () => {}, classList: { add: () => {}, toggle: () => false } }
+    },
+    location: { href: "https://student.emis.gov.eg/student/list", pathname: "/student/list" },
+    chrome: {
+      runtime: { onMessage: { addListener: () => {} }, sendMessage: () => Promise.resolve({ ok: true }) },
+      storage: { local: { get: () => Promise.resolve({}), set: () => Promise.resolve(), remove: () => Promise.resolve() } }
+    },
+    module: { exports: {} },
+    exports: {}
+  };
+  vm.createContext(nameFixerScope);
+  vm.runInContext(nameFixerSrc, nameFixerScope);
+  const NameFixerModule = nameFixerScope.module.exports;
+
+  await test("name_fixer: resolveDisabilityCode maps Arabic labels and IDs correctly", () => {
+    const { resolveDisabilityCode } = NameFixerModule.Utils;
+    // Ministry official select[formcontrolname="disabilityId"]:
+    // 0: لا يوجد, 1: إعاقه بصرية, 2: إعاقه سمعية, 3: إعاقه ذهنية, 4: شلل دماغى, 5: توحد, 6: متلازمة داون, 7: إعاقه حركية, 8: بطء التعلم
+    assert.strictEqual(resolveDisabilityCode("0"), "0");
+    assert.strictEqual(resolveDisabilityCode("سليم"), "0");
+    assert.strictEqual(resolveDisabilityCode("غير دمج"), "0");
+    assert.strictEqual(resolveDisabilityCode("كفيف"), "1");
+    assert.strictEqual(resolveDisabilityCode("ضعاف البصر"), "1");
+    assert.strictEqual(resolveDisabilityCode("صم"), "2");
+    assert.strictEqual(resolveDisabilityCode("ضعاف السمع"), "2");
+    assert.strictEqual(resolveDisabilityCode("إعاقه ذهنية"), "3");
+    assert.strictEqual(resolveDisabilityCode("شلل دماغى"), "4");
+    assert.strictEqual(resolveDisabilityCode("طيف توحد"), "5");
+    assert.strictEqual(resolveDisabilityCode("متلازمة داون"), "6");
+    assert.strictEqual(resolveDisabilityCode("إعاقة حركية"), "7");
+    assert.strictEqual(resolveDisabilityCode("بطء التعلم"), "8");
+  });
+
+  await test("name_fixer: resolveLanguageCode maps first and second languages accurately", () => {
+    const { resolveLanguageCode } = NameFixerModule.Utils;
+    // Lang 1
+    assert.strictEqual(resolveLanguageCode("اللغة العربية", false), "1");
+    assert.strictEqual(resolveLanguageCode("اللغة الإنجليزية", false), "2");
+    assert.strictEqual(resolveLanguageCode("لغة فرنسية", false), "3");
+    assert.strictEqual(resolveLanguageCode("ياباني", false), "9");
+
+    // Lang 2
+    assert.strictEqual(resolveLanguageCode("لا توجد", true), "0");
+    assert.strictEqual(resolveLanguageCode("بدون", true), "0");
+    assert.strictEqual(resolveLanguageCode("لغة انجليزية", true), "1");
+    assert.strictEqual(resolveLanguageCode("لغة فرنسية", true), "2");
+    assert.strictEqual(resolveLanguageCode("لغة المانية", true), "3");
+    assert.strictEqual(resolveLanguageCode("لغة ايطالية", true), "4");
+    assert.strictEqual(resolveLanguageCode("لغة اسبانية", true), "5");
+    assert.strictEqual(resolveLanguageCode("لغة يابانية", true), "9");
+  });
+
+  await test("name_fixer: resolveDivisionCode and resolveSpecializationCode map secondary tracks accurately", () => {
+    const { resolveDivisionCode, resolveSpecializationCode } = NameFixerModule.Utils;
+    assert.strictEqual(resolveDivisionCode("عام"), "1");
+    assert.strictEqual(resolveDivisionCode("أدبي"), "2");
+    assert.strictEqual(resolveDivisionCode("علمي"), "3");
+    assert.strictEqual(resolveDivisionCode("علمى علوم"), "4");
+    assert.strictEqual(resolveDivisionCode("علمى رياضة"), "5");
+    assert.strictEqual(resolveDivisionCode("شعبة لغات"), "6");
+
+    assert.strictEqual(resolveSpecializationCode("عام"), "1");
+    assert.strictEqual(resolveSpecializationCode("أدبي"), "2");
+    assert.strictEqual(resolveSpecializationCode("علمي علوم"), "3");
+    assert.strictEqual(resolveSpecializationCode("علمي رياضة"), "4");
+    assert.strictEqual(resolveSpecializationCode("تخصص لغات"), "5");
+  });
+
+  await test("name_fixer: parseExcelStudentMap extracts mapping per student code cleanly", () => {
+    const { parseExcelStudentMap, buildLangSpecDamgTemplate } = NameFixerModule.Utils;
+    const tpl = buildLangSpecDamgTemplate();
+    assert(Array.isArray(tpl) && tpl.length > 0);
+    assert(tpl[0]["كود التلميذ"] && tpl[0]["اللغة الأولى"]);
+
+    const mockRows = [
+      {
+        "كود التلميذ": "987654321",
+        "اسم التلميذ": "محمد أحمد إبراهيم",
+        "اللغة الأولى": "اللغة الإنجليزية",
+        "اللغة الثانية": "اللغة الفرنسية",
+        "الموقف من الدمج": "غير دمج / سليم",
+        "الشعبة": "علمى علوم",
+        "التخصص": "علمي علوم"
+      },
+      {
+        "كود الطالب": "112233445",
+        "اسم الطالب": "علي حسن",
+        "اللغة الاولى": "اللغة العربية",
+        "اللغة الثانيه": "لا توجد",
+        "حالة الدمج": "كفيف"
+      },
+      {
+        "الرقم القومي": "30801010123456",
+        "اسم الطالب": "سارة محمود",
+        "اللغة الأولى": "اللغة الفرنسية",
+        "حالة الدمج": "غير دمج / سليم"
+      }
+    ];
+
+    const map = parseExcelStudentMap(mockRows);
+    assert.strictEqual(map["987654321"].lang1, "2");
+    assert.strictEqual(map["987654321"].lang2, "2");
+    assert.strictEqual(map["987654321"].damg, "0");
+    assert.strictEqual(map["987654321"].division, "4");
+    assert.strictEqual(map["987654321"].specialization, "3");
+
+    assert.strictEqual(map["112233445"].lang1, "1");
+    assert.strictEqual(map["112233445"].lang2, "0");
+    assert.strictEqual(map["112233445"].damg, "1");
+
+    // Match via 14-digit National ID directly
+    assert.ok(map["30801010123456"], "map must index by 14-digit nationalId");
+    assert.strictEqual(map["30801010123456"].lang1, "3"); // الفرنسية = 3
+    assert.strictEqual(map["30801010123456"].damg, "0");
+
+    // Test 2D matrix format with top banner/title rows and Arabic numerals
+    const mockMatrix = [
+      ["وزارة التربية والتعليم", "", ""],
+      ["كشف طلاب الدمج بمدرسة النور 2026", "", ""],
+      ["", "", ""],
+      ["م", "كود الطالب", "اسم التلميذ", "الموقف من الدمج"],
+      ["1", "١٢٣٤٥٦٧٨٩", "أحمد سامي", "إعاقه حركية"],
+      ["2", "998877665.0", "محمود كمال", "توحد"]
+    ];
+    const matrixMap = parseExcelStudentMap(mockMatrix);
+    assert.ok(matrixMap["123456789"], "must parse Eastern Arabic numerals and find header row dynamically");
+    assert.strictEqual(matrixMap["123456789"].damg, "7"); // حركية = 7
+    assert.ok(matrixMap["998877665"], "must strip float .0 suffix from Excel");
+    assert.strictEqual(matrixMap["998877665"].damg, "5"); // توحد = 5
+  });
+
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);
 })();

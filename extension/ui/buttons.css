@@ -34,6 +34,14 @@
 .n-btn--danger { background: var(--n-error); color: var(--n-on-error); box-shadow: var(--n-shadow-1); }
 .n-btn--danger:hover { filter: brightness(.92); }
 
+/* الأنماط المخصصة الرسمية للكشوف والعمليات المتخصصة */
+.n-btn--accent-blue { background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%); color: #ffffff; border-color: #3b82f6; font-weight: 700; box-shadow: var(--n-shadow-1); }
+.n-btn--accent-blue:hover { background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%); filter: brightness(1.05); }
+.n-btn--accent-emerald { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; border-color: #10b981; font-weight: 700; box-shadow: var(--n-shadow-1); }
+.n-btn--accent-emerald:hover { background: linear-gradient(135deg, #047857 0%, #059669 100%); filter: brightness(1.05); }
+.n-btn--accent-teal { font-size: 11.5px; color: #0f766e; border-color: #0f766e; font-weight: 700; }
+.n-btn--accent-teal:hover { background: #f0fdfa; color: #115e59; }
+
 /* الأحجام */
 .n-btn--sm { --h: var(--n-touch); padding: 0 var(--n-s3); font-size: var(--n-fs-xs); }
 .n-btn--lg { --h: calc(var(--n-touch) + 12px); padding: 0 var(--n-s5); font-size: var(--n-fs-md); }

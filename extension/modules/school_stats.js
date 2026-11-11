@@ -2231,7 +2231,7 @@ function neprasStatsGetDetailPayload(stats, filter = {}) {
 }
 
 function neprasExportSchoolStatisticsDetailExcel(stats, filter = {}) {
-  if (!stats?.rows?.length) {
+  if (!stats?.rows?.length && !stats?.detailRows?.length) {
     throw new Error("لا توجد بيانات طلاب محفوظة داخل الإحصاء.");
   }
 
@@ -2248,60 +2248,40 @@ function neprasExportSchoolStatisticsDetailExcel(stats, filter = {}) {
     throw new Error("لا يوجد طلاب مطابقون للتفاصيل المحددة.");
   }
 
-  const preferredHeaders = [
-    "الصف",
-    "كود التلميذ",
+  // مطابقة تامة مع أعمدة وتريتب الجدول المعروض في نافذة تفاصيل الإحصاء
+  const headers = [
+    "م",
     "اسم التلميذ",
+    "كود التلميذ",
     "الرقم القومي",
+    "الصف",
+    "الفصل",
     "النوع",
     "نوع التعليم",
-    "الفصل",
     "الدمج",
     "نوع الدمج",
     "حالة القيد"
   ];
 
-  // v1.0:
-  // ملف البيان التفصيلي للمستخدم النهائي يجب أن يحتوي
-  // على الأعمدة العربية المحددة فقط.
-  //
-  // في v1.0 كانت مفاتيح detailRows الداخلية مثل:
-  // className / code / gender / grade / integrated /
-  // integrationType / mode / name / nationalId / status
-  // تُعتبر "أعمدة إضافية"، فكانت تتكرر نفس البيانات
-  // مرة بالعربي ومرة بالإنجليزي.
-  //
-  // لا نصدّر أي مفاتيح داخلية أو خام هنا.
-  const headers = [
-    ...preferredHeaders
-  ];
-
-  const dataRows = rawRows.map(row => {
+  const dataRows = rawRows.map((row, idx) => {
     const display =
       Object.prototype.hasOwnProperty.call(row || {}, "name")
         ? row
         : neprasStatsGetStudentDisplayRow(row);
 
-    const base = {
-      "الصف": display.grade,
-      "كود التلميذ": display.code,
-      "اسم التلميذ": display.name,
-      "الرقم القومي": display.nationalId,
-      "النوع": display.gender,
-      "نوع التعليم": display.mode,
-      "الفصل": display.className,
-      "الدمج": display.integrated,
-      "نوع الدمج": display.integrationType || "—",
-      "حالة القيد": display.status
-    };
-
-    return headers.map(header => {
-      if (Object.prototype.hasOwnProperty.call(base, header)) {
-        return base[header];
-      }
-
-      return row?.[header] ?? "";
-    });
+    return [
+      idx + 1,
+      display.name || "",
+      display.code || "",
+      display.nationalId || "",
+      display.grade || "",
+      display.className || "",
+      display.gender || "",
+      display.mode || "",
+      display.integrated || "",
+      display.integrationType || "—",
+      display.status || ""
+    ];
   });
 
   const detailTitle =
