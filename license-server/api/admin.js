@@ -7,8 +7,43 @@ const {
 } = require("../lib/crypto");
 const db = require("../lib/db");
 
-function setCors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+const crypto = require("crypto");
+
+// SEC-03: Rate Limiting ومقاومة التخمين في الذاكرة
+const failedAttemptsByIp = new Map();
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // حظر 15 دقيقة بعد تكرار الخطأ
+
+function checkRateLimit(clientIp) {
+  const entry = failedAttemptsByIp.get(clientIp);
+  if (!entry) return true;
+  if (Date.now() - entry.lastAttempt > LOCKOUT_MS) {
+    failedAttemptsByIp.delete(clientIp);
+    return true;
+  }
+  return entry.count < MAX_FAILED_ATTEMPTS;
+}
+
+function recordFailedAttempt(clientIp) {
+  const entry = failedAttemptsByIp.get(clientIp) || { count: 0, lastAttempt: Date.now() };
+  entry.count += 1;
+  entry.lastAttempt = Date.now();
+  failedAttemptsByIp.set(clientIp, entry);
+}
+
+function resetFailedAttempt(clientIp) {
+  failedAttemptsByIp.delete(clientIp);
+}
+
+function setCors(req, res) {
+  const allowedOrigin = process.env.ADMIN_ALLOWED_ORIGIN || "";
+  const origin = req.headers["origin"] || "";
+  if (allowedOrigin && origin && (origin === allowedOrigin || origin.endsWith("." + allowedOrigin))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (!allowedOrigin) {
+    // تقييد افتراضي للواجهات المحلية والمحددة
+    res.setHeader("Access-Control-Allow-Origin", "http://localhost:3000");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Secret");
   res.setHeader("Cache-Control", "no-store");
@@ -21,28 +56,53 @@ function parseBody(req) {
 }
 
 function isAuthorized(req, body) {
-  const expected = getAdminSecret();
+  let expected;
+  try {
+    expected = getAdminSecret();
+  } catch (err) {
+    return false;
+  }
+
+  // SEC-03: قبول التوثيق فقط عبر Authorization: Bearer أو X-Admin-Secret
   const headerSecret = req.headers["x-admin-secret"] || "";
   const authHeader = String(req.headers["authorization"] || "").replace(/^Bearer\s+/i, "");
-  const bodySecret = body?.adminSecret || "";
-  const provided = String(headerSecret || authHeader || bodySecret).trim();
-  return provided && provided === expected;
+  const provided = String(authHeader || headerSecret).trim();
+
+  if (!provided || !expected) return false;
+
+  const bufProvided = Buffer.from(provided, "utf8");
+  const bufExpected = Buffer.from(expected, "utf8");
+  if (bufProvided.length !== bufExpected.length) return false;
+
+  return crypto.timingSafeEqual(bufProvided, bufExpected);
 }
 
 module.exports = async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
+  const clientIp = req.headers["x-forwarded-for"] || req.connection?.remoteAddress || "local";
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({
+      ok: false,
+      code: "TOO_MANY_REQUESTS",
+      message: "تم حظر المحاولات مؤقتاً لتجاوز الحد الأقصى للمحاولات الخاطئة. يرجى الانتظار."
+    });
+  }
+
   const body = parseBody(req);
   if (!isAuthorized(req, body)) {
+    recordFailedAttempt(clientIp);
     return res.status(401).json({
       ok: false,
       code: "UNAUTHORIZED",
-      message: "كلمة مرور لوحة التحكم غير صحيحة."
+      message: "كلمة مرور لوحة التحكم غير صحيحة أو غير مصرح لك بالوصول."
     });
   }
+
+  resetFailedAttempt(clientIp);
 
   try {
     const url = new URL(req.url || "/", "http://localhost");

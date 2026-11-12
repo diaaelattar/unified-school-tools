@@ -413,34 +413,55 @@ async function createActivationKeys({ count = 1, planDays = 365, boundSchoolCode
 
 async function markActivationKeyUsed(rawKey, schoolCode) {
   const key = String(rawKey || "").trim().toUpperCase();
-  const existing = await getActivationKey(key);
-  if (!existing) return null;
+  const cleanSchool = normalizeSchoolCode(schoolCode);
   const now = Date.now();
-  const updated = {
-    license_key: key,
-    bound_school_code: normalizeSchoolCode(schoolCode),
-    school_name_hint: existing.schoolNameHint,
-    plan_days: existing.planDays,
-    status: "used",
-    notes: existing.notes,
-    created_at: existing.createdAt,
-    used_at: now
-  };
 
   const pool = await getPgPool();
   if (pool) {
-    await pool.query(
-      "UPDATE activation_keys SET bound_school_code = $2, status = 'used', used_at = $3 WHERE license_key = $1",
-      [key, updated.bound_school_code, now]
+    // SEC-08: استهلاك ذري يمنع سباق التفعيل المتزامن
+    const res = await pool.query(
+      "UPDATE activation_keys SET bound_school_code = $2, status = 'used', used_at = $3 WHERE license_key = $1 AND status = 'unused' RETURNING *",
+      [key, cleanSchool, now]
     );
+    if (!res.rows || res.rows.length === 0) {
+      return null; // المفتاح غير موجود أو تم استهلاكه بالفعل
+    }
+    return formatKeyRow(res.rows[0]);
   } else if (getKvConfig()) {
+    // في بيئة Redis / KV نتحقق من الحالة بشكل متسلسل
+    const existingStr = await kvCommand("HGET", "nepras:keys", key);
+    if (!existingStr) return null;
+    const existing = JSON.parse(existingStr);
+    if (existing.status === "used" && existing.bound_school_code !== cleanSchool) {
+      return null;
+    }
+    const updated = {
+      ...existing,
+      bound_school_code: cleanSchool,
+      status: "used",
+      used_at: now
+    };
     await kvCommand("HSET", "nepras:keys", key, JSON.stringify(updated));
+    return formatKeyRow(updated);
   } else {
+    // بيئة التخزين المحلي للاختبارات (Local Store)
     const store = readLocalStore();
+    const existing = store.keys[key];
+    if (!existing) return null;
+    if (existing.status === "used" && existing.bound_school_code !== cleanSchool) {
+      return null; // سباق: المفتاح تم استخدامه بالفعل
+    }
+    const updated = {
+      ...existing,
+      license_key: key,
+      bound_school_code: cleanSchool,
+      status: "used",
+      used_at: now
+    };
     store.keys[key] = updated;
     writeLocalStore(store);
+    return formatKeyRow(updated);
   }
-  return formatKeyRow(updated);
 }
 
 async function listActivationKeys() {

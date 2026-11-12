@@ -16,14 +16,23 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 
-/**
- * المفتاح العام (Public Key) المعتمد للتحقق من التوقيع الرقمي لسيرفر نبراس.
- * ملاحظة أمنية: المفتاح العام لا يمكن استخدامه أبداً لتوقيع أو تزوير التراخيص.
- * المفتاح الخاص (Private Key) محفوظ فقط وحصرياً على سيرفر Vercel.
- */
-const ED25519_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+// المفتاح العام kid=1 القديم (فترة سماح انتقالية)
+const ED25519_PUBLIC_KEY_KID1 = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAaIP3p6EqNwVGk1OOTPaj38bdclrXXlj6h5fWUW4TXlY=
 -----END PUBLIC KEY-----`;
+
+// المفتاح العام kid=2 الجديد المعتمد دائماً
+const ED25519_PUBLIC_KEY_KID2 = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAU3iLSrsb81TmQwoxkhMQudco/dTye9eqkc08cABAH2I=
+-----END PUBLIC KEY-----`;
+
+// سقف تاريخ انتهاء التذاكر الموقعة بالمفتاح القديم لمنع تزوير تذاكر طويلة الأجل (31 أغسطس 2027)
+const KID1_MAX_ALLOWED_EXPIRES_AT = 1819756799000;
+
+const ED25519_PUBLIC_KEYS = {
+  1: ED25519_PUBLIC_KEY_KID1,
+  2: ED25519_PUBLIC_KEY_KID2
+};
 
 const SUPABASE_LICENSE_URL = "https://tmjqjyzteqbbuagensxo.supabase.co";
 const SUPABASE_LICENSE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtanFqeXp0ZXFiYnVhZ2Vuc3hvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2MzQzMjAsImV4cCI6MjEwNTIxMDMyMH0.107000J6zI9LTSFd6VsWznUad1Go4vGjgpmESgA5qvk";
@@ -166,14 +175,9 @@ function verifySupabaseTicket(ticket, schoolCode, expiresAt, status) {
     } catch (_) {}
     return false;
   }
-  // الترقية التلقائية من التذاكر القديمة المكونة من 3 مقاطع عند التطابق
-  if (parts.length === 3 && parts[0] === "SUPABASE_VERIFIED") {
-    const [, tSchool, tExpires] = parts;
-    if (normalizeSchoolCode(tSchool) === normCode && Number(tExpires) === expNum) {
-      return true;
-    }
-  }
-  return false;
+    // SEC-04: حذف مسار التذاكر القديمة ثلاثية المقاطع (SUPABASE_VERIFIED) نهائياً
+    // وعدم قبول التذاكر إلا بنظام HMAC المحمي أو Ed25519
+    return false;
 }
 
 /**
@@ -220,24 +224,44 @@ function normalizeSchoolCode(raw) {
   return /^\d{4,12}$/.test(clean) ? clean : clean.replace(/[^\dA-Za-z_-]/g, "");
 }
 
-function verifyTicketSignature(token, pubKey = ED25519_PUBLIC_KEY) {
+function verifyTicketSignature(token, customPubKey = null) {
   try {
     const cleanToken = String(token || "").trim().replace(/^NEPRAS1\./i, "");
     const parts = cleanToken.split(".");
     if (parts.length !== 2) return { valid: false, reason: "MALFORMED_TICKET" };
     const [dataB64, sig] = parts;
     const sigBuf = Buffer.from(sig, "base64url");
-    const valid = crypto.verify(
-      null,
-      Buffer.from(dataB64, "utf8"),
-      pubKey,
-      sigBuf
-    );
-    if (!valid) {
-      return { valid: false, reason: "INVALID_SIGNATURE" };
+    const dataBuf = Buffer.from(dataB64, "utf8");
+
+    let payload;
+    try {
+      payload = JSON.parse(Buffer.from(dataB64, "base64url").toString("utf8"));
+    } catch (_) {
+      return { valid: false, reason: "MALFORMED_PAYLOAD" };
     }
-    const payload = JSON.parse(Buffer.from(dataB64, "base64url").toString("utf8"));
-    return { valid: true, payload };
+
+    if (customPubKey) {
+      const valid = crypto.verify(null, dataBuf, customPubKey, sigBuf);
+      return valid ? { valid: true, payload } : { valid: false, reason: "INVALID_SIGNATURE" };
+    }
+
+    // التحقق بمفتاح kid=2 أولاً (المفتاح الأساسي الحديث)
+    const validKid2 = crypto.verify(null, dataBuf, ED25519_PUBLIC_KEY_KID2, sigBuf);
+    if (validKid2) {
+      return { valid: true, payload, kid: 2 };
+    }
+
+    // التحقق بمفتاح kid=1 القديم (فترة انتقالية مع سقف صارم للتاريخ لمنع التزوير)
+    const validKid1 = crypto.verify(null, dataBuf, ED25519_PUBLIC_KEY_KID1, sigBuf);
+    if (validKid1) {
+      const expNum = Number(payload.expiresAt || 0);
+      if (expNum > KID1_MAX_ALLOWED_EXPIRES_AT) {
+        return { valid: false, reason: "KID1_EXCEEDED_GRACE_CEILING" };
+      }
+      return { valid: true, payload, kid: 1 };
+    }
+
+    return { valid: false, reason: "INVALID_SIGNATURE" };
   } catch (err) {
     return { valid: false, reason: err.message || "PARSE_ERROR" };
   }
@@ -789,7 +813,11 @@ class DesktopLicenseManager {
     const job = (async () => {
       try {
         let data = null;
-        const isSupabase = String(this.state.serverUrl || "").includes("supabase.co");
+        let isSupabase = false;
+        try {
+          const parsedHost = new URL(String(this.state.serverUrl || "http://localhost")).hostname.toLowerCase();
+          isSupabase = parsedHost === "tmjqjyzteqbbuagensxo.supabase.co" || parsedHost.endsWith(".supabase.co");
+        } catch (_) {}
 
         if (isSupabase) {
           const res = await requestWithTimeout(`${SUPABASE_LICENSE_URL}/rest/v1/rpc/check_school_subscription`, {

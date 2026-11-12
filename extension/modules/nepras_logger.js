@@ -24,10 +24,18 @@
   let internalLogging = false;
 
   const JWT_RE = /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g;
-  const SENSITIVE_KEY_RE = /^(password|pass|pwd|token|accesstoken|refreshtoken|authorization|apikey|api_key|secret|cookie|set-cookie)$/i;
+  // تعبير نمطي للرقم القومي المصري (14 رقماً تبدأ بـ 2 أو 3)
+  const EGYPT_NID_RE = /\b[23]\d{13}\b/g;
+  // تعبير نمطي لأرقام الهواتف المحمولة المصرية
+  const EGYPT_PHONE_RE = /\b(010|011|012|015)\d{8}\b/g;
+
+  const SENSITIVE_KEY_RE = /^(password|pass|pwd|token|accesstoken|refreshtoken|authorization|apikey|api_key|secret|cookie|set-cookie|nid|nationalid|national_id|phone|telephone|mobile)$/i;
 
   function redactString(str) {
-    return String(str || "").replace(JWT_RE, "[REDACTED_JWT]");
+    return String(str || "")
+      .replace(JWT_RE, "[REDACTED_JWT]")
+      .replace(EGYPT_NID_RE, "[REDACTED_NID]")
+      .replace(EGYPT_PHONE_RE, "[REDACTED_PHONE]");
   }
 
   function sanitize(val, depth) {

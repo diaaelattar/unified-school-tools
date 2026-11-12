@@ -12,8 +12,21 @@
   'use strict';
   if (typeof globalThis.neprasEnsureLib === 'function') return;
 
-  const GLOBAL_OF = { xlsx: 'XLSX', pdflib: 'PDFLib' };
+  const GLOBAL_OF = { xlsx: 'XLSX', pdflib: 'PDFLib', pdfjs: 'pdfjsLib' };
+  const SCRIPT_OF = { xlsx: 'xlsx.full.min.js', pdflib: 'pdf-lib.min.js', pdfjs: 'pdf.min.js' };
   const pending = new Map();
+
+  function loadScriptInWindow(src) {
+    return new Promise((resolve, reject) => {
+      if (typeof document === 'undefined') return reject(new Error('NO_DOCUMENT'));
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = (e) => reject(new Error('SCRIPT_LOAD_ERROR: ' + src));
+      document.head.appendChild(script);
+    });
+  }
 
   function neprasEnsureLib(name) {
     const globalName = GLOBAL_OF[name];
@@ -22,13 +35,26 @@
     if (pending.has(name)) return pending.get(name);
 
     const job = (async () => {
+      // إذا كنا في نافذة منبثقة أو نافذة عادية
+      if (typeof document !== 'undefined' && SCRIPT_OF[name]) {
+        try {
+          await loadScriptInWindow(SCRIPT_OF[name]);
+          if (globalThis[globalName]) return globalThis[globalName];
+        } catch (_) {}
+      }
+
+      // إذا كنا في Content Script أو فشل التحميل المباشر
       let res;
       try {
-        res = await chrome.runtime.sendMessage({ action: 'NEPRAS_ENSURE_LIB', lib: name });
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+          res = await chrome.runtime.sendMessage({ action: 'NEPRAS_ENSURE_LIB', lib: name });
+        }
       } catch (error) {
         throw new Error('LIB_LOAD_FAILED:' + name + ':' + (error?.message || error));
       }
-      if (!res || res.ok !== true) throw new Error('LIB_LOAD_FAILED:' + name + ':' + (res?.message || 'NO_RESPONSE'));
+      if (res && res.ok === true && globalThis[globalName]) {
+        return globalThis[globalName];
+      }
       if (!globalThis[globalName]) throw new Error('LIB_NOT_DEFINED:' + name);
       return globalThis[globalName];
     })();

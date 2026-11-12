@@ -2366,8 +2366,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function neprasRenderNationwideStudent(d) {
     nationwideStudentResult.hidden = false;
+
+    // تجهيز نصوص التنبيه الوزاري المطابق لصورة بوابة الإدارة والوزارة
+    const studentName = d.firstName || "—";
+    const schoolName = d.schoolName || "—";
+    const gradeName = d.acdYear || "—";
+    const statusName = d.resultStatelName || "ناجح ومنقول";
+    const studentCode = d.stdStudentId || "—";
+    const edaraName = d.edaraName || "—";
+    const mudName = d.mudName || "—";
+
+    const bannerHtml =
+      `<div class="ministry-official-banner" style="margin-bottom:12px; padding:12px 14px; background-color:#fee2e2; border:1px solid #fca5a5; border-radius:8px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.75; direction:rtl; text-align:right; box-shadow:0 1px 3px rgba(0,0,0,0.05);">` +
+      `  <div style="display:flex; align-items:flex-start; gap:8px;">` +
+      `    <span style="font-size:16px; line-height:1.2; user-select:none;">🚫</span>` +
+      `    <div style="flex:1;">` +
+      `      الرقم القومي مسجل من قبل للطالب <b style="color:#450a0a; font-weight:800;">${escapeHtml(studentName)}</b> بمدرسة <b style="color:#450a0a; font-weight:800;">${escapeHtml(schoolName)}</b> بالصف <b style="color:#450a0a; font-weight:800;">${escapeHtml(gradeName)}</b> / حاله قيد الطالب <b style="color:#450a0a; font-weight:800;">${escapeHtml(statusName)}</b> / رقم كود الطالب <b style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">${escapeHtml(studentCode)}</b><br>` +
+      `      بالادارة التعليمية <b style="color:#450a0a; font-weight:800;">${escapeHtml(edaraName)}</b> / بمديرية <b style="color:#450a0a; font-weight:800;">${escapeHtml(mudName)}</b>` +
+      `    </div>` +
+      `  </div>` +
+      `</div>`;
+
     nationwideStudentResult.innerHTML =
-      `<div class="nationwide-result-title">✅ تم العثور على الطالب</div>` +
+      bannerHtml +
+      `<div class="nationwide-result-title">✅ تم العثور على بيانات قيد الطالب</div>` +
       `<div class="nationwide-result-grid">` +
       `<div><span>اسم الطالب</span><b>${escapeHtml(d.firstName || "—")}</b></div>` +
       `<div><span>كود الطالب</span><b>${escapeHtml(d.stdStudentId || "—")}</b></div>` +
@@ -5282,7 +5304,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     btnAddSchoolProfile?.addEventListener("click", async () => {
       const meta = getStatsCenterMeta();
-      const code = prompt("يرجى كتابة كود هذه المدرسة / المرحلة لحفظها كملف مستقل:", "")?.trim();
+      let code = "";
+      if (globalThis.NeprasDialogs?.prompt) {
+        code = (await globalThis.NeprasDialogs.prompt({
+          title: "حفظ ملف مدرسة مستقل",
+          message: "يرجى كتابة كود هذه المدرسة / المرحلة لحفظها كملف مستقل:",
+          defaultValue: ""
+        })) || "";
+      } else {
+        code = prompt("يرجى كتابة كود هذه المدرسة / المرحلة لحفظها كملف مستقل:", "") || "";
+      }
+      code = code.trim();
       if (!code) return;
       const clean = globalThis.NeprasSchoolManager?.cleanCode(code);
       if (!clean) {
@@ -5314,7 +5346,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       const schools = await globalThis.NeprasSchoolManager.getSchoolsList();
       const target = schools.find((s) => s.code === code);
       const name = target?.name || `كود ${code}`;
-      const confirmed = confirm(`هل ترغب بالتأكيد في حذف ملف مدرسة "${name}" (${code}) من قائمة المدارس المحفوظة؟`);
+      let confirmed = false;
+      if (globalThis.NeprasDialogs?.confirm) {
+        confirmed = await globalThis.NeprasDialogs.confirm({
+          title: "تأكيد حذف المدرسة",
+          message: `هل ترغب بالتأكيد في حذف ملف مدرسة "${name}" (${code}) من قائمة المدارس المحفوظة؟`,
+          kind: "danger"
+        });
+      } else {
+        confirmed = confirm(`هل ترغب بالتأكيد في حذف ملف مدرسة "${name}" (${code}) من قائمة المدارس المحفوظة؟`);
+      }
       if (!confirmed) return;
 
       await globalThis.NeprasSchoolManager.removeSchool(code);
@@ -7528,6 +7569,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         const subEl = document.getElementById("dossier-modal-sub");
         if (nameEl) nameEl.textContent = p.name;
         if (subEl) subEl.textContent = `${a.grade} | الفصل: ${a.cls} | كود التلميذ: ${p.code} | الرقم القومي: ${p.nid}`;
+
+        // 0. تعبئة شريط التنبيه الرسمي الوزاري المطابق لرسالة بوابة الإدارة
+        const bannerWrap = document.getElementById("dossier-ministry-banner");
+        if (bannerWrap) {
+          const setB = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || "—"; };
+          setB("dossier-banner-name", p.name);
+          setB("dossier-banner-school", a.school || dossier.schoolName || getStatsCenterMeta()?.school || "—");
+          setB("dossier-banner-grade", a.grade);
+          setB("dossier-banner-status", a.status || "ناجح ومنقول");
+          setB("dossier-banner-code", p.code);
+          setB("dossier-banner-edara", a.administration || dossier.admin || getStatsCenterMeta()?.admin || "—");
+          setB("dossier-banner-mud", a.directorate || dossier.dir || getStatsCenterMeta()?.dir || "—");
+          bannerWrap.style.display = "block";
+        }
 
         // 1. البيانات الشخصية
         const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || "-"; };

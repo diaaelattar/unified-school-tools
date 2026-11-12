@@ -1520,6 +1520,17 @@
 
     <div style="padding:14px 18px;overflow-y:auto;max-height:calc(92vh - 120px);display:flex;flex-direction:column;gap:12px;background:#f8fafc;">
       
+      <!-- إشعار وتنبيه قيد الطالب الوزاري المطابق لبوابة الوزارة والإدارة -->
+      <div id="dossier-ministry-banner" style="display:none; padding:12px 14px; background-color:#fee2e2; border:1px solid #fca5a5; border-radius:8px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.75; direction:rtl; text-align:right; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display:flex; align-items:flex-start; gap:8px;">
+          <span style="font-size:16px; line-height:1.2; user-select:none;">🚫</span>
+          <div id="dossier-ministry-banner-text" style="flex:1;">
+            الرقم القومي مسجل من قبل للطالب <b id="dossier-banner-name" style="color:#450a0a; font-weight:800;">—</b> بمدرسة <b id="dossier-banner-school" style="color:#450a0a; font-weight:800;">—</b> بالصف <b id="dossier-banner-grade" style="color:#450a0a; font-weight:800;">—</b> / حاله قيد الطالب <b id="dossier-banner-status" style="color:#450a0a; font-weight:800;">ناجح ومنقول</b> / رقم كود الطالب <b id="dossier-banner-code" style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">—</b><br>
+            بالادارة التعليمية <b id="dossier-banner-edara" style="color:#450a0a; font-weight:800;">—</b> / بمديرية <b id="dossier-banner-mud" style="color:#450a0a; font-weight:800;">—</b>
+          </div>
+        </div>
+      </div>
+      
       <!-- 1. البيانات الشخصية -->
       <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
         <div style="font-size:12px;font-weight:700;color:#0f766e;margin-bottom:8px;display:flex;align-items:center;gap:6px;">

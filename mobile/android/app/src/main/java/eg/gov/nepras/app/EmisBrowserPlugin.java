@@ -110,11 +110,11 @@ public class EmisBrowserPlugin extends Plugin {
                 ws.setSupportZoom(true);
                 ws.setBuiltInZoomControls(true);
                 ws.setDisplayZoomControls(false);
-                ws.setAllowFileAccess(true);
-                ws.setAllowContentAccess(true);
+                ws.setAllowFileAccess(false);
+                ws.setAllowContentAccess(false);
                 ws.setJavaScriptCanOpenWindowsAutomatically(true);
                 ws.setCacheMode(WebSettings.LOAD_DEFAULT);
-                ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                ws.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
                 String ua = ws.getUserAgentString();
                 if (ua != null && !ua.isEmpty()) {
@@ -172,25 +172,13 @@ public class EmisBrowserPlugin extends Plugin {
 
                     @Override
                     public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                        String url = error != null ? error.getUrl() : null;
-                        String host = "";
-                        if (url != null) {
-                            try {
-                                Uri parsed = Uri.parse(url);
-                                if (parsed.getHost() != null) {
-                                    host = parsed.getHost().toLowerCase();
-                                }
-                            } catch (Exception ignored) {}
+                        // SEC-11: منع تجاوز شهادات SSL المشبوهة أو هجمات Man-In-The-Middle
+                        // إلغاء الاتصال فوراً لحماية بيانات الطلاب وأوراق الاعتماد
+                        if (handler != null) {
+                            handler.cancel();
                         }
-                        if (!host.isEmpty() && (
-                                host.equals("emis.gov.eg") || host.endsWith(".emis.gov.eg") ||
-                                host.endsWith(".microsoftonline.com") || host.endsWith(".live.com") ||
-                                host.endsWith(".msauth.net") || host.endsWith(".msftauth.net")
-                        )) {
-                            handler.proceed();
-                        } else {
-                            super.onReceivedSslError(view, handler, error);
-                        }
+                        String url = error != null ? error.getUrl() : "";
+                        Log.e("NeprasSecurity", "SSL Error blocked: " + error + " for URL: " + url);
                     }
 
                     @Override

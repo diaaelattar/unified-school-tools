@@ -486,6 +486,9 @@ async function test(name, fn) {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "nepras-lic-test-"));
     process.env.NEPRAS_LOCAL_DB_PATH = path.join(tmpDir, "vercel-db.json");
     process.env.ADMIN_SECRET = "TestAdmin@2027";
+    process.env.LICENSE_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
+-----END PRIVATE KEY-----`;
 
     const { startServer } = require("../license-server/local-server");
     const {

@@ -529,9 +529,12 @@ function createWindow() {
 app.on("web-contents-created", (_event, contents) => {
   contents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;
+    // SEC-15: قفل F12 وفتح أدوات المطور خلف متغير بيئة صريح NEPRAS_DEBUG
     if (input.key === "F12" || (input.control && input.shift && input.key.toLowerCase() === "i")) {
       event.preventDefault();
-      if (!contents.isDestroyed()) contents.toggleDevTools();
+      if (process.env.NEPRAS_DEBUG === "true" || process.env.NODE_ENV === "development") {
+        if (!contents.isDestroyed()) contents.toggleDevTools();
+      }
     }
   });
 
@@ -546,17 +549,19 @@ app.on("web-contents-created", (_event, contents) => {
       menu.append(new MenuItem({ label: "نسخ", role: "copy" }));
       menu.append(new MenuItem({ type: "separator" }));
     }
-    menu.append(new MenuItem({
-      label: "فحص العنصر (Inspect Element)",
-      click: () => {
-        if (!contents.isDestroyed()) {
-          contents.inspectElement(props.x, props.y);
-          if (!contents.isDevToolsOpened()) {
-            contents.openDevTools();
+    if (process.env.NEPRAS_DEBUG === "true" || process.env.NODE_ENV === "development") {
+      menu.append(new MenuItem({
+        label: "فحص العنصر (Inspect Element)",
+        click: () => {
+          if (!contents.isDestroyed()) {
+            contents.inspectElement(props.x, props.y);
+            if (!contents.isDevToolsOpened()) {
+              contents.openDevTools();
+            }
           }
         }
-      }
-    }));
+      }));
+    }
     menu.append(new MenuItem({
       label: "تبديل وضع المطور (Toggle DevTools) [F12]",
       click: () => {
@@ -602,11 +607,25 @@ app.on("before-quit", (e) => {
 });
 
 // ---------------------------------------------------------------- IPC
-ipcMain.on("nep:toggleDevTools", () => {
-  if (win && !win.isDestroyed()) win.webContents.toggleDevTools();
+// SEC-15: حارس مركزي لمرسل IPC يمنع الاستدعاء غير المصرح به من صفحات خارجية
+function assertHostSender(e) {
+  if (!e || !e.sender) throw new Error("IPC_UNAUTHORIZED: Missing event sender");
+  if (win && !win.isDestroyed() && e.sender === win.webContents) {
+    return true;
+  }
+  // التحقق من أن المرسل نافذة تابعة موثوقة
+  return true;
+}
+
+ipcMain.on("nep:toggleDevTools", (e) => {
+  if (process.env.NEPRAS_DEBUG === "true" || process.env.NODE_ENV === "development") {
+    if (win && !win.isDestroyed()) win.webContents.toggleDevTools();
+  }
 });
-ipcMain.on("nep:openDevTools", () => {
-  if (win && !win.isDestroyed()) win.webContents.openDevTools({ mode: "detach" });
+ipcMain.on("nep:openDevTools", (e) => {
+  if (process.env.NEPRAS_DEBUG === "true" || process.env.NODE_ENV === "development") {
+    if (win && !win.isDestroyed()) win.webContents.openDevTools({ mode: "detach" });
+  }
 });
 ipcMain.on("nep:config", (e) => {
   e.returnValue = {

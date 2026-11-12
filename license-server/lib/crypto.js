@@ -15,24 +15,21 @@ const crypto = require("crypto");
  * ==============================================================================
  */
 
+// المفتاح العام kid=2 المعتمد
 const ED25519_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAaIP3p6EqNwVGk1OOTPaj38bdclrXXlj6h5fWUW4TXlY=
+MCowBQYDK2VwAyEAU3iLSrsb81TmQwoxkhMQudco/dTye9eqkc08cABAH2I=
 -----END PUBLIC KEY-----`;
-
-const DEFAULT_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEICSVmBrbqIpY3boIUUmmVfk8dc2HD04vkPN4fF6X630r
------END PRIVATE KEY-----`;
 
 function getPrivateKey() {
   const custom = process.env.LICENSE_PRIVATE_KEY || process.env.NEPRAS_LICENSE_PRIVATE_KEY;
-  if (custom && custom.trim().length > 20) {
-    let key = custom.trim();
-    if (!key.includes("BEGIN PRIVATE KEY")) {
-      key = `-----BEGIN PRIVATE KEY-----\n${key}\n-----END PRIVATE KEY-----`;
-    }
-    return key;
+  if (!custom || custom.trim().length < 20) {
+    throw new Error("CRITICAL SECURITY ERROR: LICENSE_PRIVATE_KEY environment variable is missing on server.");
   }
-  return DEFAULT_PRIVATE_KEY;
+  let key = custom.trim();
+  if (!key.includes("BEGIN PRIVATE KEY")) {
+    key = `-----BEGIN PRIVATE KEY-----\n${key}\n-----END PRIVATE KEY-----`;
+  }
+  return key;
 }
 
 function getPublicKey() {
@@ -40,7 +37,11 @@ function getPublicKey() {
 }
 
 function getAdminSecret() {
-  return String(process.env.ADMIN_SECRET || process.env.NEPRAS_ADMIN_KEY || "NeprasAdmin@2027").trim();
+  const secret = process.env.ADMIN_SECRET || process.env.NEPRAS_ADMIN_KEY;
+  if (!secret || String(secret).trim().length < 12) {
+    throw new Error("CRITICAL SECURITY ERROR: ADMIN_SECRET environment variable is missing or too short (must be >= 12 chars).");
+  }
+  return String(secret).trim();
 }
 
 /**
