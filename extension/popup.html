@@ -211,8 +211,42 @@
 </section>
 
 <section class="n-section nationwide-search-card" data-section="nationwide-search" aria-labelledby="sec-nationwide-search-title">
-<header class="n-section__head"><span class="n-section__icon"><i data-icon="search"></i></span><div class="n-section__copy"><h2 id="sec-nationwide-search-title">البحث الفردي (بحث عن طالب في أي مدرسة)</h2><p>بحث بالرقم القومي مع استخراج إشعار قيد الطالب الوزاري الرسمي وبيانات المدرسة والإدارة</p></div></header>
-<div class="n-section__body" id="section-body-nationwide-search"><div class="mini-note" style="margin-bottom:8px; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:8px 12px; font-size:12px; line-height:1.6;">📌 <strong>ملاحظة للمسؤولين:</strong> تعرض نتيجة البحث شريط قيد الطالب الوزاري الرسمي 🚫 (المطابق لبوابة الوزارة) لتقديمه للإدارة التعليمية كإثبات قيد معتمد.</div><div class="field-block"><label for="nationwide-student-national-id">الرقم القومي للطالب</label><input class="n-input" id="nationwide-student-national-id" type="text" inputmode="numeric" maxlength="14" placeholder="اكتب الرقم القومي 14 رقمًا"></div><div class="single-action-row"><button class="n-btn n-btn--primary n-btn--block" id="btn-nationwide-student-search" type="button"><i data-icon="search"></i><span class="n-btn__label">بحث عن الطالب</span></button></div><div id="nationwide-student-result" class="nationwide-student-result" hidden></div></div>
+<header class="n-section__head"><span class="n-section__icon"><i data-icon="search"></i></span><div class="n-section__copy"><h2 id="sec-nationwide-search-title">البحث الفردي (بحث عن طالب في أي مدرسة)</h2><p>استخراج إشعار قيد الطالب الوزاري الرسمي وبيانات المدرسة والإدارة بالرقم القومي</p></div></header>
+<div class="n-section__body" id="section-body-nationwide-search">
+  <div class="field-block">
+    <label for="nationwide-student-national-id">الرقم القومي للطالب (14 رقمًا)</label>
+    <div style="display:flex; gap:8px;">
+      <input class="n-input" id="nationwide-student-national-id" type="text" inputmode="numeric" maxlength="14" placeholder="اكتب الرقم القومي 14 رقمًا" style="flex:1;">
+      <button class="n-btn n-btn--primary" id="btn-nationwide-student-search" type="button" style="white-space:nowrap; padding:0 20px;">
+        <i data-icon="search"></i><span class="n-btn__label">بحث</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- كارت إشعار قيد الطالب الوزاري الرسمي الظاهر بوضوح تام والمطابق لبوابة الوزارة والإدارة -->
+  <div id="nationwide-official-card-wrap" style="margin-top:14px; direction:rtl; text-align:right;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span style="font-size:12px; font-weight:800; color:#1e40af; display:inline-flex; align-items:center; gap:6px;">
+        📜 إشعار قيد الطالب الرسمي (المطابق لبوابة الوزارة والإدارة):
+      </span>
+      <button type="button" id="btn-save-ministry-banner" style="background:#16a34a; color:#ffffff; border:none; border-radius:18px; padding:5px 18px; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(22, 163, 74, 0.25); display:inline-flex; align-items:center; gap:5px;" title="حفظ ونسخ نص الإشعار الرسمي">
+        <span>حفظ</span>
+      </button>
+    </div>
+    
+    <div id="nationwide-official-banner-box" style="background-color:#fee2e2; border:1.5px solid #fca5a5; border-radius:8px; padding:13px 16px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.85; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <span style="font-size:18px; line-height:1.2; user-select:none;">🚫</span>
+        <div id="nationwide-official-banner-text" style="flex:1;">
+          الرقم القومي مسجل من قبل للطالب <b id="nb-banner-name" style="color:#450a0a; font-weight:800;">—</b> بمدرسة <b id="nb-banner-school" style="color:#450a0a; font-weight:800;">—</b> بالصف <b id="nb-banner-grade" style="color:#450a0a; font-weight:800;">—</b> / حاله قيد الطالب <b id="nb-banner-status" style="color:#450a0a; font-weight:800;">—</b> / رقم كود الطالب <b id="nb-banner-code" style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">—</b><br>
+          بالادارة التعليمية <b id="nb-banner-edara" style="color:#450a0a; font-weight:800;">—</b> / بمديرية <b id="nb-banner-mud" style="color:#450a0a; font-weight:800;">—</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="nationwide-student-result" class="nationwide-student-result" hidden style="margin-top:14px;"></div>
+</div>
 </section>
 
 <section class="n-section bulk-nid-search-card" data-section="bulk-nid-search" aria-labelledby="sec-bulk-nid-search-title">
@@ -1519,17 +1553,6 @@
     </div>
 
     <div style="padding:14px 18px;overflow-y:auto;max-height:calc(92vh - 120px);display:flex;flex-direction:column;gap:12px;background:#f8fafc;">
-      
-      <!-- إشعار وتنبيه قيد الطالب الوزاري المطابق لبوابة الوزارة والإدارة -->
-      <div id="dossier-ministry-banner" style="display:none; padding:12px 14px; background-color:#fee2e2; border:1px solid #fca5a5; border-radius:8px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.75; direction:rtl; text-align:right; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-        <div style="display:flex; align-items:flex-start; gap:8px;">
-          <span style="font-size:16px; line-height:1.2; user-select:none;">🚫</span>
-          <div id="dossier-ministry-banner-text" style="flex:1;">
-            الرقم القومي مسجل من قبل للطالب <b id="dossier-banner-name" style="color:#450a0a; font-weight:800;">—</b> بمدرسة <b id="dossier-banner-school" style="color:#450a0a; font-weight:800;">—</b> بالصف <b id="dossier-banner-grade" style="color:#450a0a; font-weight:800;">—</b> / حاله قيد الطالب <b id="dossier-banner-status" style="color:#450a0a; font-weight:800;">ناجح ومنقول</b> / رقم كود الطالب <b id="dossier-banner-code" style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">—</b><br>
-            بالادارة التعليمية <b id="dossier-banner-edara" style="color:#450a0a; font-weight:800;">—</b> / بمديرية <b id="dossier-banner-mud" style="color:#450a0a; font-weight:800;">—</b>
-          </div>
-        </div>
-      </div>
       
       <!-- 1. البيانات الشخصية -->
       <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.03);">

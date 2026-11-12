@@ -2365,9 +2365,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function neprasRenderNationwideStudent(d) {
-    nationwideStudentResult.hidden = false;
-
-    // تجهيز نصوص التنبيه الوزاري المطابق لصورة بوابة الإدارة والوزارة
+    // 1. تعبئة شريط قيد الطالب الوزاري الرسمي الظاهر دائماً بوضوح تام
     const studentName = d.firstName || "—";
     const schoolName = d.schoolName || "—";
     const gradeName = d.acdYear || "—";
@@ -2376,25 +2374,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     const edaraName = d.edaraName || "—";
     const mudName = d.mudName || "—";
 
+    const setEl = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val || "—";
+    };
+
+    setEl("nb-banner-name", studentName);
+    setEl("nb-banner-school", schoolName);
+    setEl("nb-banner-grade", gradeName);
+    setEl("nb-banner-status", statusName);
+    setEl("nb-banner-code", studentCode);
+    setEl("nb-banner-edara", edaraName);
+    setEl("nb-banner-mud", mudName);
+
     const bannerTextPlain = `الرقم القومي مسجل من قبل للطالب ${studentName} بمدرسة ${schoolName} بالصف ${gradeName} / حاله قيد الطالب ${statusName} / رقم كود الطالب ${studentCode} بالادارة التعليمية ${edaraName} / بمديرية ${mudName}`;
 
-    const bannerHtml =
-      `<div class="ministry-official-banner" style="margin-bottom:12px; padding:12px 14px; background-color:#fee2e2; border:1px solid #fca5a5; border-radius:8px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.75; direction:rtl; text-align:right; box-shadow:0 1px 3px rgba(0,0,0,0.05);">` +
-      `  <div style="display:flex; align-items:flex-start; gap:8px;">` +
-      `    <span style="font-size:16px; line-height:1.2; user-select:none;">🚫</span>` +
-      `    <div style="flex:1;">` +
-      `      الرقم القومي مسجل من قبل للطالب <b style="color:#450a0a; font-weight:800;">${escapeHtml(studentName)}</b> بمدرسة <b style="color:#450a0a; font-weight:800;">${escapeHtml(schoolName)}</b> بالصف <b style="color:#450a0a; font-weight:800;">${escapeHtml(gradeName)}</b> / حاله قيد الطالب <b style="color:#450a0a; font-weight:800;">${escapeHtml(statusName)}</b> / رقم كود الطالب <b style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">${escapeHtml(studentCode)}</b><br>` +
-      `      بالادارة التعليمية <b style="color:#450a0a; font-weight:800;">${escapeHtml(edaraName)}</b> / بمديرية <b style="color:#450a0a; font-weight:800;">${escapeHtml(mudName)}</b>` +
-      `    </div>` +
-      `  </div>` +
-      `  <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:8px;">` +
-      `    <button type="button" class="n-btn n-btn--sm n-btn--secondary" id="btn-copy-ministry-banner" style="font-size:11px; padding:3px 10px; background:#fff; border:1px solid #fca5a5; color:#991b1b; font-weight:700;">📋 نسخ نص الإشعار الرسمي</button>` +
-      `  </div>` +
-      `</div>`;
+    const btnSave = document.getElementById("btn-save-ministry-banner");
+    if (btnSave) {
+      btnSave.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(bannerTextPlain);
+          btnSave.innerHTML = "<span>✅ تم الحفظ والنسخ</span>";
+          setTimeout(() => { btnSave.innerHTML = "<span>حفظ</span>"; }, 2500);
+        } catch (_) {}
+      };
+    }
 
+    // 2. إظهار وتعبئة جدول التفاصيل الإضافية المعتمد
+    nationwideStudentResult.hidden = false;
     nationwideStudentResult.innerHTML =
-      bannerHtml +
-      `<div class="nationwide-result-title">✅ تم العثور على بيانات قيد الطالب</div>` +
+      `<div class="nationwide-result-title" style="margin-bottom:10px; font-weight:800; color:#1d4ed8; font-size:13.5px; text-align:right;">📋 التفاصيل الكاملة لقيد الطالب:</div>` +
       `<div class="nationwide-result-grid">` +
       `<div><span>اسم الطالب</span><b>${escapeHtml(d.firstName || "—")}</b></div>` +
       `<div><span>كود الطالب</span><b>${escapeHtml(d.stdStudentId || "—")}</b></div>` +
@@ -2405,17 +2414,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       `<div><span>رقم الفصل</span><b>${escapeHtml(d.classNumber || "—")}</b></div>` +
       `<div><span>حالة القيد</span><b>${escapeHtml(d.resultStatelName || "—")}</b></div>` +
       `</div>`;
-
-    const btnCopy = document.getElementById("btn-copy-ministry-banner");
-    if (btnCopy) {
-      btnCopy.onclick = async () => {
-        try {
-          await navigator.clipboard.writeText(bannerTextPlain);
-          btnCopy.textContent = "✅ تم النسخ بنجاح";
-          setTimeout(() => { btnCopy.textContent = "📋 نسخ نص الإشعار الرسمي"; }, 2500);
-        } catch (_) {}
-      };
-    }
   }
 
   async function lookupStudentNationwide() {
@@ -3069,6 +3067,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnNationwideStudentSearch?.addEventListener("click", lookupStudentNationwide);
   nationwideStudentNationalId?.addEventListener("keydown", e => { if(e.key === "Enter") lookupStudentNationwide(); });
+
+  const btnSaveBannerInit = document.getElementById("btn-save-ministry-banner");
+  btnSaveBannerInit?.addEventListener("click", async () => {
+    const box = document.getElementById("nationwide-official-banner-text");
+    const text = box?.innerText || box?.textContent || "";
+    if (!text || text.includes("—")) {
+      window.neprasDialog?.alert("يرجى كتابة الرقم القومي للطالب أولاً ثم الضغط على زر «بحث» لتعبئة بيانات الإشعار الرسمي.", {
+        type: "info", title: "إشعار قيد الطالب"
+      });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text.replace(/\s+/g, " ").trim());
+      btnSaveBannerInit.innerHTML = "<span>✅ تم الحفظ والنسخ</span>";
+      setTimeout(() => { btnSaveBannerInit.innerHTML = "<span>حفظ</span>"; }, 2500);
+    } catch (_) {}
+  });
 
   btnExpensesRefresh?.addEventListener("click", async () => {
     if (expensesRefreshClickLocked) return;
@@ -7606,20 +7621,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         const subEl = document.getElementById("dossier-modal-sub");
         if (nameEl) nameEl.textContent = p.name;
         if (subEl) subEl.textContent = `${a.grade} | الفصل: ${a.cls} | كود التلميذ: ${p.code} | الرقم القومي: ${p.nid}`;
-
-        // 0. تعبئة شريط التنبيه الرسمي الوزاري المطابق لرسالة بوابة الإدارة
-        const bannerWrap = document.getElementById("dossier-ministry-banner");
-        if (bannerWrap) {
-          const setB = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || "—"; };
-          setB("dossier-banner-name", p.name);
-          setB("dossier-banner-school", a.school || dossier.schoolName || getStatsCenterMeta()?.school || "—");
-          setB("dossier-banner-grade", a.grade);
-          setB("dossier-banner-status", a.status || "ناجح ومنقول");
-          setB("dossier-banner-code", p.code);
-          setB("dossier-banner-edara", a.administration || dossier.admin || getStatsCenterMeta()?.admin || "—");
-          setB("dossier-banner-mud", a.directorate || dossier.dir || getStatsCenterMeta()?.dir || "—");
-          bannerWrap.style.display = "block";
-        }
 
         // 1. البيانات الشخصية
         const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || "-"; };
