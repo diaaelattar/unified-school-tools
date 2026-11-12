@@ -2376,6 +2376,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const edaraName = d.edaraName || "—";
     const mudName = d.mudName || "—";
 
+    const bannerTextPlain = `الرقم القومي مسجل من قبل للطالب ${studentName} بمدرسة ${schoolName} بالصف ${gradeName} / حاله قيد الطالب ${statusName} / رقم كود الطالب ${studentCode} بالادارة التعليمية ${edaraName} / بمديرية ${mudName}`;
+
     const bannerHtml =
       `<div class="ministry-official-banner" style="margin-bottom:12px; padding:12px 14px; background-color:#fee2e2; border:1px solid #fca5a5; border-radius:8px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.75; direction:rtl; text-align:right; box-shadow:0 1px 3px rgba(0,0,0,0.05);">` +
       `  <div style="display:flex; align-items:flex-start; gap:8px;">` +
@@ -2384,6 +2386,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       `      الرقم القومي مسجل من قبل للطالب <b style="color:#450a0a; font-weight:800;">${escapeHtml(studentName)}</b> بمدرسة <b style="color:#450a0a; font-weight:800;">${escapeHtml(schoolName)}</b> بالصف <b style="color:#450a0a; font-weight:800;">${escapeHtml(gradeName)}</b> / حاله قيد الطالب <b style="color:#450a0a; font-weight:800;">${escapeHtml(statusName)}</b> / رقم كود الطالب <b style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">${escapeHtml(studentCode)}</b><br>` +
       `      بالادارة التعليمية <b style="color:#450a0a; font-weight:800;">${escapeHtml(edaraName)}</b> / بمديرية <b style="color:#450a0a; font-weight:800;">${escapeHtml(mudName)}</b>` +
       `    </div>` +
+      `  </div>` +
+      `  <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:8px;">` +
+      `    <button type="button" class="n-btn n-btn--sm n-btn--secondary" id="btn-copy-ministry-banner" style="font-size:11px; padding:3px 10px; background:#fff; border:1px solid #fca5a5; color:#991b1b; font-weight:700;">📋 نسخ نص الإشعار الرسمي</button>` +
       `  </div>` +
       `</div>`;
 
@@ -2400,6 +2405,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       `<div><span>رقم الفصل</span><b>${escapeHtml(d.classNumber || "—")}</b></div>` +
       `<div><span>حالة القيد</span><b>${escapeHtml(d.resultStatelName || "—")}</b></div>` +
       `</div>`;
+
+    const btnCopy = document.getElementById("btn-copy-ministry-banner");
+    if (btnCopy) {
+      btnCopy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(bannerTextPlain);
+          btnCopy.textContent = "✅ تم النسخ بنجاح";
+          setTimeout(() => { btnCopy.textContent = "📋 نسخ نص الإشعار الرسمي"; }, 2500);
+        } catch (_) {}
+      };
+    }
   }
 
   async function lookupStudentNationwide() {
@@ -2416,7 +2432,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      // 1) لو البيانات موجودة بالفعل من تحليل المصروفات، نعرضها فورًا.
+      // 1) فحص السجل الشامل للطلاب المخزن محلياً أولاً لسرعة العرض وبلا حاجة لإنترنت
+      try {
+        const localData = await chrome.storage.local.get(["neprasCachedStudentsList", "neprasSchoolStatsV1"]);
+        const list = Array.isArray(localData?.neprasCachedStudentsList) ? localData.neprasCachedStudentsList : [];
+        const match = list.find(s => String(s.nationalId || s.nid || s["الرقم القومي"] || "").replace(/\D/g, "") === nid);
+        if (match) {
+          const meta = (typeof getStatsCenterMeta === "function" ? getStatsCenterMeta() : null) || localData?.neprasSchoolStatsV1?.meta || {};
+          neprasRenderNationwideStudent({
+            stdStudentId: match.studentCode || match.code || match["كود التلميذ"] || "—",
+            firstName: match.fullName || match.name || match["اسم التلميذ"] || "—",
+            mudName: match.directorate || match.mudName || meta.dir || meta.directorate || "—",
+            edaraName: match.administration || match.edaraName || meta.admin || meta.administration || "—",
+            schoolName: match.schoolName || match.school || meta.school || "—",
+            resultStatelName: match.enrollStatus || match.status || match["حالة القيد"] || "ناجح ومنقول",
+            classNumber: match.classRoom || match.className || match["الفصل"] || "—",
+            acdYear: match.grade || match.gradeName || match["الصف"] || "—"
+          });
+          return;
+        }
+      } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+
+      // 2) لو البيانات موجودة بالفعل من تحليل المصروفات، نعرضها فورًا.
       try {
         const stored = await chrome.storage.local.get("neprasExpensesAnalysisV1");
         const cached = neprasNationwideFromExpenseCache(stored?.neprasExpensesAnalysisV1, nid);
@@ -2426,11 +2463,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
 
-      // 2) بحث مباشر باستخدام أحدث جلسة API ملتقطة.
+      // 3) بحث مباشر باستخدام أحدث جلسة API ملتقطة.
       let response = await neprasNationwideDirectLookup(nid);
       let d = neprasNationwideNormalizePayload(response?.data, nid);
 
-      // 3) لو الرد لم يحتوِ بيانات طالب كاملة، نجهز جلسة حقيقية من تبويب الطلاب
+      // 4) لو الرد لم يحتوِ بيانات طالب كاملة، نجهز جلسة حقيقية من تبويب الطلاب
       // ثم نعيد البحث من داخل التبويب نفسه. هذا يمنع اعتبار اختلاف شكل رد الـ API
       // على أنه "طالب غير موجود".
       if (!response?.ok || !d?.firstName) {
