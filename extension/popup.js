@@ -6149,6 +6149,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const warningsCountSecond = document.getElementById("warnings-count-second");
     const warningsCountFinal = document.getElementById("warnings-count-final");
     const selAbsenceMode = document.getElementById("sel-absence-mode");
+    const selAbsenceTier = document.getElementById("sel-absence-tier");
+    const absenceRangeFrom = document.getElementById("absence-range-from");
+    const absenceRangeTo = document.getElementById("absence-range-to");
     const lblWarningFirst = document.getElementById("lbl-warning-first");
     const lblWarningSecond = document.getElementById("lbl-warning-second");
     const lblWarningThird = document.getElementById("lbl-warning-third");
@@ -6283,11 +6286,60 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       }
     }
+    function syncAbsenceTierOptionsAndInputs(preserveCustom = false) {
+      const currentMode = selAbsenceMode ? selAbsenceMode.value : "CONTINUOUS";
+      const tier = selAbsenceTier ? selAbsenceTier.value : "ALL";
+      if (selAbsenceTier && window.NeprasAbsenceWarnings?.getTierRange) {
+        Array.from(selAbsenceTier.options).forEach(opt => {
+          if (opt.value !== "CUSTOM") {
+            opt.textContent = window.NeprasAbsenceWarnings.getTierRange(currentMode, opt.value).label;
+          }
+        });
+      }
+      if (!preserveCustom && tier !== "CUSTOM" && window.NeprasAbsenceWarnings?.getTierRange) {
+        const range = window.NeprasAbsenceWarnings.getTierRange(currentMode, tier);
+        if (absenceRangeFrom) absenceRangeFrom.value = range.from != null ? String(range.from) : "";
+        if (absenceRangeTo) absenceRangeTo.value = range.to != null ? String(range.to) : "";
+      }
+    }
+
+    function getSelectedAbsenceFilter() {
+      const mode = selAbsenceMode ? selAbsenceMode.value : "CONTINUOUS";
+      const tier = selAbsenceTier ? selAbsenceTier.value : "ALL";
+      const fromVal = absenceRangeFrom && absenceRangeFrom.value !== "" ? parseInt(absenceRangeFrom.value, 10) : null;
+      const toVal = absenceRangeTo && absenceRangeTo.value !== "" ? parseInt(absenceRangeTo.value, 10) : null;
+      const fallback = window.NeprasAbsenceWarnings?.getTierRange
+        ? window.NeprasAbsenceWarnings.getTierRange(mode, tier === "CUSTOM" ? "ALL" : tier)
+        : { from: mode === "DISCONTINUOUS" ? 7 : 5, to: null };
+      return {
+        mode,
+        tier,
+        from: (fromVal != null && !isNaN(fromVal)) ? fromVal : fallback.from,
+        to: (toVal != null && !isNaN(toVal)) ? toVal : (tier === "CUSTOM" ? null : fallback.to)
+      };
+    }
+
     if (selAbsenceMode) {
       selAbsenceMode.addEventListener("change", () => {
+        syncAbsenceTierOptionsAndInputs(selAbsenceTier?.value === "CUSTOM");
         updateAbsenceWarningsUI();
       });
     }
+    if (selAbsenceTier) {
+      selAbsenceTier.addEventListener("change", () => {
+        syncAbsenceTierOptionsAndInputs(false);
+        updateAbsenceWarningsUI();
+      });
+    }
+    [absenceRangeFrom, absenceRangeTo].forEach(inp => {
+      if (!inp) return;
+      inp.addEventListener("input", () => {
+        if (selAbsenceTier && selAbsenceTier.value !== "CUSTOM") {
+          selAbsenceTier.value = "CUSTOM";
+        }
+      });
+    });
+    syncAbsenceTierOptionsAndInputs(false);
     window.updateAbsenceWarningsUI = updateAbsenceWarningsUI;
 
     function renderAbsenceDetailRows(students, query = "") {
@@ -6383,7 +6435,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           return;
         }
         if (absenceDetailSearch) absenceDetailSearch.value = "";
-        renderAbsenceDetailRows(students);
+        const filterCfg = getSelectedAbsenceFilter();
+        const previewStudents = (filterCfg.tier !== "ALL" && window.NeprasAbsenceWarnings?.filterWarningsByRange)
+          ? window.NeprasAbsenceWarnings.filterWarningsByRange(students, filterCfg)
+          : students;
+        currentAbsenceFullList = previewStudents;
+        renderAbsenceDetailRows(previewStudents);
         if (absenceDetailModal) {
           absenceDetailModal.hidden = false;
           window.neprasTrapFocus?.(absenceDetailModal);
@@ -6869,50 +6926,32 @@ document.addEventListener("DOMContentLoaded", async () => {
           return;
         }
 
+        const filterCfg = getSelectedAbsenceFilter();
+        const currentMode = filterCfg.mode;
         const summary = window.NeprasAbsenceWarnings?.summarizeAbsence
-          ? window.NeprasAbsenceWarnings.summarizeAbsence(list)
+          ? window.NeprasAbsenceWarnings.summarizeAbsence(list, { mode: currentMode })
           : { eligibleList: [], maxDays: 0, withAbsence: 0 };
 
-        if (!summary.eligibleList.length) {
+        const targetList = window.NeprasAbsenceWarnings?.filterWarningsByRange
+          ? window.NeprasAbsenceWarnings.filterWarningsByRange(summary.eligibleList, filterCfg)
+          : summary.eligibleList;
+
+        if (!targetList.length) {
           if (summary.withAbsence === 0) {
             showNeprasPopupNotice("لم تُسجل أي أيام غياب لطلاب المدرسة حتى الآن (كشف الوزارة الأساسي لا يشتمل على عمود الغياب تلقائياً). اضغط «⚡ سحب وتحليل تقرير غياب الوزارة تلقائيًا (PDF)» لجلب كشف الغياب الرسمي من موقع الوزارة.", "warning", "لا توجد أيام غياب");
+          } else if (!summary.eligibleList.length) {
+            showNeprasPopupNotice(`تم فحص جميع طلاب المدرسة (${list.length} طالب)، وتبين أن أعلى نسبة غياب مسجلة هي (${summary.maxDays}) أيام. لا يوجد أي طالب تجاوز الحد القانوني المقرر للإنذار.`, "info", "إنذارات الغياب");
           } else {
-            showNeprasPopupNotice(`تم فحص جميع طلاب المدرسة (${list.length} طالب)، وتبين أن أعلى نسبة غياب مسجلة هي (${summary.maxDays}) أيام. لا يوجد أي طالب تجاوز الحد القانوني المقرر للإنذار (5 أيام فأكثر).`, "info", "إنذارات الغياب");
+            showNeprasPopupNotice(`لا يوجد طلاب في نطاق التصفية المحدد (${filterCfg.from}${filterCfg.to != null ? " إلى " + filterCfg.to : " فأكثر"} يوم).`, "info", "إنذارات الغياب");
           }
           return;
         }
 
         const schoolInfo = await getSchoolHeaderContext();
-        const currentMode = selAbsenceMode ? selAbsenceMode.value : "CONTINUOUS";
-        const html = window.NeprasAbsenceWarnings.buildWarningsHtml(summary.eligibleList, schoolInfo, { mode: currentMode });
-        const toolbarAndScript = `
-<style>
-  @media print { .nepras-print-toolbar { display: none !important; } }
-  .nepras-print-toolbar {
-    position: sticky; top: 0; z-index: 99999;
-    background: #0f172a; color: #fff; padding: 10px 18px;
-    display: flex; align-items: center; justify-content: space-between;
-    font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2); margin-bottom: 12px;
-  }
-  .nepras-print-toolbar button {
-    background: #2563eb; color: #fff; border: 0; border-radius: 6px;
-    padding: 7px 16px; font-weight: 700; font-size: 13px; cursor: pointer;
-  }
-  .nepras-print-toolbar button:hover { background: #1d4ed8; }
-</style>
-<div class="nepras-print-toolbar">
-  <div style="font-weight:700;font-size:14px;">🖨️ معاينة وطباعة إنذارات الغياب الرسمية (${summary.eligibleList.length} إنذار)</div>
-  <button type="button" onclick="window.print()">🖨️ طباعة الإنذارات الآن</button>
-</div>
-<script>
-  window.addEventListener("DOMContentLoaded", function() {
-    setTimeout(function() { window.print(); }, 350);
-  });
-</script>`;
-        const enhancedHtml = html.includes("<body")
-          ? html.replace(/<body[^>]*>/i, (m) => m + toolbarAndScript)
-          : (toolbarAndScript + html);
+        const html = window.NeprasAbsenceWarnings.buildWarningsHtml(targetList, schoolInfo, { mode: currentMode });
+        const enhancedHtml = window.NeprasAbsenceController?.wrapPrintToolbar
+          ? window.NeprasAbsenceController.wrapPrintToolbar(html, `🖨️ معاينة وطباعة إنذارات الغياب الرسمية (${targetList.length} إنذار)`)
+          : html;
 
         try {
           const blob = new Blob([enhancedHtml], { type: "text/html;charset=utf-8" });
@@ -6943,21 +6982,29 @@ document.addEventListener("DOMContentLoaded", async () => {
           return;
         }
 
+        const filterCfg = getSelectedAbsenceFilter();
+        const currentMode = filterCfg.mode;
         const summary = window.NeprasAbsenceWarnings?.summarizeAbsence
-          ? window.NeprasAbsenceWarnings.summarizeAbsence(list)
+          ? window.NeprasAbsenceWarnings.summarizeAbsence(list, { mode: currentMode })
           : { eligibleList: [], maxDays: 0, withAbsence: 0 };
 
-        if (!summary.eligibleList.length) {
+        const targetList = window.NeprasAbsenceWarnings?.filterWarningsByRange
+          ? window.NeprasAbsenceWarnings.filterWarningsByRange(summary.eligibleList, filterCfg)
+          : summary.eligibleList;
+
+        if (!targetList.length) {
           if (summary.withAbsence === 0) {
             showNeprasPopupNotice("لم تُسجل أي أيام غياب لطلاب المدرسة حتى الآن. اضغط «⚡ سحب وتحليل تقرير غياب الوزارة تلقائيًا (PDF)» لجلب كشف الغياب الرسمي من موقع الوزارة.", "warning", "لا توجد أيام غياب");
+          } else if (!summary.eligibleList.length) {
+            showNeprasPopupNotice(`تم فحص جميع طلاب المدرسة (${list.length} طالب)، وتبين أن أعلى غياب مسجل هو (${summary.maxDays}) أيام. لا يوجد أي طالب تجاوز حد الإنذار.`, "info", "إنذارات الغياب");
           } else {
-            showNeprasPopupNotice(`تم فحص جميع طلاب المدرسة (${list.length} طالب)، وتبين أن أعلى غياب مسجل هو (${summary.maxDays}) أيام. لا يوجد أي طالب تجاوز حد الإنذار (5 أيام فأكثر).`, "info", "إنذارات الغياب");
+            showNeprasPopupNotice(`لا يوجد طلاب في نطاق التصفية المحدد (${filterCfg.from}${filterCfg.to != null ? " إلى " + filterCfg.to : " فأكثر"} يوم).`, "info", "إنذارات الغياب");
           }
           return;
         }
 
         const schoolInfo = await getSchoolHeaderContext();
-        const html = window.NeprasAbsenceWarnings.buildWarningsHtml(summary.eligibleList, schoolInfo);
+        const html = window.NeprasAbsenceWarnings.buildWarningsHtml(targetList, schoolInfo, { mode: currentMode });
         const blob = new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" });
         await neprasUnifiedDownload(blob, `إنذارات_الغياب_المعتمدة_${schoolInfo.schoolName || 'المدرسة'}.doc`, "إنذارات الغياب", "تم إنشاء ملف Word لإنذارات الغياب وتنزيله بنجاح.");
       });

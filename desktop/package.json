@@ -18,6 +18,13 @@
   "build": {
     "appId": "eg.gov.nepras.desktop",
     "productName": "Nepras",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "diaaelattar",
+        "repo": "unified-school-tools"
+      }
+    ],
     "compression": "normal",
     "directories": { "output": "../release/desktop" },
     "files": ["src/**/*", "package.json"],

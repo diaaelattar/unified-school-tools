@@ -799,8 +799,20 @@ ipcMain.handle("nep:checkUpdate", async () => {
   const websiteUrl = "https://unified-school-tools-website.vercel.app/";
   const endpoints = [
     "https://unified-school-tools-website.vercel.app/version.json",
-    "https://unified-school-tools-website.vercel.app/api/version"
+    "https://unified-school-tools-website.vercel.app/api/version",
+    "https://api.github.com/repos/diaaelattar/unified-school-tools/releases/latest"
   ];
+
+  // تكامل اختياري مع electron-updater عند توفره في الحزمة الموقّعة
+  try {
+    const { autoUpdater } = require("electron-updater");
+    if (autoUpdater && app.isPackaged) {
+      autoUpdater.autoDownload = false;
+      autoUpdater.checkForUpdates().catch(() => {});
+    }
+  } catch (_) {
+    // fallback إلى التحقق المباشر عبر HTTPS أدناه
+  }
 
   const fetchUrl = (targetUrl) => {
     return new Promise((resolve, reject) => {
@@ -838,9 +850,10 @@ ipcMain.handle("nep:checkUpdate", async () => {
     } catch (_) {}
   }
 
-  const latestVersion = remoteData?.version || remoteData?.desktopVersion || null;
-  const downloadUrl = remoteData?.downloadUrl || remoteData?.desktopDownloadUrl || websiteUrl;
-  const releaseNotes = remoteData?.notes || remoteData?.releaseNotes || "";
+  const rawTag = remoteData?.tag_name ? String(remoteData.tag_name).replace(/^v/i, "") : null;
+  const latestVersion = remoteData?.version || remoteData?.desktopVersion || rawTag || null;
+  const downloadUrl = remoteData?.downloadUrl || remoteData?.desktopDownloadUrl || remoteData?.html_url || websiteUrl;
+  const releaseNotes = remoteData?.notes || remoteData?.releaseNotes || remoteData?.body || "";
   const hasUpdate = latestVersion ? (compareVersions(latestVersion, currentVersion) > 0) : false;
 
   return {

@@ -493,9 +493,54 @@
     return wb;
   }
 
+  /**
+   * إرجاع نطاق الأيام الرسمي (من - إلى) لكل مستوى إنذار حسب نوع الغياب
+   * @param {string} mode - CONTINUOUS | DISCONTINUOUS
+   * @param {string} tier - ALL | FIRST | SECOND | THIRD | FINAL
+   * @returns {{ from: number, to: (number|null), label: string }}
+   */
+  function getTierRange(mode, tier) {
+    const isDisc = mode === 'DISCONTINUOUS' || /منفصل|متفرق|discontinuous/i.test(String(mode || ''));
+    const rules = isDisc ? WARNING_RULES.DISCONTINUOUS : WARNING_RULES.CONTINUOUS;
+    const t = String(tier || 'ALL').toUpperCase();
+    if (t === 'FIRST') {
+      return { from: rules.first, to: rules.second - 1, label: `الإنذار الأول (من ${rules.first} إلى ${rules.second - 1} يوم)` };
+    }
+    if (t === 'SECOND') {
+      return { from: rules.second, to: rules.third - 1, label: `الإنذار الثاني (من ${rules.second} إلى ${rules.third - 1} يوم)` };
+    }
+    if (t === 'THIRD') {
+      return { from: rules.third, to: rules.final - 1, label: `الإنذار الثالث (من ${rules.third} إلى ${rules.final - 1} يوم)` };
+    }
+    if (t === 'FINAL') {
+      return { from: rules.final, to: null, label: `إخطار / قرار الفصل (${rules.final} يوم فأكثر)` };
+    }
+    return { from: rules.first, to: null, label: `جميع المستحقين (${rules.first} يوم فأكثر)` };
+  }
+
+  /**
+   * تصفية قائمة الطلاب حسب نطاق أيام الغياب (من - إلى)
+   * @param {Array<Object>} students
+   * @param {{ from?: (number|null), to?: (number|null) }} range
+   * @returns {Array<Object>}
+   */
+  function filterWarningsByRange(students, range) {
+    const list = Array.isArray(students) ? students : [];
+    const from = (range && range.from != null && range.from !== '') ? parseInt(range.from, 10) : null;
+    const to = (range && range.to != null && range.to !== '') ? parseInt(range.to, 10) : null;
+    return list.filter(s => {
+      const days = parseInt(s.absenceDays ?? s.days ?? 0, 10) || 0;
+      if (from !== null && !isNaN(from) && days < from) return false;
+      if (to !== null && !isNaN(to) && days > to) return false;
+      return true;
+    });
+  }
+
   global.NeprasAbsenceWarnings = Object.freeze({
     WARNING_RULES,
     getWarningLevel,
+    getTierRange,
+    filterWarningsByRange,
     filterEligibleStudents,
     buildWarningsHtml,
     buildExpulsionDecisionHtml,

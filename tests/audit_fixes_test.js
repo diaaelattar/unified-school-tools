@@ -903,6 +903,27 @@ async function test(name, fn) {
     assert.strictEqual(summary.second, 1);
     assert.strictEqual(summary.final, 1);
     assert.strictEqual(summary.eligibleCount, 3);
+
+    // اختبار نطاقات الإنذارات المنسدلة (المتصل والمنفصل) وتصفية الطلاب حسب النطاق
+    const c1 = AW.getTierRange("CONTINUOUS", "FIRST");
+    assert.deepStrictEqual({ from: c1.from, to: c1.to }, { from: 5, to: 9 });
+    const c2 = AW.getTierRange("CONTINUOUS", "SECOND");
+    assert.deepStrictEqual({ from: c2.from, to: c2.to }, { from: 10, to: 11 });
+    const c3 = AW.getTierRange("CONTINUOUS", "THIRD");
+    assert.deepStrictEqual({ from: c3.from, to: c3.to }, { from: 12, to: 14 });
+    const d1 = AW.getTierRange("DISCONTINUOUS", "FIRST");
+    assert.deepStrictEqual({ from: d1.from, to: d1.to }, { from: 7, to: 13 });
+    const d2 = AW.getTierRange("DISCONTINUOUS", "SECOND");
+    assert.deepStrictEqual({ from: d2.from, to: d2.to }, { from: 14, to: 20 });
+    const d3 = AW.getTierRange("DISCONTINUOUS", "THIRD");
+    assert.deepStrictEqual({ from: d3.from, to: d3.to }, { from: 21, to: 29 });
+
+    const onlyFirstCont = AW.filterWarningsByRange(sample, c1);
+    assert.strictEqual(onlyFirstCont.length, 1);
+    assert.strictEqual(onlyFirstCont[0].code, "103");
+    const onlyThirdCont = AW.filterWarningsByRange(sample, c3);
+    assert.strictEqual(onlyThirdCont.length, 1);
+    assert.strictEqual(onlyThirdCont[0].code, "104");
     assert.strictEqual(summary.maxDays, 18);
 
     // Test Excel parser

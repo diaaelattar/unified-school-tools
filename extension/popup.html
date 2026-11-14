@@ -1274,6 +1274,25 @@
         <option value="DISCONTINUOUS">غياب منفصل (7 ⬅️ 14 ⬅️ 21 ⬅️ 30 يوم)</option>
       </select>
     </div>
+    <div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:6px;background:#f8fafc;padding:4px 8px;border-radius:6px;border:1px solid #cbd5e1;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:165px;">
+        <span style="font-size:10.5px;font-weight:700;color:#334155;white-space:nowrap;">🎯 تصفية الإنذار:</span>
+        <select id="sel-absence-tier" style="font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;border:1px solid #94a3b8;background:#fff;color:#0f172a;cursor:pointer;flex:1;min-width:110px;">
+          <option value="ALL" selected>جميع المستحقين (5 فأكثر)</option>
+          <option value="FIRST">الإنذار الأول (من 5 إلى 9 أيام)</option>
+          <option value="SECOND">الإنذار الثاني (من 10 إلى 11 يومًا)</option>
+          <option value="THIRD">الإنذار الثالث (من 12 إلى 14 يومًا)</option>
+          <option value="FINAL">إخطار / قرار الفصل (15 فأكثر)</option>
+          <option value="CUSTOM">نطاق مخصص (من .. إلى ..)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:#334155;font-weight:700;">
+        <span>من</span>
+        <input id="absence-range-from" type="number" min="1" value="5" style="width:44px;padding:2px 4px;border:1px solid #94a3b8;border-radius:4px;font-size:10.5px;font-weight:700;text-align:center;background:#fff;color:#0f172a;" title="الحد الأدنى لأيام الغياب">
+        <span>إلى</span>
+        <input id="absence-range-to" type="number" min="1" placeholder="∞" style="width:44px;padding:2px 4px;border:1px solid #94a3b8;border-radius:4px;font-size:10.5px;font-weight:700;text-align:center;background:#fff;color:#0f172a;" title="الحد الأقصى لأيام الغياب (اتركه فارغاً لـ فأكثر)">
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:4px;text-align:center;margin-bottom:6px;">
       <div style="background:#fef3c7;border:1px solid #fde68a;padding:4px 2px;border-radius:6px;">
         <div id="lbl-warning-first" style="font-size:9.5px;color:#92400e;font-weight:600;">إنذار 1 (5 أيام)</div>
@@ -1508,19 +1527,20 @@
 <script src="nepras-dialogs.js"></script>
 <script src="ui-button-state.js"></script>
 <script src="ui-focus-trap.js"></script>
-<script src="xlsx.full.min.js"></script>
+<script src="modules/lazy_libs.js"></script>
+<script defer src="xlsx.full.min.js"></script>
 <script src="modules/xlsx_writer.js"></script>
 <script src="modules/class_books.js"></script>
 <script src="modules/class_books_store.js"></script>
 <script src="modules/run_report.js"></script>
 <script src="modules/bulk_nid.js"></script>
-<script src="pdf-lib.min.js"></script>
+<script defer src="pdf-lib.min.js"></script>
 <script src="modules/pdf_tools.js"></script>
 <script src="modules/smart_analytics.js"></script>
 <script src="modules/tablet.js"></script>
 <script src="modules/add_student.js"></script>
 <script src="modules/report_header.js"></script>
-<script src="pdf.min.js"></script>
+<script defer src="pdf.min.js"></script>
 <script src="modules/absence_pdf_parser.js"></script>
 <script src="modules/absence_warnings.js"></script>
 <script src="modules/stats_dashboard.js"></script>
@@ -1537,6 +1557,7 @@
 <script src="controllers/attendance_controller.js"></script>
 <script src="controllers/cards_controller.js"></script>
 <script src="controllers/stats_controller.js"></script>
+<script src="controllers/absence_controller.js"></script>
 <script src="popup.js"></script>
 
 <section id="student-dossier-modal" class="school-stats-detail-modal" hidden>
