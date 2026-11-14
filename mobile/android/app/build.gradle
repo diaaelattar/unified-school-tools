@@ -7,8 +7,8 @@ android {
         applicationId "eg.gov.nepras.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10341
-        versionName "1.3.41"
+        versionCode 10342
+        versionName "1.3.42"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,11 +16,34 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            def keystorePropsFile = rootProject.file("keystore.properties")
+            def keystoreProps = new Properties()
+            if (keystorePropsFile.exists()) {
+                keystoreProps.load(new FileInputStream(keystorePropsFile))
+            }
+            def releaseStoreFile = keystoreProps.getProperty("storeFile") ?: System.getenv("NEPRAS_KEYSTORE_FILE")
+            def releaseStorePassword = keystoreProps.getProperty("storePassword") ?: System.getenv("NEPRAS_KEYSTORE_PASSWORD")
+            def releaseKeyAlias = keystoreProps.getProperty("keyAlias") ?: System.getenv("NEPRAS_KEY_ALIAS")
+            def releaseKeyPassword = keystoreProps.getProperty("keyPassword") ?: System.getenv("NEPRAS_KEY_PASSWORD")
+
+            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

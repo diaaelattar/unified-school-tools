@@ -70,11 +70,9 @@ function isAuthorized(req, body) {
 
   if (!provided || !expected) return false;
 
-  const bufProvided = Buffer.from(provided, "utf8");
-  const bufExpected = Buffer.from(expected, "utf8");
-  if (bufProvided.length !== bufExpected.length) return false;
-
-  return crypto.timingSafeEqual(bufProvided, bufExpected);
+  const hashProvided = crypto.createHash("sha256").update(provided, "utf8").digest();
+  const hashExpected = crypto.createHash("sha256").update(expected, "utf8").digest();
+  return crypto.timingSafeEqual(hashProvided, hashExpected);
 }
 
 module.exports = async function handler(req, res) {
@@ -215,7 +213,8 @@ module.exports = async function handler(req, res) {
     console.error("Admin API Error:", err);
     return res.status(500).json({
       ok: false,
-      message: "خطأ في السيرفر: " + (err.message || String(err))
+      code: "SERVER_ERROR",
+      message: "حدث خطأ داخلي في الخادم. يرجى المحاولة لاحقاً."
     });
   }
 };

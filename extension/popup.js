@@ -634,6 +634,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     NeprasButtons.setIcon(btnThemeToggle, dark ? "sun" : "moon");
   }
 
+  function syncHostTheme(theme) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "nepras-theme", theme: theme === "dark" ? "dark" : "light" }, "*");
+      }
+    } catch (_) {}
+  }
+
   async function applySavedTheme() {
     let theme = "light";
     try {
@@ -642,14 +650,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
     document.body.classList.toggle("theme-dark", theme === "dark");
     setThemeButton(theme === "dark");
+    syncHostTheme(theme);
     return theme;
   }
 
   btnThemeToggle?.addEventListener("click", async () => {
     const dark = !document.body.classList.contains("theme-dark");
+    const theme = dark ? "dark" : "light";
     document.body.classList.toggle("theme-dark", dark);
     setThemeButton(dark);
-    try { await chrome.storage.local.set({ neprasTheme: dark ? "dark" : "light" }); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
+    syncHostTheme(theme);
+    try { await chrome.storage.local.set({ neprasTheme: theme }); } catch (err) { console.warn("[Nepras Handled]", err?.message || err); }
   });
   awaitSafe(applySavedTheme());
 

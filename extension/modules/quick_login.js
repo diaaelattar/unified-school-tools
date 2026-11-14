@@ -9,40 +9,163 @@
 
   const STORAGE_KEY = "neprasMinistryAuthCredentials";
   const SETTINGS_KEY = "neprasMinistryAuthSettings";
-  const CIPHER_KEY = [0x4E, 0x65, 0x70, 0x72, 0x61, 0x73, 0x56, 0x61, 0x75, 0x6C, 0x74, 0x32, 0x30, 0x32, 0x37]; // NeprasVault2027
+  const VAULT_IDB_NAME = "nepras_vault_keystore";
+  const VAULT_IDB_STORE = "keys";
+  const VAULT_KEY_ID = "vault_aes_gcm_v3";
+  let _inMemoryAesKey = null;
 
-  function encodeSecret(str) {
-    if (!str) return "";
-    try {
-      const utf8Bytes = new TextEncoder().encode(String(str));
-      const xorBytes = new Uint8Array(utf8Bytes.length);
-      for (let i = 0; i < utf8Bytes.length; i++) {
-        xorBytes[i] = utf8Bytes[i] ^ CIPHER_KEY[i % CIPHER_KEY.length];
-      }
-      let binary = "";
-      for (let i = 0; i < xorBytes.length; i++) binary += String.fromCharCode(xorBytes[i]);
-      return "v2:" + btoa(binary);
-    } catch (_) {
-      return String(str);
-    }
+  function bytesToBase64(bytes) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
   }
 
-  function decodeSecret(str) {
-    if (!str) return "";
+  function base64ToBytes(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function getSubtleCrypto() {
+    if (typeof globalThis !== "undefined" && globalThis.crypto?.subtle) {
+      return globalThis.crypto;
+    }
     try {
-      const s = String(str);
-      if (s.startsWith("v2:")) {
-        const binary = atob(s.slice(3));
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i) ^ CIPHER_KEY[i % CIPHER_KEY.length];
-        }
-        return new TextDecoder().decode(bytes);
+      const nodeCrypto = require("crypto");
+      if (nodeCrypto?.webcrypto?.subtle) return nodeCrypto.webcrypto;
+    } catch (_) {}
+    return null;
+  }
+
+  function openVaultKeyDb() {
+    return new Promise((resolve) => {
+      if (typeof indexedDB === "undefined") return resolve(null);
+      try {
+        const req = indexedDB.open(VAULT_IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(VAULT_IDB_STORE)) {
+            db.createObjectStore(VAULT_IDB_STORE);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (_) {
+        resolve(null);
       }
+    });
+  }
+
+  async function getOrCreateAesKey() {
+    if (_inMemoryAesKey) return _inMemoryAesKey;
+    const webCrypto = getSubtleCrypto();
+    if (!webCrypto?.subtle) {
+      throw new Error("Web Crypto API غير متاح لتشفير بيانات الدخول بأمان.");
+    }
+
+    const db = await openVaultKeyDb();
+    if (db) {
+      const existing = await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(VAULT_IDB_STORE, "readonly");
+          const getReq = tx.objectStore(VAULT_IDB_STORE).get(VAULT_KEY_ID);
+          getReq.onsuccess = () => resolve(getReq.result || null);
+          getReq.onerror = () => resolve(null);
+        } catch (_) {
+          resolve(null);
+        }
+      });
+      if (existing) {
+        _inMemoryAesKey = existing;
+        return existing;
+      }
+    }
+
+    // مفتاح AES-GCM-256 عشوائي غير قابل للاستخراج (non-extractable) لكل تثبيت
+    const key = await webCrypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+
+    if (db) {
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(VAULT_IDB_STORE, "readwrite");
+          tx.objectStore(VAULT_IDB_STORE).put(key, VAULT_KEY_ID);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      });
+    }
+
+    _inMemoryAesKey = key;
+    return key;
+  }
+
+  async function encodeSecret(str) {
+    if (!str) return "";
+    const plain = String(str);
+
+    // تفضيل التشفير عبر نظام التشغيل (Electron safeStorage / DPAPI) عند توفره
+    if (typeof window !== "undefined" && typeof window.nepDesktop?.encryptSecret === "function") {
+      try {
+        const res = await window.nepDesktop.encryptSecret(plain);
+        if (res && typeof res === "string") return "v4:" + res;
+      } catch (_) {}
+    }
+
+    const webCrypto = getSubtleCrypto();
+    const key = await getOrCreateAesKey();
+    const iv = webCrypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(plain);
+    const cipherBuf = await webCrypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      encoded
+    );
+    return `v3:${bytesToBase64(iv)}:${bytesToBase64(new Uint8Array(cipherBuf))}`;
+  }
+
+  async function decodeSecret(str) {
+    if (!str) return "";
+    const s = String(str);
+    try {
+      if (s.startsWith("v4:")) {
+        if (typeof window !== "undefined" && typeof window.nepDesktop?.decryptSecret === "function") {
+          const dec = await window.nepDesktop.decryptSecret(s.slice(3));
+          return typeof dec === "string" ? dec : "";
+        }
+        return "";
+      }
+
+      if (s.startsWith("v3:")) {
+        const parts = s.split(":");
+        if (parts.length !== 3) return "";
+        const webCrypto = getSubtleCrypto();
+        const key = await getOrCreateAesKey();
+        const iv = base64ToBytes(parts[1]);
+        const ct = base64ToBytes(parts[2]);
+        const plainBuf = await webCrypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          ct
+        );
+        return new TextDecoder().decode(plainBuf);
+      }
+
+      // البيانات القديمة بـ XOR الثابت (v2:) لم تعد مدعومة لأسباب أمنية
+      if (s.startsWith("v2:")) {
+        return "";
+      }
+
       // توافق عكسي مع البيانات القديمة المخزنة بـ Base64
       return decodeURIComponent(escape(atob(s)));
     } catch (_) {
-      return String(str);
+      return "";
     }
   }
 
@@ -133,12 +256,19 @@
       const raw = (await getStorageItem(STORAGE_KEY)) || {};
       let accounts = Array.isArray(raw.accounts) ? raw.accounts : [];
 
-      const encodedU = encodeSecret(u);
-      const encodedP = encodeSecret(p);
+      const encodedU = await encodeSecret(u);
+      const encodedP = await encodeSecret(p);
       const now = new Date().toISOString();
 
       // تحديث أو إضافة الحساب في قائمة الحسابات
-      const existingIdx = accounts.findIndex(acc => decodeSecret(acc.u).toLowerCase() === u.toLowerCase());
+      let existingIdx = -1;
+      for (let i = 0; i < accounts.length; i++) {
+        const decU = await decodeSecret(accounts[i].u);
+        if (decU && decU.toLowerCase() === u.toLowerCase()) {
+          existingIdx = i;
+          break;
+        }
+      }
       const accountItem = {
         u: encodedU,
         p: encodedP,
@@ -172,21 +302,27 @@
       if (!raw) return null;
 
       if (targetUsername && Array.isArray(raw.accounts)) {
-        const found = raw.accounts.find(a => decodeSecret(a.u).toLowerCase() === String(targetUsername).trim().toLowerCase());
-        if (found) {
-          return {
-            username: decodeSecret(found.u),
-            password: decodeSecret(found.p),
-            label: found.label || decodeSecret(found.u),
-            updatedAt: found.updatedAt || ""
-          };
+        const targetLower = String(targetUsername).trim().toLowerCase();
+        for (const a of raw.accounts) {
+          const decU = await decodeSecret(a.u);
+          if (decU && decU.toLowerCase() === targetLower) {
+            return {
+              username: decU,
+              password: await decodeSecret(a.p),
+              label: a.label || decU,
+              updatedAt: a.updatedAt || ""
+            };
+          }
         }
       }
 
       if (!raw.u || !raw.p) return null;
+      const username = await decodeSecret(raw.u);
+      const password = await decodeSecret(raw.p);
+      if (!username || !password) return null;
       return {
-        username: decodeSecret(raw.u),
-        password: decodeSecret(raw.p),
+        username,
+        password,
         updatedAt: raw.updatedAt || ""
       };
     },
@@ -198,18 +334,29 @@
       const raw = await getStorageItem(STORAGE_KEY);
       if (!raw) return [];
       if (Array.isArray(raw.accounts) && raw.accounts.length > 0) {
-        return raw.accounts.map(a => ({
-          username: decodeSecret(a.u),
-          password: decodeSecret(a.p),
-          label: a.label || decodeSecret(a.u),
-          updatedAt: a.updatedAt || ""
-        }));
+        const list = [];
+        for (const a of raw.accounts) {
+          const username = await decodeSecret(a.u);
+          const password = await decodeSecret(a.p);
+          if (username && password) {
+            list.push({
+              username,
+              password,
+              label: a.label || username,
+              updatedAt: a.updatedAt || ""
+            });
+          }
+        }
+        return list;
       }
       if (raw.u && raw.p) {
+        const username = await decodeSecret(raw.u);
+        const password = await decodeSecret(raw.p);
+        if (!username || !password) return [];
         return [{
-          username: decodeSecret(raw.u),
-          password: decodeSecret(raw.p),
-          label: decodeSecret(raw.u),
+          username,
+          password,
+          label: username,
           updatedAt: raw.updatedAt || ""
         }];
       }

@@ -1,62 +1,90 @@
+#!/usr/bin/env node
 "use strict";
 
-/**
- * ==============================================================================
- * 🎨 أداة فحص التباين اللوني ونظام الألوان (tools/contrast.js)
- * ------------------------------------------------------------------------------
- * • يفحص أزواج الألوان في tokens.css لضمان تحقيق نسبة تباين ≥ 4.5:1 (معيار WCAG AA).
- * ==============================================================================
- */
+const fs = require("fs");
+const path = require("path");
 
-function hexToRgb(hex) {
-  let c = hex.replace("#", "").trim();
-  if (c.length === 3) c = c.split("").map((x) => x + x).join("");
-  const num = parseInt(c, 16);
-  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
-}
+const tokensPath = path.join(__dirname, "..", "extension", "ui", "tokens.css");
+const css = fs.readFileSync(tokensPath, "utf8");
 
-function luminance(r, g, b) {
-  const a = [r, g, b].map((v) => {
-    v /= 255;
-    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-  });
-  return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-}
-
-function contrastRatio(hex1, hex2) {
-  const rgb1 = hexToRgb(hex1);
-  const rgb2 = hexToRgb(hex2);
-  const l1 = luminance(rgb1[0], rgb1[1], rgb1[2]);
-  const l2 = luminance(rgb2[0], rgb2[1], rgb2[2]);
-  const bright = Math.max(l1, l2);
-  const dark = Math.min(l1, l2);
-  return (bright + 0.05) / (dark + 0.05);
-}
-
-function verifyTokensContrast() {
-  const pairs = [
-    { name: "Primary on Surface", text: "#1d4ed8", bg: "#ffffff" },
-    { name: "Success on Surface", text: "#15803d", bg: "#ffffff" },
-    { name: "Warning on Surface", text: "#b45309", bg: "#ffffff" },
-    { name: "Error on Surface", text: "#b91c1c", bg: "#ffffff" },
-    { name: "Text on Surface", text: "#0f172a", bg: "#ffffff" },
-    { name: "Text-2 on Surface", text: "#334155", bg: "#ffffff" },
-    { name: "On-Primary on Primary", text: "#ffffff", bg: "#1d4ed8" },
-    { name: "On-Error on Error", text: "#ffffff", bg: "#b91c1c" }
-  ];
-
-  let passed = true;
-  for (const p of pairs) {
-    const ratio = contrastRatio(p.text, p.bg);
-    const ok = ratio >= 4.5;
-    if (!ok) passed = false;
+function extractVars(block) {
+  const vars = {};
+  const re = /(--[a-z0-9-]+)\s*:\s*([^;]+);/gi;
+  let m;
+  while ((m = re.exec(block)) !== null) {
+    vars[m[1].trim()] = m[2].trim();
   }
-  return passed;
+  return vars;
 }
 
-if (require.main === module) {
-  const ok = verifyTokensContrast();
-  console.log(ok ? "✅ All token color pairs meet WCAG AA contrast (≥ 4.5:1)" : "❌ Contrast violations found");
+const lightMatch = css.match(/:root\s*,\s*:host\s*\{([\s\S]*?)\n\}/);
+const darkMatch = css.match(/\.theme-dark\s*,\s*:host\(\[data-theme="dark"\]\)\s*\{([\s\S]*?)\n\}/);
+
+if (!lightMatch || !darkMatch) {
+  console.error("Failed to parse light/dark token blocks in tokens.css");
+  process.exit(1);
 }
 
-module.exports = { contrastRatio, verifyTokensContrast };
+const lightVars = extractVars(lightMatch[1]);
+const darkVars = { ...lightVars, ...extractVars(darkMatch[1]) };
+
+function parseHex(hex) {
+  const clean = String(hex || "").trim().replace(/^#/, "");
+  if (!/^[0-9a-f]{6}$/i.test(clean)) return null;
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16)
+  ];
+}
+
+function relLuminance([r, g, b]) {
+  const toLin = (c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+}
+
+function contrastRatio(fgHex, bgHex) {
+  const fg = parseHex(fgHex);
+  const bg = parseHex(bgHex);
+  if (!fg || !bg) return null;
+  const l1 = relLuminance(fg);
+  const l2 = relLuminance(bg);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+const PAIRS = [
+  ["--n-text", "--n-bg"],
+  ["--n-text", "--n-surface"],
+  ["--n-text", "--n-surface-2"],
+  ["--n-text-2", "--n-surface"],
+  ["--n-text-muted", "--n-surface"],
+  ["--n-text-muted", "--n-bg"],
+  ["--n-on-primary", "--n-primary"],
+  ["--n-primary", "--n-primary-soft"],
+  ["--n-on-error", "--n-error"],
+  ["--n-success", "--n-success-soft"],
+  ["--n-warning", "--n-warning-soft"],
+  ["--n-error", "--n-error-soft"],
+  ["--n-info", "--n-info-soft"]
+];
+
+let failed = 0;
+for (const [themeName, vars] of [["light", lightVars], ["dark", darkVars]]) {
+  for (const [fg, bg] of PAIRS) {
+    const ratio = contrastRatio(vars[fg], vars[bg]);
+    if (ratio === null || ratio < 4.5) {
+      console.error(`FAIL [${themeName}] ${fg} (${vars[fg]}) on ${bg} (${vars[bg]}): ${ratio ? ratio.toFixed(2) : "invalid"}`);
+      failed++;
+    }
+  }
+}
+
+if (failed > 0) {
+  process.exit(1);
+}
+console.log(`OK: All ${PAIRS.length * 2} light/dark token pairs pass WCAG AA (>= 4.5:1).`);

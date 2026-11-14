@@ -6,8 +6,22 @@
   const backend = window.NeprasBackend;
   const isAndroid = backend.platform === "android";
 
-  // Platform class
+  // Platform class & Theme sync
   document.body.className = "plat-" + (isAndroid ? "android" : "desktop") + " drawer-closed mode-overlay";
+
+  function applyHostTheme(theme) {
+    const dark = theme === "dark";
+    document.body.classList.toggle("theme-dark", dark);
+    try { localStorage.setItem("nepras_theme", dark ? "dark" : "light"); } catch (_) {}
+  }
+  try {
+    if (localStorage.getItem("nepras_theme") === "dark") applyHostTheme("dark");
+  } catch (_) {}
+  window.addEventListener("message", (ev) => {
+    if (ev && ev.data && ev.data.type === "nepras-theme") {
+      applyHostTheme(ev.data.theme);
+    }
+  });
 
   const extBase = new URL("ext/", location.href).href;
 
@@ -394,7 +408,7 @@
     function showUpdateNotificationModal(res) {
       if (!res || !res.hasUpdate) return;
       if (latestVerEl) latestVerEl.textContent = "v" + (res.latestVersion || "");
-      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.41");
+      if (currVerEl) currVerEl.textContent = "v" + (res.currentVersion || "1.3.42");
       if (notesEl && res.releaseNotes) notesEl.textContent = res.releaseNotes;
 
       if (btnModalDownloadUpdate) {

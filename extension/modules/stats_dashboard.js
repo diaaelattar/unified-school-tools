@@ -231,7 +231,7 @@
     const raw = (row.__neprasApiRaw && typeof row.__neprasApiRaw === 'object') ? row.__neprasApiRaw : {};
 
     // خريطة تحويل معرفات الوزارة الرقمية الرسمية (بوابة التلميذ student.emis.gov.eg)
-    const STUDY_TYPE_MAP = { 1: 'نظامي', 2: 'منازل', 3: 'خدمات', '1': 'نظامي', '2': 'منازل', '3': 'خدمات' };
+    const STUDY_TYPE_MAP = { 1: 'نظامي', 2: 'منازل', 3: 'خدمات', 4: 'عمال', '1': 'نظامي', '2': 'منازل', '3': 'خدمات', '4': 'عمال' };
     const REGISTRATION_STATUS_MAP = {
       1: 'ناجح ومنقول', 2: 'راسب وباق للاعادة', 8: 'استبعاد للوفاه',
       9: 'تحويل مسار', 10: 'سحب ملف', 12: 'فصل لتعدى نسبة الغياب',
@@ -503,6 +503,7 @@
       status,
       mode,
       isHome,
+      isWorker: /عمال/.test(mode) || /عمال/.test(status),
       isIntegrated,
       integrationType,
       mother,
@@ -1487,7 +1488,7 @@
 
   /**
    * إحصائية الثانوي العام المفصلة المعتمدة للإدارات التعليمية:
-   * توزيع مسارات وشعب الثانوي ونظام التعليم (نظامي - منازل - خدمات) والنوع (بنين - بنات - جملة)
+   * توزيع مسارات وشعب وتخصصات الثانوي العام والفني ونظام التعليم (نظامي - منازل - خدمات - عمال) والنوع (بنين - بنات - جملة)
    * مع حصر دقيق لحالات القيد والدمج واللغات.
    */
   function buildSecondaryTracksStatsSheet(data, meta) {
@@ -1496,13 +1497,14 @@
 
     const isSecRecord = (st, rawRow) => {
       const g = String(st.grade || '').toLowerCase();
-      if (/ثانو|ثانوي/.test(g)) return true;
+      if (/ثانو|ثانوي|فني|صناع|تجار|زراع|فندق|مزدوج|دبلوم/.test(g)) return true;
       if (st.section || st.specialization) return true;
+      if (st.isWorker || /عمال/.test(st.mode)) return true;
       const rawDiv = rawRow?.divisionId ?? rawRow?.__neprasApiRaw?.divisionId;
       if (rawDiv && Number(rawDiv) > 0) return true;
       const rawLvl = rawRow?.levelId ?? rawRow?.__neprasApiRaw?.levelId;
-      if (rawLvl && [1, 2, 3, '1', '2', '3'].includes(rawLvl)) return true;
-      if (/الصف الأول|الصف الاول|الصف الثاني|الصف الثانى|الصف الثالث/.test(st.grade)) return true;
+      if (rawLvl && [1, 2, 3, 4, 5, '1', '2', '3', '4', '5'].includes(rawLvl)) return true;
+      if (/الصف الأول|الصف الاول|الصف الثاني|الصف الثانى|الصف الثالث|الصف الرابع|الصف الخامس/.test(st.grade)) return true;
       return false;
     };
 
@@ -1520,9 +1522,11 @@
 
     const normalizeSecGrade = (g) => {
       const s = String(g || '').trim();
-      if (/اول|الاول|\b1\b/.test(s)) return 'الصف الأول الثانوي';
-      if (/ثاني|الثاني|الثانى|\b2\b/.test(s)) return 'الصف الثاني الثانوي';
-      if (/ثالث|الثالث|\b3\b/.test(s)) return 'الصف الثالث الثانوي';
+      if (/رابع|الرابع|\b4\b/.test(s)) return 'الصف الرابع الفني';
+      if (/خامس|الخامس|\b5\b/.test(s)) return 'الصف الخامس الفني';
+      if (/اول|الاول|\b1\b/.test(s)) return /فني|صناع|تجار|زراع|فندق|مزدوج/.test(s) ? s : 'الصف الأول الثانوي';
+      if (/ثاني|الثاني|الثانى|\b2\b/.test(s)) return /فني|صناع|تجار|زراع|فندق|مزدوج/.test(s) ? s : 'الصف الثاني الثانوي';
+      if (/ثالث|الثالث|\b3\b/.test(s)) return /فني|صناع|تجار|زراع|فندق|مزدوج/.test(s) ? s : 'الصف الثالث الثانوي';
       return s || 'الصف الأول الثانوي';
     };
 
@@ -1532,9 +1536,14 @@
 
     let totalStudentsCount = 0;
 
-    secStudents.forEach(({ st, rawRow }) => {
+    secStudents.forEach(({ st }) => {
       const grade = normalizeSecGrade(st.grade);
-      let track = st.section || st.specialization || '';
+      let track = '';
+      if (st.section && st.specialization && st.section !== st.specialization) {
+        track = `${st.section} — ${st.specialization}`;
+      } else {
+        track = st.section || st.specialization || '';
+      }
       if (!track) {
         if (grade === 'الصف الأول الثانوي') track = 'عام / مشترك';
         else track = 'عام';
@@ -1542,7 +1551,8 @@
 
       const isMale = (st.gender === 'بنين');
       let modeKey = 'regular';
-      if (st.mode === 'منازل' || st.isHome) modeKey = 'home';
+      if (st.isWorker || /عمال/.test(st.mode)) modeKey = 'workers';
+      else if (st.mode === 'منازل' || st.isHome) modeKey = 'home';
       else if (st.mode === 'خدمات') modeKey = 'services';
       else modeKey = 'regular';
 
@@ -1552,6 +1562,7 @@
           regular: { male: 0, female: 0, total: 0 },
           home: { male: 0, female: 0, total: 0 },
           services: { male: 0, female: 0, total: 0 },
+          workers: { male: 0, female: 0, total: 0 },
           total: { male: 0, female: 0, total: 0 }
         };
       }
@@ -1585,9 +1596,9 @@
       }
     });
 
-    const numCols = 16;
+    const numCols = 19;
     let sheet = createSheetHeader(
-      `إحصائية الثانوي العام المفصلة (مسارات وشعب ونظام التعليم والنوع) — ${meta.school} (${meta.year})`,
+      `إحصائية الثانوي العام والفني المفصلة (الشعب والتخصصات ونظام التعليم والنوع) — ${meta.school} (${meta.year})`,
       numCols, meta.year, meta.school, meta.dir, meta.admin
     );
 
@@ -1595,10 +1606,11 @@
     const h1 = [
       { v: 'م', s: sHead },
       { v: 'الصف الدراسي', s: sHead },
-      { v: 'الشعبة والمسار', s: sHead },
+      { v: 'الشعبة والتخصص', s: sHead },
       { v: 'نظام التعليم (نظامي)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
       { v: 'نظام التعليم (منازل)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
       { v: 'نظام التعليم (خدمات)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'نظام التعليم (عمال)', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
       { v: 'الإجمالي العام الشامل', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
       { v: 'النسبة %', s: sHead }
     ];
@@ -1611,10 +1623,12 @@
     sheet.merges.push({ s: { r: rStartHeader, c: 6 }, e: { r: rStartHeader, c: 8 } });
     sheet.merges.push({ s: { r: rStartHeader, c: 9 }, e: { r: rStartHeader, c: 11 } });
     sheet.merges.push({ s: { r: rStartHeader, c: 12 }, e: { r: rStartHeader, c: 14 } });
-    sheet.merges.push({ s: { r: rStartHeader, c: 15 }, e: { r: rStartHeader + 1, c: 15 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 15 }, e: { r: rStartHeader, c: 17 } });
+    sheet.merges.push({ s: { r: rStartHeader, c: 18 }, e: { r: rStartHeader + 1, c: 18 } });
 
     const h2 = [
       { v: '', s: sHead }, { v: '', s: sHead }, { v: '', s: sHead },
+      { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
       { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
       { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
       { v: 'بنين', s: sHead }, { v: 'بنات', s: sHead }, { v: 'جملة', s: sHead },
@@ -1646,6 +1660,7 @@
       regular: { male: 0, female: 0, total: 0 },
       home: { male: 0, female: 0, total: 0 },
       services: { male: 0, female: 0, total: 0 },
+      workers: { male: 0, female: 0, total: 0 },
       total: { male: 0, female: 0, total: 0 }
     };
 
@@ -1655,12 +1670,13 @@
         regular: { male: 0, female: 0, total: 0 },
         home: { male: 0, female: 0, total: 0 },
         services: { male: 0, female: 0, total: 0 },
+        workers: { male: 0, female: 0, total: 0 },
         total: { male: 0, female: 0, total: 0 }
       };
 
       Object.keys(tracks).forEach(trackName => {
         const c = tracks[trackName];
-        ['regular', 'home', 'services', 'total'].forEach(k => {
+        ['regular', 'home', 'services', 'workers', 'total'].forEach(k => {
           gradeSubTotals[k].male += c[k].male;
           gradeSubTotals[k].female += c[k].female;
           gradeSubTotals[k].total += c[k].total;
@@ -1683,6 +1699,9 @@
           { v: c.services.male, t: 'n', s: sData },
           { v: c.services.female, t: 'n', s: sData },
           { v: c.services.total, t: 'n', s: sData },
+          { v: c.workers.male, t: 'n', s: sData },
+          { v: c.workers.female, t: 'n', s: sData },
+          { v: c.workers.total, t: 'n', s: sData },
           { v: c.total.male, t: 'n', s: sData },
           { v: c.total.female, t: 'n', s: sData },
           { v: c.total.total, t: 'n', s: sData },
@@ -1706,6 +1725,9 @@
         { v: gradeSubTotals.services.male, t: 'n', s: sSubTotal },
         { v: gradeSubTotals.services.female, t: 'n', s: sSubTotal },
         { v: gradeSubTotals.services.total, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.workers.male, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.workers.female, t: 'n', s: sSubTotal },
+        { v: gradeSubTotals.workers.total, t: 'n', s: sSubTotal },
         { v: gradeSubTotals.total.male, t: 'n', s: sSubTotal },
         { v: gradeSubTotals.total.female, t: 'n', s: sSubTotal },
         { v: gradeSubTotals.total.total, t: 'n', s: sSubTotal },
@@ -1730,6 +1752,9 @@
       { v: grandTotals.services.male, t: 'n', s: sTotal },
       { v: grandTotals.services.female, t: 'n', s: sTotal },
       { v: grandTotals.services.total, t: 'n', s: sTotal },
+      { v: grandTotals.workers.male, t: 'n', s: sTotal },
+      { v: grandTotals.workers.female, t: 'n', s: sTotal },
+      { v: grandTotals.workers.total, t: 'n', s: sTotal },
       { v: grandTotals.total.male, t: 'n', s: sTotal },
       { v: grandTotals.total.female, t: 'n', s: sTotal },
       { v: grandTotals.total.total, t: 'n', s: sTotal },
@@ -1883,6 +1908,9 @@
       { wch: 9 },  // خدمات بنين
       { wch: 9 },  // خدمات بنات
       { wch: 10 }, // خدمات جملة
+      { wch: 9 },  // عمال بنين
+      { wch: 9 },  // عمال بنات
+      { wch: 10 }, // عمال جملة
       { wch: 10 }, // إجمالي بنين
       { wch: 10 }, // إجمالي بنات
       { wch: 12 }, // إجمالي جملة
@@ -2690,7 +2718,7 @@
           <button type="button" id="btn-stats-mothernames" class="nepras-stats-btn" disabled>تحليل أسماء الأمهات</button>
           <button type="button" id="btn-stats-demographics" class="nepras-stats-btn" disabled>التوزيع الجغرافي للمحافظات</button>
           <button type="button" id="btn-stats-languages" class="nepras-stats-btn" disabled>إحصائية اللغات والشعب</button>
-          <button type="button" id="btn-stats-secondary" class="nepras-stats-btn" style="background:#f0fdf4;border-color:#86efac;color:#166534;" disabled>📊 إحصائية الثانوي (مسارات وشعب)</button>
+          <button type="button" id="btn-stats-secondary" class="nepras-stats-btn" style="background:#f0fdf4;border-color:#86efac;color:#166534;" disabled>📊 إحصائية الثانوي والفني (شعب وتخصصات وعمال)</button>
           <button type="button" id="btn-stats-anomalies" class="nepras-stats-btn" disabled>مطابقة السن القانوني</button>
           <button type="button" id="btn-stats-quality" class="nepras-stats-btn" disabled>جودة واكتمال البيانات</button>
         </div>

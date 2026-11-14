@@ -452,7 +452,7 @@
     return {
       format: "nepras-school-package",
       schemaVersion: 1,
-      version: (typeof chrome !== "undefined" && chrome?.runtime?.getManifest?.()?.version) || "1.3.41",
+      version: (typeof chrome !== "undefined" && chrome?.runtime?.getManifest?.()?.version) || "1.3.42",
       exportDate: new Date().toISOString(),
       schoolCode: c,
       schoolName: meta?.schoolName || profile.name || stats?.schoolName || `مدرسة ${c}`,

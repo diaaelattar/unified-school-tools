@@ -187,8 +187,38 @@ test('إحصائية الثانوي العام: مطابقة وتفكيك معر
   const meta = { school: 'مدرسة المتفوقين الثانوية', year: '2026-2027', dir: 'القاهرة', admin: 'مصر الجديدة', affairs: 'أ/ محمد', principal: 'أ/ سمير' };
   const ws = dash.buildSecondaryTracksStatsSheet(sampleStudents, meta);
   assert(ws, 'يجب توليد كائن ورقة العمل');
-  assert(ws['!cols'] && ws['!cols'].length === 16, 'يجب أن تحتوي الورقة على 16 عموداً للماتريكس الشامل');
-  assert(ws['!merges'] && ws['!merges'].length >= 8, 'يجب دمج ترويسات نظام التعليم والإجمالي العام');
+  assert(ws['!cols'] && ws['!cols'].length === 19, 'يجب أن تحتوي الورقة على 19 عموداً للماتريكس الشامل (بما يشمل عمال)');
+  assert(ws['!merges'] && ws['!merges'].length >= 9, 'يجب دمج ترويسات نظام التعليم والإجمالي العام');
+
+  // فحص التعليم الفني: طلاب عمال + الشعبة والتخصص معاً
+  const techStudents = [
+    {
+      studentCode: '9001',
+      fullName: 'طالب فني عمال',
+      gender: 'بنين',
+      grade: 'الصف الأول الثانوي الفني',
+      studyTypeId: 4,
+      section: 'صناعي',
+      specialization: 'تركيبات ومعدات كهربية'
+    },
+    {
+      studentCode: '9002',
+      fullName: 'طالبة فني نظامي',
+      gender: 'بنات',
+      grade: 'الصف الثاني الثانوي الفني',
+      eduSystem: 'نظامي',
+      section: 'تجاري',
+      specialization: 'تسويق'
+    }
+  ];
+  const normTech = dash.normalizeStudentRecord(techStudents[0]);
+  assert.strictEqual(normTech.mode, 'عمال');
+  assert.strictEqual(normTech.isWorker, true);
+  const wsTech = dash.buildSecondaryTracksStatsSheet(techStudents, meta);
+  const techRows = wsTech.aoa;
+  const flatTech = techRows.map(r => (r || []).map(c => (c && typeof c === 'object' ? (c.v ?? '') : (c ?? ''))).join(' | ')).join('\n');
+  assert(flatTech.includes('صناعي — تركيبات ومعدات كهربية'), 'يجب إظهار الشعبة والتخصص معاً للتعليم الفني');
+  assert(flatTech.includes('نظام التعليم (عمال)'), 'يجب وجود عمود نظام التعليم (عمال)');
 });
 
 // 7. فحص زر ومحرك التحديث التلقائي لبرنامج سطح المكتب

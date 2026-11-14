@@ -26,8 +26,8 @@
 <div class="n-header__title"><b>نبراس</b></div>
 <span class="n-status site-waiting" id="nepras-site-status" role="status" aria-live="polite"><i class="n-status__dot" aria-hidden="true"></i><span class="n-status__label">انتظار موقع الوزارة</span></span>
 <span class="n-header__spacer"></span>
-<button class="n-btn n-btn--secondary n-btn--sm support-btn" id="btn-support-project" title="المساهمة في دعم وتطوير نبراس من خلال الاشتراك السنوي للمدرسة (30 جنيهاً سنوياً)" type="button" style="background:linear-gradient(135deg, #fdf2f8, #fce7f3);border-color:#fbcfe8;color:#be185d;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;font-size:11px;">
-<span style="font-size:12px;">⭐</span><span class="n-btn__label">الاشتراك السنوي</span>
+<button class="n-btn n-btn--secondary n-btn--sm support-btn n-support-pill" id="btn-support-project" title="المساهمة في دعم وتطوير نبراس من خلال الاشتراك السنوي للمدرسة (30 جنيهاً سنوياً)" type="button">
+<span class="n-support-pill__star">⭐</span><span class="n-btn__label">الاشتراك السنوي</span>
 </button>
 <button class="n-btn n-btn--secondary n-btn--sm" id="btn-stop-active" title="إيقاف العملية الحالية" type="button" hidden><i data-icon="stop"></i><span class="n-btn__label">إيقاف العملية الجارية</span></button>
 <button class="n-btn n-btn--ghost n-btn--icon" id="btn-command-search" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="n-command-bar" title="بحث في الأدوات" aria-label="بحث في الأدوات"><i data-icon="search"></i></button>
@@ -35,7 +35,7 @@
 <div class="n-menu" id="n-menu">
 <button class="n-btn n-btn--ghost n-btn--icon" id="btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="n-menu-list" aria-label="المزيد من الخيارات" title="المزيد"><i data-icon="more"></i></button>
 <div class="n-menu__list" id="n-menu-list" role="menu" aria-labelledby="btn-menu" hidden>
-<button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-menu-support" type="button" style="color:#be185d;font-weight:700;"><span style="font-size:13px;">⭐</span><span class="n-btn__label">الاشتراك السنوي لدعم وتطوير نبراس</span></button>
+<button class="n-btn n-btn--ghost n-btn--block n-menu__item n-menu__item--support" role="menuitem" tabindex="-1" id="btn-menu-support" type="button"><span class="n-support-pill__star">⭐</span><span class="n-btn__label">الاشتراك السنوي لدعم وتطوير نبراس</span></button>
 <button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-open-large-window" type="button" title="فتح الأداة في نافذة كبيرة مستقلة"><i data-icon="window"></i><span class="n-btn__label">فتح نافذة أكبر</span></button>
 <button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-toggle-keep-open" type="button" title="تفعيل بقاء الأداة نشطة ومفتوحة بعد تنفيذ المهام"><i data-icon="check"></i><span class="n-btn__label" id="lbl-toggle-keep-open">إبقاء الأداة نشطة دائماً</span></button>
 <button class="n-btn n-btn--ghost n-btn--block n-menu__item" role="menuitem" tabindex="-1" id="btn-copy-enabler" type="button" title="تفعيل النسخ وتجاوز حظر التحديد في صفحة الوزارة"><i data-icon="edit"></i><span class="n-btn__label">تفعيل النسخ والتحديد</span></button>
@@ -224,23 +224,23 @@
   </div>
 
   <!-- كارت إشعار قيد الطالب الوزاري الرسمي الظاهر بوضوح تام والمطابق لبوابة الوزارة والإدارة -->
-  <div id="nationwide-official-card-wrap" style="margin-top:14px; direction:rtl; text-align:right;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-      <span style="font-size:12px; font-weight:800; color:#1e40af; display:inline-flex; align-items:center; gap:6px;">
-        📜 إشعار قيد الطالب الرسمي (المطابق لبوابة الوزارة والإدارة):
-      </span>
-      <button type="button" id="btn-save-ministry-banner" style="background:#16a34a; color:#ffffff; border:none; border-radius:18px; padding:5px 18px; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(22, 163, 74, 0.25); display:inline-flex; align-items:center; gap:5px;" title="حفظ ونسخ نص الإشعار الرسمي">
+  <div id="nationwide-official-card-wrap" class="n-nationwide-card-wrap">
+    <div class="n-nationwide-card-head">
+      <button type="button" id="btn-save-ministry-banner" class="n-nationwide-save-btn" title="حفظ ونسخ نص الإشعار الرسمي">
         <span>حفظ</span>
       </button>
     </div>
     
-    <div id="nationwide-official-banner-box" style="background-color:#fee2e2; border:1.5px solid #fca5a5; border-radius:8px; padding:13px 16px; color:#7f1d1d; font-family:'Cairo', Tahoma, Arial, sans-serif; font-size:13px; line-height:1.85; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-      <div style="display:flex; align-items:flex-start; gap:10px;">
-        <span style="font-size:18px; line-height:1.2; user-select:none;">🚫</span>
-        <div id="nationwide-official-banner-text" style="flex:1;">
-          الرقم القومي مسجل من قبل للطالب <b id="nb-banner-name" style="color:#450a0a; font-weight:800;">—</b> بمدرسة <b id="nb-banner-school" style="color:#450a0a; font-weight:800;">—</b> بالصف <b id="nb-banner-grade" style="color:#450a0a; font-weight:800;">—</b> / حاله قيد الطالب <b id="nb-banner-status" style="color:#450a0a; font-weight:800;">—</b> / رقم كود الطالب <b id="nb-banner-code" style="color:#450a0a; font-weight:800; font-family:monospace; direction:ltr; display:inline-block;">—</b><br>
-          بالادارة التعليمية <b id="nb-banner-edara" style="color:#450a0a; font-weight:800;">—</b> / بمديرية <b id="nb-banner-mud" style="color:#450a0a; font-weight:800;">—</b>
-        </div>
+    <div id="nationwide-official-banner-box" class="n-nationwide-banner-box">
+      <div id="nationwide-official-banner-text" class="n-nationwide-banner-text">
+        <span class="n-nationwide-banner-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9.5"></circle>
+            <line x1="5.3" y1="5.3" x2="18.7" y2="18.7"></line>
+          </svg>
+        </span>
+        الرقم القومي مسجل من قبل للطالب <b id="nb-banner-name">—</b> بمدرسة <b id="nb-banner-school">—</b> بالصف <b id="nb-banner-grade">—</b> / حاله قيد الطالب <b id="nb-banner-status">—</b> / رقم كود الطالب <b id="nb-banner-code" class="n-nationwide-banner-code">—</b><br>
+        بالادارة التعليمية <b id="nb-banner-edara">—</b> / بمديرية <b id="nb-banner-mud">—</b>
       </div>
     </div>
   </div>

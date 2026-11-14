@@ -36,9 +36,11 @@ test('خزنة الدخول السريع: حفظ واسترجاع ومسح بي�
   assert.equal(saveRes.ok, true);
   assert.equal(saveRes.username, '3201548@emis.gov.eg');
 
-  // التأكد من أن القيمة مخزنة مشفرة وليست نصاً صريحاً في الذاكرة
+  // التأكد من أن القيمة مخزنة مشفرة بـ AES-GCM (v3:) وليست نصاً صريحاً أو XOR ثابت
   assert.ok(fakeStorage.neprasMinistryAuthCredentials);
   assert.notEqual(fakeStorage.neprasMinistryAuthCredentials.p, 'MySecretPass123');
+  assert.ok(String(fakeStorage.neprasMinistryAuthCredentials.p).startsWith('v3:'));
+  assert.ok(String(fakeStorage.neprasMinistryAuthCredentials.u).startsWith('v3:'));
 
   // 2. الاسترجاع
   const creds = await NeprasQuickLogin.getCredentials();

@@ -41,8 +41,8 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 // Sanitize permissions
 manifest.permissions = manifest.permissions.filter(p => p !== 'downloads.open');
-manifest.version = '1.3.41';
-manifest.version_name = '1.3.41';
+// الإصدار يُقرأ من extension/manifest.json (مصدر واحد) — لا أرقام ثابتة هنا
+manifest.version_name = manifest.version;
 manifest.minimum_chrome_version = '102';
 
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 4), 'utf8');
@@ -53,8 +53,8 @@ fs.writeFileSync(path.join(extDir, 'manifest.json'), JSON.stringify(manifest, nu
 
 console.log('=== 3. Packaging ZIPs with Compress-Archive (clean root, no ./) ===');
 const zipNames = [
-  'Nepras_Edge_Extension_v1.3.41.zip',
-  'Nepras_v1.3.41_Extension.zip'
+  `Nepras_Edge_Extension_v${manifest.version}.zip`,
+  `Nepras_v${manifest.version}_Extension.zip`
 ];
 
 for (const z of zipNames) {
@@ -69,7 +69,7 @@ for (const z of zipNames) {
 }
 
 console.log('=== 4. Verifying ZIP contents ===');
-const checkZip = path.join(outDir, 'Nepras_Edge_Extension_v1.3.41.zip');
+const checkZip = path.join(outDir, `Nepras_Edge_Extension_v${manifest.version}.zip`);
 const listing = execSync(`tar -tf "${checkZip}"`, { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
 
 console.log('Total entries:', listing.length);

@@ -51,6 +51,15 @@
   /* مقاس النافذة المنبثقة (مصدر واحد) */
   --popup-w: 680px;
   --popup-h: 600px;
+
+  /* توافق أسماء الرموز الموروثة */
+  --n-border: var(--n-line);
+  --n-border-strong: var(--n-line);
+  --n-ok: var(--n-success);
+  --n-warn: var(--n-warning);
+  --n-shadow-sm: var(--n-shadow-1);
+  --n-shadow-md: var(--n-shadow-2);
+  --n-shadow-lg: var(--n-shadow-3);
 }
 
 .theme-dark, :host([data-theme="dark"]) {

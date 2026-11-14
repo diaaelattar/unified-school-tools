@@ -912,7 +912,7 @@
         if (typeof cb === "function") licenseSubscribers.push(cb);
       },
       checkUpdate: async () => {
-        const currentVersion = "1.3.41";
+        const currentVersion = "1.3.42";
         const websiteUrl = "https://unified-school-tools-website.vercel.app/";
         const endpoints = [
           "https://unified-school-tools-website.vercel.app/version.json",

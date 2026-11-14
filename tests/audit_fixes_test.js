@@ -486,9 +486,12 @@ async function test(name, fn) {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "nepras-lic-test-"));
     process.env.NEPRAS_LOCAL_DB_PATH = path.join(tmpDir, "vercel-db.json");
     process.env.ADMIN_SECRET = "TestAdmin@2027";
-    process.env.LICENSE_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
------END PRIVATE KEY-----`;
+    const crypto = require("crypto");
+    const { publicKey: testPubKey, privateKey: testPrivKey } = crypto.generateKeyPairSync("ed25519", {
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" }
+    });
+    process.env.LICENSE_PRIVATE_KEY = testPrivKey;
 
     const { startServer } = require("../license-server/local-server");
     const {
@@ -528,7 +531,7 @@ MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
       assert.strictEqual(adminUpsertRes.school.daysRemaining, 365);
 
       // C. Device #1 logs into School 1204567 -> automatically unlocks without typing a key!
-      const mgrDevice1 = new DesktopLicenseManager({ storageDir: path.join(tmpDir, "device1") });
+      const mgrDevice1 = new DesktopLicenseManager({ storageDir: path.join(tmpDir, "device1"), publicKeyPem: testPubKey });
       mgrDevice1.setServerUrl(serverUrl);
       const status1 = await mgrDevice1.onSchoolDetected({ schoolCode: "1204567", schoolName: "مدرسة النور الرسمية" });
       assert.strictEqual(status1.locked, false, "Device 1 must unlock automatically for subscribed school 1204567");
@@ -536,7 +539,7 @@ MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
       assert.strictEqual(status1.daysRemaining, 365);
 
       // D. Device #2 (completely different computer) logs into the SAME School 1204567 -> also unlocks automatically!
-      const mgrDevice2 = new DesktopLicenseManager({ storageDir: path.join(tmpDir, "device2") });
+      const mgrDevice2 = new DesktopLicenseManager({ storageDir: path.join(tmpDir, "device2"), publicKeyPem: testPubKey });
       mgrDevice2.setServerUrl(serverUrl);
       const status2 = await mgrDevice2.onSchoolDetected({ schoolCode: "1204567" });
       assert.strictEqual(status2.locked, false, "Device 2 must also unlock automatically for school 1204567");
@@ -1363,7 +1366,7 @@ MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
     assert.ok(hostCss.includes(".panel-header-bar"), "host.css must define .panel-header-bar to prevent button overlapping");
 
     const hostHtml = fs.readFileSync(path.join(__dirname, "../shared/host.html"), "utf8");
-    assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.41</span>'), "host.html must display version v1.3.41");
+    assert.ok(hostHtml.includes('<span class="drawer-version">v1.3.42</span>'), "host.html must display version v1.3.42");
   });
 
   // 30. Name Fixer Dual-Mode (Name Cleaning vs Extra-Only) Tests
@@ -1571,18 +1574,18 @@ MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
     assert.strictEqual(writtenEntries.length, 1, "Must bridge log entry to window.parent.nepDesktop.writeLog");
   });
 
-  await test("Cross-platform version synchronization: all manifests and packages are unified at 1.3.41", () => {
+  await test("Cross-platform version synchronization: all manifests and packages are unified at 1.3.42", () => {
     const rootPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
     const extManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../extension/manifest.json"), "utf8"));
     const deskPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../desktop/package.json"), "utf8"));
     const mobPkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../mobile/package.json"), "utf8"));
     const gradleTxt = fs.readFileSync(path.resolve(__dirname, "../mobile/android/app/build.gradle"), "utf8");
 
-    assert.strictEqual(rootPkg.version, "1.3.41");
-    assert.strictEqual(extManifest.version, "1.3.41");
-    assert.strictEqual(deskPkg.version, "1.3.41");
-    assert.strictEqual(mobPkg.version, "1.3.41");
-    assert(gradleTxt.includes('versionName "1.3.41"'), "Android build.gradle must have versionName 1.3.41");
+    assert.strictEqual(rootPkg.version, "1.3.42");
+    assert.strictEqual(extManifest.version, "1.3.42");
+    assert.strictEqual(deskPkg.version, "1.3.42");
+    assert.strictEqual(mobPkg.version, "1.3.42");
+    assert(gradleTxt.includes('versionName "1.3.42"'), "Android build.gradle must have versionName 1.3.42");
     assert(!extManifest.permissions.includes("downloads.open"), "Invalid downloads.open permission must not exist in manifest.json");
   });
 
@@ -2271,6 +2274,66 @@ MC4CAQAwBQYDK2VwBCIEIADd4R2UkJ+k4JPoZt4Yc6XDbDX7W5aIL5V1sT71sksp
     assert.strictEqual(matrixMap["123456789"].damg, "7"); // حركية = 7
     assert.ok(matrixMap["998877665"], "must strip float .0 suffix from Excel");
     assert.strictEqual(matrixMap["998877665"].damg, "5"); // توحد = 5
+  });
+
+  await test("name_fixer: sanitizeAddress, sanitizeLandline, and sanitizeMobile auto-heal invalid data to prevent save errors", () => {
+    const { sanitizeAddress, sanitizeLandline, sanitizeMobile, resolveClassroomOption } = NameFixerModule.Utils;
+
+    // 1. العنوان
+    assert.strictEqual(sanitizeAddress("شارع النيل / برج 5", "العنوان الافتراضي"), "شارع النيل برج 5");
+    assert.strictEqual(sanitizeAddress("123", "العنوان الافتراضي"), "العنوان الافتراضي");
+    assert.strictEqual(sanitizeAddress("0", "العنوان الافتراضي"), "العنوان الافتراضي");
+    assert.strictEqual(sanitizeAddress("@@@///###", "العنوان الافتراضي"), "العنوان الافتراضي");
+    assert.strictEqual(sanitizeAddress("شارع التحرير - وسط البلد", "العنوان الافتراضي"), "شارع التحرير - وسط البلد");
+    assert.strictEqual(sanitizeAddress("48 ش ابو العلا من ش مجمع المدارس ( له اخت )", "العنوان الافتراضي"), "48 ش ابو العلا من ش مجمع المدارس له اخت");
+
+    // 2. التليفون الأرضي
+    assert.strictEqual(sanitizeLandline("0223456789"), "0223456789");
+    assert.strictEqual(sanitizeLandline("0133221144"), "0133221144");
+    assert.strictEqual(sanitizeLandline("12345"), "");
+    assert.strictEqual(sanitizeLandline("00000000"), "");
+    assert.strictEqual(sanitizeLandline("رقم تليفون غير مسجل"), "");
+
+    // 3. المحمول المصري
+    assert.strictEqual(sanitizeMobile("01012345678"), "01012345678");
+    assert.strictEqual(sanitizeMobile("+201123456789"), "01123456789");
+    assert.strictEqual(sanitizeMobile("00201511223344"), "01511223344");
+    assert.strictEqual(sanitizeMobile("01912345678"), ""); // 019 شبكة غير موجودة
+    assert.strictEqual(sanitizeMobile("0101234"), ""); // أرقام ناقصة
+    assert.strictEqual(sanitizeMobile("00000000000"), "");
+
+    // 4. مطابقة خيار الفصل
+    const mockSelect = {
+      options: [
+        { value: "-1", text: "اختر--" },
+        { value: "1", text: "1" },
+        { value: "2", text: "2" },
+        { value: "3", text: "3" }
+      ]
+    };
+    assert.strictEqual(resolveClassroomOption(mockSelect, "1"), "1");
+    assert.strictEqual(resolveClassroomOption(mockSelect, "فصل 2"), "2");
+    assert.strictEqual(resolveClassroomOption(mockSelect, "1/3"), "1");
+  });
+
+  await test("name_fixer: parseExcelStudentMap extracts classroom, address, and phones accurately", () => {
+    const { parseExcelStudentMap } = NameFixerModule.Utils;
+    const mockRows = [
+      {
+        "كود الطالب": "554433221",
+        "اسم الطالب": "يوسف أحمد",
+        "الفصل": "2",
+        "العنوان": "شارع الجمهورية / رقم 10",
+        "التليفون الأرضي": "0223456789",
+        "رقم المحمول": "01098765432"
+      }
+    ];
+    const map = parseExcelStudentMap(mockRows);
+    assert.ok(map["554433221"]);
+    assert.strictEqual(map["554433221"].classRoom, "2");
+    assert.strictEqual(map["554433221"].address, "شارع الجمهورية / رقم 10");
+    assert.strictEqual(map["554433221"].landline, "0223456789");
+    assert.strictEqual(map["554433221"].mobile, "01098765432");
   });
 
   console.log(`\nAll ${passed} audit & fix regression tests passed!`);

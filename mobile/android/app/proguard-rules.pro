@@ -8,9 +8,14 @@
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface
 # class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep Capacitor plugins and WebView JS interfaces intact under R8 minification
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keepclassmembers class * {
+    @com.getcapacitor.PluginMethod <methods>;
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class eg.gov.nepras.app.** { *; }
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.

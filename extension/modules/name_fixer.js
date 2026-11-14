@@ -406,7 +406,8 @@
                 let headerRowIdx = -1;
                 const colIndices = {
                     code: -1, nid: -1, name: -1, damg: -1,
-                    lang1: -1, lang2: -1, div: -1, spec: -1
+                    lang1: -1, lang2: -1, div: -1, spec: -1,
+                    classRoom: -1, address: -1, landline: -1, mobile: -1
                 };
 
                 // 1) البحث عن صف الرؤوس بالكلمات المفتاحية دون تقييد متزمت لطول الخلية
@@ -445,6 +446,14 @@
                                 colIndices.div = c;
                             } else if (colIndices.spec === -1 && (cell.includes('تخصص') || cell.includes('specialization') || cell.includes('spec'))) {
                                 colIndices.spec = c;
+                            } else if (colIndices.classRoom === -1 && (cell.includes('فصل') || cell.includes('class') || cell.includes('classroom'))) {
+                                colIndices.classRoom = c;
+                            } else if (colIndices.address === -1 && (cell.includes('عنوان') || cell.includes('address') || cell.includes('سكن') || cell.includes('اقام'))) {
+                                colIndices.address = c;
+                            } else if (colIndices.mobile === -1 && (cell.includes('محمول') || cell.includes('موبايل') || cell.includes('موبيل') || cell.includes('mobile') || cell.includes('cellular') || cell.includes('جوال'))) {
+                                colIndices.mobile = c;
+                            } else if (colIndices.landline === -1 && (cell.includes('ارضي') || cell.includes('landline') || ((cell.includes('تليفون') || cell.includes('هاتف') || cell.includes('phone')) && !cell.includes('محمول') && !cell.includes('موبايل')))) {
+                                colIndices.landline = c;
                             }
                         }
                         break;
@@ -476,14 +485,18 @@
                     const row = rows[r];
                     if (!Array.isArray(row) || row.length === 0) continue;
 
-                    let rawCode = colIndices.code >= 0 ? row[colIndices.code] : '';
-                    let rawNid  = colIndices.nid >= 0 ? row[colIndices.nid] : '';
-                    let rawName = colIndices.name >= 0 ? row[colIndices.name] : '';
-                    let rawDamg = colIndices.damg >= 0 ? row[colIndices.damg] : '';
-                    let rawL1   = colIndices.lang1 >= 0 ? row[colIndices.lang1] : '';
-                    let rawL2   = colIndices.lang2 >= 0 ? row[colIndices.lang2] : '';
-                    let rawDiv  = colIndices.div >= 0 ? row[colIndices.div] : '';
-                    let rawSpec = colIndices.spec >= 0 ? row[colIndices.spec] : '';
+                    let rawCode     = colIndices.code >= 0 ? row[colIndices.code] : '';
+                    let rawNid      = colIndices.nid >= 0 ? row[colIndices.nid] : '';
+                    let rawName     = colIndices.name >= 0 ? row[colIndices.name] : '';
+                    let rawDamg     = colIndices.damg >= 0 ? row[colIndices.damg] : '';
+                    let rawL1       = colIndices.lang1 >= 0 ? row[colIndices.lang1] : '';
+                    let rawL2       = colIndices.lang2 >= 0 ? row[colIndices.lang2] : '';
+                    let rawDiv      = colIndices.div >= 0 ? row[colIndices.div] : '';
+                    let rawSpec     = colIndices.spec >= 0 ? row[colIndices.spec] : '';
+                    let rawClass    = colIndices.classRoom >= 0 ? row[colIndices.classRoom] : '';
+                    let rawAddress  = colIndices.address >= 0 ? row[colIndices.address] : '';
+                    let rawLandline = colIndices.landline >= 0 ? row[colIndices.landline] : '';
+                    let rawMobile   = colIndices.mobile >= 0 ? row[colIndices.mobile] : '';
 
                     // فحص بديل ذكي لكل خلية بالصف في حال كانت الأعمدة مختلفة
                     if (!rawDamg) {
@@ -519,7 +532,11 @@
                         lang2: Utils.resolveLanguageCode(rawL2, true),
                         damg: damg,
                         division: Utils.resolveDivisionCode(rawDiv),
-                        specialization: Utils.resolveSpecializationCode(rawSpec)
+                        specialization: Utils.resolveSpecializationCode(rawSpec),
+                        classRoom: String(rawClass ?? '').trim(),
+                        address: String(rawAddress ?? '').trim(),
+                        landline: String(rawLandline ?? '').trim(),
+                        mobile: String(rawMobile ?? '').trim()
                     };
 
                     if (code && code.length >= 5 && /^[0-9]+$/.test(code)) map[code] = entry;
@@ -529,6 +546,7 @@
                 for (const row of rows) {
                     if (!row || typeof row !== 'object') continue;
                     let code = '', nid = '', l1 = '', l2 = '', damg = '', div = '', spec = '', name = '';
+                    let cls = '', addr = '', land = '', mob = '';
 
                     for (const [k, v] of Object.entries(row)) {
                         const lk = k.trim().toLowerCase();
@@ -551,6 +569,14 @@
                             div = valStr;
                         } else if (ak.includes('تخصص') || lk.includes('specialization') || lk.includes('spec')) {
                             spec = valStr;
+                        } else if (ak.includes('فصل') || lk.includes('class') || lk.includes('classroom')) {
+                            cls = valStr;
+                        } else if (ak.includes('عنوان') || lk.includes('address') || ak.includes('سكن') || ak.includes('اقام')) {
+                            addr = valStr;
+                        } else if (ak.includes('محمول') || ak.includes('موبايل') || ak.includes('موبيل') || lk.includes('mobile') || lk.includes('cellular') || ak.includes('جوال')) {
+                            mob = valStr;
+                        } else if (ak.includes('ارضي') || lk.includes('landline') || ((ak.includes('تليفون') || ak.includes('هاتف') || lk.includes('phone')) && !ak.includes('محمول') && !ak.includes('موبايل'))) {
+                            land = valStr;
                         } else {
                             // فحص قيمة الحقل المباشرة
                             if (!damg && Utils.resolveDisabilityCode(valStr) !== null) damg = valStr;
@@ -571,7 +597,11 @@
                         lang2: Utils.resolveLanguageCode(l2, true),
                         damg: resolvedDamg,
                         division: Utils.resolveDivisionCode(div),
-                        specialization: Utils.resolveSpecializationCode(spec)
+                        specialization: Utils.resolveSpecializationCode(spec),
+                        classRoom: String(cls ?? '').trim(),
+                        address: String(addr ?? '').trim(),
+                        landline: String(land ?? '').trim(),
+                        mobile: String(mob ?? '').trim()
                     };
 
                     if (code && code.length >= 5 && /^[0-9]+$/.test(code)) map[code] = entry;
@@ -587,6 +617,10 @@
                     'كود الطالب': '123456789',
                     'كود التلميذ': '123456789',
                     'اسم الطالب': 'اسم الطالب (اختياري)',
+                    'الفصل': '1',
+                    'العنوان': 'شارع الجمهورية - الحي الأول',
+                    'التليفون الأرضي': '0223456789',
+                    'رقم المحمول': '01012345678',
                     'الموقف من الدمج': 'إعاقه حركية (أو: إعاقه بصرية / سمعية / ذهنية / لا يوجد)',
                     'اللغة الأولى': 'لغة انجليزية',
                     'اللغة الثانية': 'لغة فرنسية'
@@ -659,6 +693,67 @@
             return true;
         },
 
+        // ── تطهير العنوان وإزالة الرموز الخاصة الممنوعة مع العنوان الافتراضي البديل ──
+        sanitizeAddress(rawAddress, defaultAddress = '') {
+            if (rawAddress == null) rawAddress = '';
+            let s = String(rawAddress).trim();
+            // إزالة كافة العلامات الخاصة على الإطلاق (بما فيها الأشرطة المائلة والأقواس () [] {} وعلامات الترقيم) مع الإبقاء على الحروف والأرقام والمسافات والشرطة -
+            s = s.replace(/[^\p{L}\p{N}\s-]/gu, ' ').replace(/\s+/g, ' ').trim();
+            if (Utils.isValidAddress(s)) return s;
+            const def = String(defaultAddress || '').trim();
+            if (def && Utils.isValidAddress(def)) return def;
+            return '';
+        },
+
+        // ── تطهير الهاتف الأرضي (يُمسح بالكامل إذا كان خطأ لمنع تعطل الحفظ) ──
+        sanitizeLandline(rawPhone) {
+            if (rawPhone == null) return '';
+            const clean = Utils.cleanDigitString(rawPhone).replace(/[^0-9]/g, '');
+            return CONFIG.LANDLINE_REGEX.test(clean) ? clean : '';
+        },
+
+        // ── تطهير المحمول المصري (11 رقم 010/011/012/015، ويُمسح بالكامل إذا كان خطأ) ──
+        sanitizeMobile(rawMobile) {
+            if (rawMobile == null) return '';
+            let clean = Utils.cleanDigitString(rawMobile).replace(/[^0-9]/g, '');
+            if (clean.startsWith('0020')) clean = clean.slice(4);
+            else if (clean.startsWith('20') && (clean.length === 12 || clean.length === 13)) clean = clean.slice(2);
+            if (clean.length === 10 && /^[1][0125]/.test(clean)) clean = '0' + clean;
+            return CONFIG.MOBILE_REGEX.test(clean) ? clean : '';
+        },
+
+        // ── مطابقة خيار الفصل في قائمة select ──
+        resolveClassroomOption(classSelect, classVal) {
+            if (!classSelect || !classVal) return null;
+            const raw = String(classVal).trim();
+            const clean = Utils.cleanDigitString(raw);
+            for (const opt of classSelect.options) {
+                const ov = (opt.value || '').trim();
+                const ot = (opt.text || '').trim();
+                if (ov === raw || ot === raw) return ov;
+                if (clean && (ov === clean || ot === clean)) return ov;
+            }
+            const match = raw.match(/\d+/);
+            if (match) {
+                const num = match[0];
+                for (const opt of classSelect.options) {
+                    if (opt.value === num || opt.text === num || opt.text.includes(num)) return opt.value;
+                }
+            }
+            return null;
+        },
+
+        findFieldByLabel(labelPattern, tag = 'input') {
+            const elements = Array.from(document.querySelectorAll(tag));
+            return elements.find(el => {
+                if (el.closest('#nf-panel, #nf-pause-banner, #nf-floating-nav')) return false;
+                const label = Utils.findLabelForInput(el);
+                if (labelPattern.test(label)) return true;
+                const ctrl = (el.getAttribute('formcontrolname') || el.name || el.id || '').toLowerCase();
+                return labelPattern.test(ctrl);
+            }) || null;
+        },
+
         // ── أسباب عدم صحة العنوان / التليفون / المحمول (نص فارغ = سليم أو غير مُدخَل) ──
         addressProblem(text) {
             const t = String(text == null ? '' : text).trim();
@@ -711,9 +806,15 @@
                 container.id = 'nf-toast-container';
                 document.body.appendChild(container);
             }
+            // منع التكدس: الاحتفاظ بإشعارين كحد أقصى وإزالة الأقدم فورًا
+            while (container.children.length >= 2) {
+                container.firstElementChild?.remove();
+            }
             const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
             const toast = document.createElement('div');
             toast.className = `nf-toast nf-toast-${type}`;
+            toast.title = 'انقر للإغلاق';
+            toast.addEventListener('click', () => toast.remove());
             // textContent لا innerHTML: الرسالة قد تحوي كود طالب أو نصًّا قادمًا من الصفحة.
             const iconEl = document.createElement('span');
             iconEl.className = 'nf-toast-icon';
@@ -727,11 +828,12 @@
                 toast.style.opacity = '1';
                 toast.style.transform = 'translateX(0)';
             });
+            const ttl = (type === 'error' || type === 'warning') ? 4500 : (type === 'success' ? 2400 : 1800);
             setTimeout(() => {
                 toast.style.opacity = '0';
-                toast.style.transform = 'translateX(30px)';
-                setTimeout(() => toast.remove(), 400);
-            }, 5000);
+                toast.style.transform = 'translateX(24px)';
+                setTimeout(() => toast.remove(), 300);
+            }, ttl);
         },
 
         playDone() {
@@ -789,27 +891,27 @@
             s.id = 'nf-styles';
             s.textContent = `
 :root {
-  --nf-primary   : #10b981; --nf-primary-h : #059669;
-  --nf-danger    : #ef4444; --nf-danger-h  : #dc2626;
-  --nf-warn      : #f59e0b;
-  --nf-bg        : #ffffff; --nf-bg2       : #f8fafc;
-  --nf-bg3       : #f1f5f9;
-  --nf-text      : #1f2937; --nf-sub       : #6b7280;
-  --nf-border    : #e5e7eb; --nf-shadow    : rgba(0,0,0,.18);
-  --nf-radius    : 14px;    --nf-panel-w   : 340px;
+  --nf-primary   : var(--n-primary, #1d4ed8); --nf-primary-h : var(--n-primary-hover, #1e40af);
+  --nf-danger    : var(--n-error, #b91c1c);   --nf-danger-h  : #991b1b;
+  --nf-warn      : var(--n-warning, #b45309);
+  --nf-bg        : var(--n-surface, #ffffff); --nf-bg2       : var(--n-surface-2, #f8fafc);
+  --nf-bg3       : var(--n-bg, #f1f5f9);
+  --nf-text      : var(--n-text, #0f172a);    --nf-sub       : var(--n-text-muted, #526074);
+  --nf-border    : var(--n-line, #d3dce6);    --nf-shadow    : rgba(15,23,42,.18);
+  --nf-radius    : var(--n-r-lg, 16px);       --nf-panel-w   : 340px;
 }
-body.nf-dark-mode {
-  --nf-bg        : #1e2535; --nf-bg2       : #151c2c; --nf-bg3 : #0f1626;
-  --nf-text      : #e2e8f0; --nf-sub       : #94a3b8;
-  --nf-border    : #2d3a52; --nf-shadow    : rgba(0,0,0,.45);
+body.nf-dark-mode, .theme-dark {
+  --nf-bg        : var(--n-surface, #152131); --nf-bg2       : var(--n-surface-2, #1b293b); --nf-bg3 : var(--n-bg, #0d1520);
+  --nf-text      : var(--n-text, #eef4fb);    --nf-sub       : var(--n-text-muted, #9fb1c6);
+  --nf-border    : var(--n-line, #2c3e55);    --nf-shadow    : rgba(0,0,0,.5);
 }
 
 #nf-panel {
   position: fixed; bottom: 20px; left: 20px; z-index: 999999;
   background: var(--nf-bg); border: 1px solid var(--nf-border);
   border-radius: var(--nf-radius); width: var(--nf-panel-w);
-  box-shadow: 0 20px 40px -8px var(--nf-shadow);
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  box-shadow: var(--n-shadow-2, 0 20px 40px -8px var(--nf-shadow));
+  font-family: var(--n-font, 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif);
   direction: rtl; text-align: right; color: var(--nf-text);
   max-height: 92vh; overflow: hidden;
   display: flex; flex-direction: column;
@@ -819,7 +921,7 @@ body.nf-dark-mode {
 #nf-panel:hover { box-shadow: 0 24px 48px -8px var(--nf-shadow); }
 
 #nf-panel-header {
-  background: linear-gradient(135deg, #0f766e 0%, #065f46 50%, #1e3a5f 100%);
+  background: linear-gradient(135deg, var(--nf-primary) 0%, var(--nf-primary-h) 100%);
   border-radius: var(--nf-radius) var(--nf-radius) 0 0;
   padding: 12px 14px 10px;
   cursor: grab; cursor: -webkit-grab;
@@ -946,7 +1048,7 @@ body.nf-dark-mode {
 .nf-btn:last-child { margin-bottom: 0; }
 .nf-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
 .nf-btn:active { transform: translateY(0); }
-.nf-btn-primary   { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+.nf-btn-primary   { background: linear-gradient(135deg, var(--nf-primary), var(--nf-primary-h)); color: var(--n-on-primary, #fff); }
 .nf-btn-danger    { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
 .nf-btn-purple    { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: #fff; }
 .nf-btn-orange    { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; }
@@ -966,14 +1068,14 @@ body.nf-dark-mode {
   pointer-events: none;
 }
 .nf-toast {
-  background: var(--nf-bg); border-radius: 10px;
-  padding: 10px 16px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
-  display: flex; align-items: center; gap: 10px;
-  min-width: 240px; max-width: 320px; direction: rtl;
-  opacity: 0; transform: translateX(-20px);
-  transition: all .35s cubic-bezier(.34,1.56,.64,1);
-  border-right: 4px solid #3b82f6; pointer-events: auto;
-  font-size: 13px; color: var(--nf-text);
+  background: var(--nf-bg); border-radius: 8px;
+  padding: 7px 12px; box-shadow: 0 6px 18px rgba(0,0,0,.15);
+  display: flex; align-items: center; gap: 8px;
+  min-width: 190px; max-width: 290px; direction: rtl;
+  opacity: 0; transform: translateX(-16px);
+  transition: all .25s ease;
+  border-right: 3px solid #3b82f6; pointer-events: auto; cursor: pointer;
+  font-size: 12px; color: var(--nf-text);
 }
 .nf-toast-success { border-color: #10b981; }
 .nf-toast-error   { border-color: #ef4444; }
@@ -994,7 +1096,7 @@ body.nf-dark-mode {
   color: var(--nf-text); overflow: hidden;
 }
 #nf-log-header {
-  background: linear-gradient(135deg, #0f766e 0%, #065f46 50%, #1e3a5f 100%);
+  background: linear-gradient(135deg, var(--nf-primary) 0%, var(--nf-primary-h) 100%);
   padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
   flex-shrink: 0;
 }
@@ -1217,6 +1319,7 @@ body.nf-dark-mode {
             const failedCodes   = await Store.get('nf_failed_codes', []);
             const fixedCount    = await Store.get('nf_fixed_count', 0);
             const isDark        = await Store.get('nf_dark_mode', false);
+            const isCollapsed   = await Store.get('nf_panel_collapsed', false);
             const batchSize     = await Store.get('nf_batch_size', 0);
             const opMode        = await Store.get('nf_mode', 'full');
             const extraOverwrite = await Store.get('nf_extra_overwrite', false);
@@ -1370,7 +1473,7 @@ body.nf-dark-mode {
     <label>مهلة التعديل اليدوي عند وجود بيانات غير صحيحة</label>
     <select id="nf-manual-wait" class="nf-select">${/* html-safe: خيارات من أرقام ونصوص ثابتة */ manualWaitOpts}</select>
     <div style="font-size:11px;color:var(--nf-sub);margin-top:6px;line-height:1.7;">
-      📮 يُفحص دائمًا: <b>العنوان</b> (أرقام فقط مثل "0" مرفوض) — <b>التليفون الأرضي</b> (لازم يبدأ بمفتاح مثل 02، وليس أصفارًا) — <b>المحمول</b> (11 رقمًا يبدأ بـ 010/011/012/015).
+      📮 يُفحص دائمًا: <b>العنوان</b> (أرقام فقط مثل "0" مرفوض) — وتُطهَّر أرقام الهاتف/المحمول غير الصالحة تلقائيًا بالحذف بدون انتظار.
       <br>عند وجود خطأ لا يُحفظ الطالب؛ تنتظر الأداة تعديلك اليدوي طوال المهلة (تتجدد مع كل كتابة) وتحفظ تلقائيًا بمجرد أن تصبح البيانات سليمة.
     </div>
   </div>
@@ -1506,6 +1609,12 @@ body.nf-dark-mode {
 </div><!-- end body -->
 `;
             document.body.appendChild(panel);
+            if (isCollapsed) {
+                const bodyEl = document.getElementById('nf-panel-body');
+                const minBtn = document.getElementById('nf-btn-min');
+                if (bodyEl) bodyEl.classList.add('collapsed');
+                if (minBtn) minBtn.textContent = '➕';
+            }
             this._makeDraggable(panel, document.getElementById('nf-panel-header'));
             this._attachEvents();
         },
@@ -1890,6 +1999,7 @@ body.nf-dark-mode {
                 const body = document.getElementById('nf-panel-body');
                 const isMin = body.classList.toggle('collapsed');
                 document.getElementById('nf-btn-min').textContent = isMin ? '➕' : '➖';
+                Store.set('nf_panel_collapsed', isMin).catch(() => {});
             });
 
             document.getElementById('nf-btn-close').addEventListener('click', () => {
@@ -2289,6 +2399,135 @@ body.nf-dark-mode {
             if (entries.length > MAX_SHOWN) {
                 container.innerHTML += `<div class="nf-log-empty">تم عرض آخر ${MAX_SHOWN} عملية فقط من أصل ${Number(entries.length)}. استخدم "نص CSV للنسخ" لرؤية الكل.</div>`;
             }
+        },
+
+        async renderFloatingNavigator() {
+            try {
+                if (typeof window === 'undefined' || !window.location || !window.location.pathname) return;
+                if (!window.location.pathname.toLowerCase().includes('/student/edit/')) return;
+                if (document.getElementById('nf-floating-nav')) return;
+
+                const targetCodes = await Store.get('nf_target_codes', []);
+                if (!targetCodes || !targetCodes.length) return;
+
+                const urlCode = Utils.extractStudentId(window.location.href);
+                let currentIdx = targetCodes.findIndex(c => String(c).trim() === String(urlCode).trim());
+                if (currentIdx === -1) {
+                    currentIdx = await Store.get('nf_current_index', 0);
+                }
+
+                const host = document.createElement('div');
+                host.id = 'nf-floating-nav';
+                const shadow = host.attachShadow({ mode: 'open' });
+                shadow.innerHTML = `
+                  <style>
+                    :host { all: initial; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; direction: rtl; }
+                    .nav-dock {
+                      position: fixed;
+                      bottom: 24px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      z-index: 999999;
+                      display: flex;
+                      align-items: center;
+                      gap: 8px;
+                      background: #1e293b;
+                      color: #fff;
+                      padding: 7px 14px;
+                      border-radius: 40px;
+                      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+                      border: 1px solid rgba(255, 255, 255, 0.15);
+                      user-select: none;
+                    }
+                    .btn-nav {
+                      background: #334155;
+                      color: #f8fafc;
+                      border: 1px solid #475569;
+                      border-radius: 20px;
+                      padding: 5px 12px;
+                      font-size: 12.5px;
+                      font-weight: 600;
+                      cursor: pointer;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                      transition: all 0.2s;
+                    }
+                    .btn-nav:hover:not(:disabled) { background: #475569; border-color: #64748b; }
+                    .btn-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+                    .btn-save-next {
+                      background: #10b981;
+                      color: #ffffff;
+                      border: none;
+                      padding: 5px 14px;
+                      border-radius: 20px;
+                      font-weight: bold;
+                      font-size: 12.5px;
+                      cursor: pointer;
+                      transition: background 0.2s;
+                      display: flex;
+                      align-items: center;
+                      gap: 4px;
+                    }
+                    .btn-save-next:hover { background: #059669; }
+                    .badge-counter {
+                      font-size: 12px;
+                      font-weight: 700;
+                      color: #94a3b8;
+                      padding: 0 6px;
+                      white-space: nowrap;
+                    }
+                    .badge-counter strong { color: #38bdf8; }
+                  </style>
+                  <div class="nav-dock">
+                    <button class="btn-nav" id="btn-prev" ${currentIdx <= 0 ? 'disabled' : ''}>
+                      <span>◀ السابق</span>
+                    </button>
+                    <span class="badge-counter">
+                      تلميذ <strong>${currentIdx + 1}</strong> من <strong>${targetCodes.length}</strong>
+                    </span>
+                    <button class="btn-nav" id="btn-next" ${currentIdx >= targetCodes.length - 1 ? 'disabled' : ''}>
+                      <span>التالي ▶</span>
+                    </button>
+                    <button class="btn-save-next" id="btn-save-next">
+                      <span>💾 حفظ والتالي ⚡</span>
+                    </button>
+                  </div>
+                `;
+
+                shadow.getElementById('btn-prev')?.addEventListener('click', async () => {
+                    if (currentIdx > 0) {
+                        const prevCode = targetCodes[currentIdx - 1];
+                        await Store.set('nf_current_index', currentIdx - 1);
+                        window.location.href = `/student/edit/${prevCode}`;
+                    }
+                });
+
+                shadow.getElementById('btn-next')?.addEventListener('click', async () => {
+                    if (currentIdx < targetCodes.length - 1) {
+                        const nextCode = targetCodes[currentIdx + 1];
+                        await Store.set('nf_current_index', currentIdx + 1);
+                        window.location.href = `/student/edit/${nextCode}`;
+                    }
+                });
+
+                shadow.getElementById('btn-save-next')?.addEventListener('click', async () => {
+                    const saveBtn = Fixer._findSaveBtn();
+                    if (saveBtn) {
+                        saveBtn.click();
+                        await Utils.sleep(1200);
+                    }
+                    if (currentIdx < targetCodes.length - 1) {
+                        const nextCode = targetCodes[currentIdx + 1];
+                        await Store.set('nf_current_index', currentIdx + 1);
+                        window.location.href = `/student/edit/${nextCode}`;
+                    } else {
+                        showToast('🎉 تم الوصول لآخر طالب في القائمة!', 'success');
+                    }
+                });
+
+                document.body.appendChild(host);
+            } catch (_) {}
         }
     };
 
@@ -2311,9 +2550,7 @@ body.nf-dark-mode {
                 }
             }
             const checks = [
-                { key: 'address', label: 'العنوان',              selector: 'input[formcontrolname="address"]',      fn: Utils.addressProblem },
-                { key: 'phone',   label: 'رقم التليفون الأرضي',  selector: 'input[formcontrolname="phoneNumber"]',  fn: Utils.landlineProblem },
-                { key: 'mobile',  label: 'رقم المحمول',          selector: 'input[formcontrolname="mobileNumber"]', fn: Utils.mobileProblem }
+                { key: 'address', label: 'العنوان', selector: 'input[formcontrolname="address"]', fn: Utils.addressProblem }
             ];
             for (const c of checks) {
                 const el = document.querySelector(c.selector);
@@ -2436,6 +2673,20 @@ body.nf-dark-mode {
 
         errorMessageBaseline() { return new Set(Fixer._errorMessages()); },
 
+        _hasSuccessMessage() {
+            const sel = '.alert-success, .toast-success, .swal2-icon-success, .swal2-success';
+            for (const el of document.querySelectorAll(sel)) {
+                if (el.closest('#nf-panel, #nf-pause-banner, #nf-toast-container')) continue;
+                if (Fixer._isVisible(el)) return true;
+            }
+            const popup = document.querySelector('.swal2-popup, .toast, .alert-success');
+            if (popup && !popup.closest('#nf-panel, #nf-pause-banner, #nf-toast-container') && Fixer._isVisible(popup)) {
+                const txt = (popup.innerText || '').trim();
+                if (/تم الحفظ|تم التعديل|بنجاح/.test(txt)) return true;
+            }
+            return false;
+        },
+
         // baseline = null → فحص الحقول/الزر فقط (قبل الضغط على حفظ)
         collectSaveErrors(baseline, saveBtn) {
             const errs = [];
@@ -2444,13 +2695,15 @@ body.nf-dark-mode {
                 if (el.disabled || el.readOnly || (el.type || '').toLowerCase() === 'hidden') return;
                 if (!Fixer._isVisible(el)) return;
                 const ctrl  = el.getAttribute('formcontrolname') || el.name || el.id || '';
+                if (/^(phoneNumber|mobileNumber)$/i.test(ctrl)) return; // تجاوز الانتظار على أرقام الهاتف لأنها غير مطلوبة للحفظ
                 const label = String(Utils.findLabelForInput(el) || ctrl || 'حقل').trim();
                 const value = el.tagName.toLowerCase() === 'select'
                     ? (el.options[el.selectedIndex]?.text || '').trim()
                     : String(el.value || '').trim();
                 errs.push({ kind: 'field', el, label, value, reason: 'قيمة غير صالحة أو مطلوبة' });
             });
-            if (saveBtn && (saveBtn.disabled || saveBtn.getAttribute('aria-disabled') === 'true')) {
+            // لا نعدّ زر الحفظ المعطّل خطأً بعد الضغط على الحفظ (Angular يعطّله مؤقتًا أثناء الإرسال أو بعد النجاح)
+            if (!baseline && saveBtn && (saveBtn.disabled || saveBtn.getAttribute('aria-disabled') === 'true')) {
                 errs.push({ kind: 'btn', label: 'زر الحفظ', value: '', reason: 'معطّل — يوجد حقل غير صالح بالنموذج' });
             }
             if (baseline) {
@@ -2463,7 +2716,7 @@ body.nf-dark-mode {
 
         // ── مهلة قصيرة للتعديل اليدوي عند خطأ أثناء الحفظ: 'resolved' | 'timeout' | 'stopped' | 'left' ──
         async waitForSaveFix(initialErrs, baseline) {
-            const QUIET_MS = 1500;
+            const QUIET_MS = 500;
             const totalSec = Number(await Store.get('nf_save_error_wait_sec', CONFIG.SAVE_ERROR_WAIT_SEC)) || CONFIG.SAVE_ERROR_WAIT_SEC;
             const probs = initialErrs.map(e => ({ label: e.label, reason: e.reason, value: e.value }));
             const banner = UI.showWaitBanner(probs, { title: 'تعذّر الحفظ — عدّل يدويًا الآن', showExtend: false });
@@ -2730,10 +2983,10 @@ body.nf-dark-mode {
             const isExtraOnly = (opMode === 'extra_only');
             const isLangSpec  = (opMode === 'lang_spec_damg');
 
-            showToast(
-                isLangSpec ? 'جاري فحص وتعديل اللغات والتخصص والدمج للطالب...' :
-                (isExtraOnly ? 'جاري فحص وتعديل البيانات الإضافية للطالب...' : 'جاري فحص وتنقية اسم الطالب...'),
-                'info'
+            UI.updateStatus(
+                isLangSpec ? 'جاري فحص اللغات والتخصص والدمج...' :
+                (isExtraOnly ? 'جاري فحص البيانات الإضافية...' : 'جاري فحص اسم الطالب...'),
+                true
             );
 
             let elapsed = 0;
@@ -2755,10 +3008,7 @@ body.nf-dark-mode {
                     if (!failed.includes(currentCode)) { failed.push(currentCode); await Store.set('nf_failed_codes', failed); }
                 }
                 await Log.add({ code: currentCode || '', status: 'load_failed', changes: [] });
-                await Store.set('nf_current_index', currentIdx + 1);
-                await Utils.sleep(CONFIG.WAIT_SHORT);
-                const listUrl = await Store.get('nf_list_page_url', '/student/list');
-                window.location.href = listUrl;
+                await this._advanceToNextStudent(currentIdx, targetCodes);
                 return;
             }
 
@@ -2882,10 +3132,11 @@ body.nf-dark-mode {
             const excelMap = await Store.get('nf_excel_student_map', null);
             const hasExcelMap = (excelMap && typeof excelMap === 'object' && Object.keys(excelMap).length > 0);
 
+            // studentRow يُعرَّف خارج الكتلة لأنه يُستخدم لاحقًا في الفصل/العنوان/التليفون/المحمول
+            let studentRow = null;
             if (isLangSpec || hasExcelMap) {
                 console.log('%c[نبراس] نمط "تعديل اللغات والتخصص والدمج" جاري فحص الحقول للطالب: ' + currentCode, 'color:#059669;font-weight:bold');
-                
-                let studentRow = null;
+
                 if (hasExcelMap) {
                     const urlId = Utils.extractStudentId(window.location.href);
                     const codeInp = document.querySelector('input[formcontrolname="studentCode"], input[formcontrolname="code"], input[formcontrolname="id"]');
@@ -2916,7 +3167,7 @@ body.nf-dark-mode {
                 const targetDamg  = (studentRow && studentRow.damg !== undefined && studentRow.damg !== '' && studentRow.damg !== null)
                     ? studentRow.damg : (studentRow ? '' : await Store.get('nf_default_damg', ''));
                 const targetDiv   = studentRow ? (studentRow.division || '') : (await Store.get('nf_default_division', ''));
-                const targetSpec  = studentRow ? (studentRow.specialization || '') : (await Store.get('nf_default_spec', ''));
+                let   targetSpec  = studentRow ? (studentRow.specialization || '') : (await Store.get('nf_default_spec', ''));
 
                 // 1) اللغة الأولى (languageId1)
                 const lang1 = document.querySelector('select[formcontrolname="languageId1"]');
@@ -3023,6 +3274,71 @@ body.nf-dark-mode {
                 }
             }
 
+            // ── 6) تطبيق الفصل (classRoom) من كشف Excel أو إعدادات المدرسة ──
+            if (studentRow && studentRow.classRoom) {
+                const classSel = document.querySelector('select[formcontrolname="classId"]') || Utils.findFieldByLabel(/^\s*الفصل/i, 'select');
+                if (classSel && !classSel.disabled) {
+                    const optVal = Utils.resolveClassroomOption(classSel, studentRow.classRoom);
+                    if (optVal && classSel.value !== optVal) {
+                        const before = (classSel.options[classSel.selectedIndex]?.text || classSel.value || '').trim();
+                        Utils.setAngularSelectValue(classSel, optVal);
+                        const after = (classSel.options[classSel.selectedIndex]?.text || optVal).trim();
+                        changes.push({ field: 'classId', label: 'الفصل', before, after });
+                        otherFieldsChanged = true;
+                    }
+                }
+            }
+
+            // ── 7) تطهير العنوان (address) — إزالة الرموز الخاصة واستبدال الأرقام فقط بالعنوان الافتراضي ──
+            const addrEl = document.querySelector('input[formcontrolname="address"]') || Utils.findFieldByLabel(/^\s*العنوان/i, 'input');
+            if (addrEl && !addrEl.disabled && !addrEl.readOnly) {
+                const defAddress = (await Store.get('nf_default_address', '')).trim();
+                const curAddr = (addrEl.value || '').trim();
+                const targetAddr = (studentRow && studentRow.address) ? studentRow.address : (curAddr || defAddress);
+                const sanitizedAddr = Utils.sanitizeAddress(targetAddr, defAddress);
+                if (sanitizedAddr !== curAddr) {
+                    Utils.setInputValueAngular(addrEl, sanitizedAddr);
+                    changes.push({ field: 'address', label: 'العنوان', before: curAddr || '(فارغ)', after: sanitizedAddr || '(تم التفريغ لتفادي الخطأ)' });
+                    otherFieldsChanged = true;
+                }
+                // إذا رفض نموذج الموقع العنوان بعد التطهير (ng-invalid)، نستعيض فورًا بالعنوان الافتراضي لتفادي وقت الانتظار
+                if (addrEl.classList.contains('ng-invalid') && defAddress) {
+                    const fallbackAddr = Utils.sanitizeAddress(defAddress, '');
+                    if (fallbackAddr && (addrEl.value || '').trim() !== fallbackAddr) {
+                        const prevVal = (addrEl.value || '').trim();
+                        Utils.setInputValueAngular(addrEl, fallbackAddr);
+                        changes.push({ field: 'address', label: 'العنوان', before: prevVal || '(غير صالح)', after: fallbackAddr });
+                        otherFieldsChanged = true;
+                    }
+                }
+            }
+
+            // ── 8) تطهير الهاتف الأرضي (phoneNumber) — مسح كامل إذا كان غير صالح لمنع تعطل الحفظ ──
+            const phoneEl = document.querySelector('input[formcontrolname="phoneNumber"]');
+            if (phoneEl && !phoneEl.disabled && !phoneEl.readOnly) {
+                const curPhone = (phoneEl.value || '').trim();
+                const targetPhone = (studentRow && studentRow.landline) ? studentRow.landline : curPhone;
+                const sanitizedPhone = Utils.sanitizeLandline(targetPhone);
+                if (sanitizedPhone !== curPhone) {
+                    Utils.setInputValueAngular(phoneEl, sanitizedPhone);
+                    changes.push({ field: 'phoneNumber', label: 'رقم التليفون الأرضي', before: curPhone || '(فارغ)', after: sanitizedPhone || '(تم الحذف لعدم صحة الرقم)' });
+                    otherFieldsChanged = true;
+                }
+            }
+
+            // ── 9) تطهير المحمول (mobileNumber) — مسح كامل إذا لم يكن رقماً مصرياً صالحاً لمنع تعطل الحفظ ──
+            const mobEl = document.querySelector('input[formcontrolname="mobileNumber"]');
+            if (mobEl && !mobEl.disabled && !mobEl.readOnly) {
+                const curMob = (mobEl.value || '').trim();
+                const targetMob = (studentRow && studentRow.mobile) ? studentRow.mobile : curMob;
+                const sanitizedMob = Utils.sanitizeMobile(targetMob);
+                if (sanitizedMob !== curMob) {
+                    Utils.setInputValueAngular(mobEl, sanitizedMob);
+                    changes.push({ field: 'mobileNumber', label: 'رقم المحمول', before: curMob || '(فارغ)', after: sanitizedMob || '(تم الحذف لعدم مطابقة شبكة مصرية)' });
+                    otherFieldsChanged = true;
+                }
+            }
+
             // ── فحص الفصل/العنوان/التليفون/المحمول (يعمل دائمًا) — أي خطأ يمنع الحفظ ──
             let manualFixed = false;
             const problems = Fixer.collectProblems(extraEnabled);
@@ -3071,7 +3387,7 @@ body.nf-dark-mode {
 
             // ── الحفظ ──
             if (namesCleaned || otherFieldsChanged || manualFixed) {
-                showToast(`✏️ تم رصد ${changes.length} تعديل، جاري حفظ التعديل...`, 'info');
+                UI.updateStatus(`تم رصد ${changes.length} تعديل — جاري الحفظ...`, true);
                 await Utils.sleep(CONFIG.WAIT_SHORT);
                 const findSaveBtn = () => Array.from(document.querySelectorAll('button, input[type="submit"]'))
                     .find(b => CONFIG.SELECTORS.SAVE_BTN_REGEX.test((b.innerText || b.value || '').trim()));
@@ -3096,8 +3412,8 @@ body.nf-dark-mode {
                         }
                         saveBtn.click();
                         viaPopup = await Utils.confirmSavePopupIfPresent();
-                        await Utils.sleep(1200);
-                        if (!/\/student\/edit\//i.test(window.location.href)) { saved = true; break; }
+                        await Utils.sleep(900);
+                        if (!/\/student\/edit\//i.test(window.location.href) || Fixer._hasSuccessMessage()) { saved = true; break; }
                         const after = Fixer.collectSaveErrors(baseline, saveBtn);
                         if (!after.length) saved = true; else pending = after;
                     }
@@ -3135,18 +3451,39 @@ body.nf-dark-mode {
                     await Log.add({ code: currentCode || '', status: 'save_button_missing', changes, checked });
                 }
             } else if (!isExtraOnly && !isLangSpec && nameFieldsSeen > 0) {
-                showToast(`الاسم نظيف بالفعل (فُحص ${nameFieldsSeen} حقل)، لا حاجة للتعديل.`, 'info');
+                UI.updateStatus(`مطابق (فُحص ${nameFieldsSeen} حقل)`, true);
                 await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
             } else if (isLangSpec) {
-                showToast('بيانات اللغات والتخصص والدمج مطابقة بالفعل، لا حاجة للتعديل.', 'info');
+                UI.updateStatus('مطابق — لا حاجة للتعديل', true);
                 await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
             } else if (isExtraOnly) {
-                showToast('البيانات الإضافية مطابقة بالفعل، لا حاجة للتعديل.', 'info');
+                UI.updateStatus('البيانات الإضافية مطابقة بالفعل، لا حاجة للتعديل.', true);
                 await Log.add({ code: currentCode || '', status: 'clean', changes: [], checked });
             }
 
-            await Store.set('nf_current_index', currentIdx + 1);
+            await this._advanceToNextStudent(currentIdx, targetCodes);
+        },
+
+        async _advanceToNextStudent(currentIdx, targetCodes) {
+            const nextIdx = currentIdx + 1;
+            await Store.set('nf_current_index', nextIdx);
             await Utils.sleep(CONFIG.WAIT_SHORT);
+
+            const batchSize  = await Store.get('nf_batch_size', 0);
+            const batchStart = await Store.get('nf_batch_start_index', 0);
+            const batchDone  = batchSize > 0 && (nextIdx - batchStart) >= batchSize && nextIdx < targetCodes.length;
+
+            if (!batchDone && nextIdx < targetCodes.length) {
+                const nextCode = String(targetCodes[nextIdx] || '').trim();
+                if (nextCode) {
+                    UI.updateStatus(`انتقال للتالي (${nextIdx + 1}/${targetCodes.length})...`, true);
+                    await Utils.sleep(200);
+                    window.location.href = `/student/edit/${encodeURIComponent(nextCode)}`;
+                    return;
+                }
+            }
+
+            // العودة للقائمة فقط عند انتهاء الدفعة أو اكتمال كل الأكواد (لإعادة محاولة الفاشلين أو إعلان الاكتمال)
             const listUrl = await Store.get('nf_list_page_url', '/student/list');
             window.location.href = listUrl;
         }
@@ -3177,8 +3514,13 @@ body.nf-dark-mode {
                 }
                 document.getElementById('nf-fab')?.remove();
             } else {
-                // populateLevels تستبدل عنصر القائمة بنسخة جديدة، فلا تُستدعى إلا عند إنشاء اللوحة.
-                await UI.populateLevels();
+                // populateLevels تستبدل عنصر القائمة بنسخة جديدة، وتبحث عن قائمة الصفوف التي لا توجد في صفحة التعديل
+                // ولا ننتظرها أثناء التشغيل التلقائي حتى لا تُعطّل معالجة كل طالب 7.5 ثوانٍ.
+                const isEditPage = (typeof window !== 'undefined' && window.location && /\/student\/edit\//i.test(window.location.href || ''));
+                const runningNow = await Store.get('nf_running', false);
+                if (!isEditPage && !runningNow) {
+                    await UI.populateLevels();
+                }
                 await UI.updateStats();
             }
 
@@ -3210,7 +3552,7 @@ body.nf-dark-mode {
                 chrome.storage.local.remove(['nf_log'], () => void chrome.runtime.lastError);
             } catch (_) {}
 
-            const url = window.location.href.toLowerCase();
+            const url = (typeof window !== 'undefined' && window.location && window.location.href ? window.location.href : '').toLowerCase();
             if (!url.includes('/student/')) return;
 
             const running      = await Store.get('nf_running', false);
@@ -3233,6 +3575,8 @@ body.nf-dark-mode {
             }
 
             if (url.includes('/student/edit/')) {
+                // الشريط العائم أداة مراجعة يدوية فقط — لا يظهر أثناء التشغيل التلقائي حتى لا يتعارض مع الحفظ والتنقل الآلي
+                if (!running) UI.renderFloatingNavigator().catch(() => {});
                 await Fixer.onEditPageFixNameAndBack();
             } else if (url.includes('/student/list') || url.includes('/student/index')) {
                 await Utils.sleep(1000);

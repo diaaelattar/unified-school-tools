@@ -13,6 +13,12 @@ mobile/android/build/
 mobile/android/app/build/
 mobile/android/local.properties
 
+# Secrets, keystores & local machine keys
+keystore.properties
+*.jks
+*.keystore
+.nepras_machine_key
+
 # Logs & temp files
 *.log
 *.tmp

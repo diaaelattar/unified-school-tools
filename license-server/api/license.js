@@ -263,7 +263,7 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({
       ok: false,
       code: "SERVER_ERROR",
-      message: "حدث خطأ في خادم التراخيص: " + (err.message || String(err))
+      message: "حدث خطأ داخلي في خادم التراخيص. يرجى المحاولة لاحقاً."
     });
   }
 };

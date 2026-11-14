@@ -284,9 +284,18 @@ function neprasXlsxBrandName() {
   return "نبراس برو 2026";
 }
 
+/** حماية خلايا Excel النصية من حقن الصيغ (CSV/Formula Injection) دون المساس بشرطة "-" أو الأرقام السالبة. */
+function neprasSanitizeFormulaCell(value) {
+  const s = String(value ?? "");
+  if (/^[\t\r ]*(?:[=@]|[\+\-](?![\d.\s]*$))/.test(s)) {
+    return "'" + s;
+  }
+  return s;
+}
+
 /** خلية نص مضمّنة (inlineStr): لا تمرّ بجدول السلاسل المشتركة فلا يختصر Excel الأكواد الطويلة. */
 function neprasXlsxTextCell(ref, value, styleId) {
-  return `<c r="${ref}" s="${styleId}" t="inlineStr"><is><t xml:space="preserve">${neprasZipXmlEscape(value)}</t></is></c>`;
+  return `<c r="${ref}" s="${styleId}" t="inlineStr"><is><t xml:space="preserve">${neprasZipXmlEscape(neprasSanitizeFormulaCell(value))}</t></is></c>`;
 }
 
 /** خلية رقمية؛ إذا كانت القيمة فارغة أو غير عددية لا يُكتب 0 زائف تجنباً لتشويه البيانات الناقصة. */
@@ -826,7 +835,7 @@ function neprasXlsxConvertSheetToXml(ws, isSelected = false) {
       if (cell && cell.t === 'n' && Number.isFinite(Number(rawVal)) && !/^\d{14}$/.test(strVal)) {
         cellsXml += `<c r="${cellRef}" s="${styleId}" t="n"><v>${Number(rawVal)}</v></c>`;
       } else {
-        cellsXml += `<c r="${cellRef}" s="${styleId}" t="inlineStr"><is><t xml:space="preserve">${neprasZipXmlEscape(strVal)}</t></is></c>`;
+        cellsXml += `<c r="${cellRef}" s="${styleId}" t="inlineStr"><is><t xml:space="preserve">${neprasZipXmlEscape(neprasSanitizeFormulaCell(strVal))}</t></is></c>`;
       }
     }
 

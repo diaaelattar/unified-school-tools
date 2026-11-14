@@ -4,26 +4,26 @@
      كانت متفرقة في الملف (أُدمجت بالقيم النهائية نفسها تمامًا،
      بدون أي تغيير في القيمة الفعلية لأي متغيّر). ===== */
 
-  /* -- لوحة الألوان الأساسية -- */
-  --font:'Cairo',"Segoe UI",Tahoma,Arial,sans-serif;
+  /* -- لوحة الألوان الأساسية (مربوطة بمصدر tokens.css الموحّد) -- */
+  --font:var(--n-font, 'Cairo',"Segoe UI",Tahoma,Arial,sans-serif);
   --ink:var(--n-text);
   --muted:var(--n-text-muted);
-  --page:#f1f5f9;
-  --panel:#ffffff;
-  --line:#cbd5e1;
-  --blue:#2563eb;
+  --page:var(--n-bg);
+  --panel:var(--n-surface);
+  --line:var(--n-line);
+  --blue:var(--n-primary);
   --blue2:var(--n-primary);
-  --green:#059669;
-  --green2:#10b981;
-  --orange:#d97706;
-  --orange2:#f59e0b;
+  --green:var(--n-success);
+  --green2:var(--n-success);
+  --orange:var(--n-warning);
+  --orange2:var(--n-warning);
   --purple:#7c3aed;
   --purple2:#8b5cf6;
   --teal:#0d9488;
   --teal2:#14b8a6;
-  --rose:#e11d48;
-  --rose2:#f43f5e;
-  --shadow:0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+  --rose:var(--n-error);
+  --rose2:var(--n-error);
+  --shadow:var(--n-shadow-2);
 
   /* -- متغيّرات الخطوط المتراكمة تاريخيًا --
      Phase "توحيد الخط": فحص فعلي بمحلل CSS حقيقي (css-tree) أثبت أن أكثر
@@ -37,22 +37,22 @@
      موضعًا (خطر حقيقي لتفويت حالة)، جُعلت هذه المتغيّرات الأربعة تُحيل إلى
      --font نفسه (Cairo) — فيصل التصحيح تلقائيًا لكل مكان يستخدمها بلا أي
      تغيير في الـ129 تعريفًا نفسها. */
-  --ui-font:var(--font)!important;
-  --ui-font-clear:var(--font)!important;
-  --v1.0-ui-font:"Segoe UI",Tahoma,Arial,sans-serif;
-  --nepras-ui-font:var(--font) !important;
-  --nepras-text:#1f3a57;
-  --nepras-muted:#5f7690;
-  --nepras-border:#d8e2ee;
-  --nepras-soft:#f8fbff;
-  --nepras-body-font:var(--font) !important;
-  --sultan-bold:'Cairo', sans-serif !important;
-  --sultan-medium:'Cairo', sans-serif !important;
-  --nepras-sultan-black:'Cairo', sans-serif !important;
-  --nepras-sultan-medium:'Cairo', sans-serif !important;
+  --ui-font:var(--font);
+  --ui-font-clear:var(--font);
+  --v1.0-ui-font:var(--font);
+  --nepras-ui-font:var(--font);
+  --nepras-text:var(--n-text);
+  --nepras-muted:var(--n-text-muted);
+  --nepras-border:var(--n-border);
+  --nepras-soft:var(--n-surface-2);
+  --nepras-body-font:var(--font);
+  --sultan-bold:var(--font);
+  --sultan-medium:var(--font);
+  --nepras-sultan-black:var(--font);
+  --nepras-sultan-medium:var(--font);
   --nepras-symbol-font:"Segoe UI Symbol","Segoe UI Emoji","Segoe UI",Tahoma,Arial,sans-serif;
-  --nepras-v1.0-medium:'Cairo', sans-serif !important;
-  --nepras-v1.0-black:'Cairo', sans-serif !important;
+  --nepras-v1.0-medium:var(--font);
+  --nepras-v1.0-black:var(--font);
   --nepras-v1.0-symbol:"Segoe UI Symbol","Segoe UI Emoji","Segoe UI",Tahoma,Arial,sans-serif;
 
   /* -- ألوان الأقسام (كروت السحب/الحضور...) --
@@ -1712,23 +1712,103 @@ html:has(body.theme-dark), html:has(body.theme-dark) body { background: var(--n-
 .expenses-grades-table td.cell-rate { color: #047857; font-weight: 800; }
 .expenses-grades-table tfoot td { background: #f8fafc; font-weight: 800 !important; border-top: 2px solid #94a3b8; }
 
-.expenses-progress-section { margin: 16px 0; padding: 12px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.expenses-progress-section { margin: 16px 0; padding: 12px 14px; background: var(--n-surface); border: 1px solid var(--n-border); border-radius: var(--n-r-lg); }
 .expenses-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.expenses-progress-title { font-size: 13px; font-weight: 800; color: #1e293b; }
-.expenses-progress-pct { font-size: 18px; font-weight: 900; color: #16a34a; }
-.expenses-progress-track { height: 14px; background: #e2e8f0; border-radius: 9999px; overflow: hidden; }
+.expenses-progress-title { font-size: 13px; font-weight: 800; color: var(--n-text); }
+.expenses-progress-pct { font-size: 18px; font-weight: 900; color: var(--n-ok); }
+.expenses-progress-track { height: 14px; background: var(--n-border); border-radius: 9999px; overflow: hidden; }
 .expenses-progress-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); border-radius: 9999px; transition: width 0.3s ease; }
-.expenses-progress-sub { text-align: center; font-size: 11.5px; color: #64748b; font-weight: 700; margin-top: 5px; }
+.expenses-progress-sub { text-align: center; font-size: 11.5px; color: var(--n-text-muted); font-weight: 700; margin-top: 5px; }
 
-.expenses-tariffs-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-.expenses-tariff-box { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px; text-align: center; }
-.tariff-title { font-size: 11.5px; font-weight: 800; color: #334155; display: block; margin-bottom: 4px; }
-.tariff-input { width: 100%; text-align: center; font-weight: 800; font-size: 14px; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; box-sizing: border-box; }
+.expenses-tariffs-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; background: var(--n-surface-2); border-bottom: 1px solid var(--n-border); }
+.expenses-tariff-box { background: var(--n-surface); border: 1px solid var(--n-border-strong); border-radius: var(--n-r-md); padding: 6px; text-align: center; }
+.tariff-title { font-size: 11.5px; font-weight: 800; color: var(--n-text); display: block; margin-bottom: 4px; }
+.tariff-input { width: 100%; text-align: center; font-weight: 800; font-size: 14px; color: var(--n-text); background: var(--n-surface); border: 1px solid var(--n-border-strong); border-radius: var(--n-r-sm); padding: 4px; box-sizing: border-box; }
 
 .expenses-financial-table td { text-align: center; padding: 7px 6px; font-size: 12px; }
-.expenses-financial-table td.cell-money { color: #15803d; font-weight: 800; }
+.expenses-financial-table td.cell-money { color: var(--n-ok); font-weight: 800; }
 
 @media (max-width: 620px) {
   .expenses-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .expenses-tariffs-row { grid-template-columns: 1fr; }
 }
+
+/* =========================================================================
+   Unified Support Pill & Nationwide Ministry Banner (Light + Dark)
+   ========================================================================= */
+.n-support-pill {
+  background: linear-gradient(135deg, #fdf2f8, #fce7f3);
+  border-color: #fbcfe8;
+  color: #be185d;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 11px;
+}
+.n-support-pill__star { font-size: 12px; }
+.n-menu__item--support { color: #be185d; font-weight: 700; }
+.theme-dark .n-support-pill {
+  background: linear-gradient(135deg, #4a044e, #831843);
+  border-color: #9d174d;
+  color: #fbcfe8;
+}
+.theme-dark .n-menu__item--support { color: #f472b6; }
+
+.n-nationwide-card-wrap {
+  margin-top: 14px;
+  direction: rtl;
+  text-align: right;
+}
+.n-nationwide-card-head {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.n-nationwide-save-btn {
+  background: #43a047;
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  padding: 5px 22px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(67, 160, 71, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--n-font);
+}
+.n-nationwide-save-btn:hover { background: #388e3c; }
+.n-nationwide-banner-box {
+  background-color: var(--n-error-soft, #fee2e2);
+  border: 1.5px solid var(--n-error-line, #fca5a5);
+  border-radius: var(--n-r-md, 8px);
+  padding: 13px 16px;
+  color: #7f1d1d;
+  font-family: var(--n-font);
+  font-size: 13px;
+  line-height: 1.85;
+  box-shadow: var(--n-shadow-sm);
+}
+.n-nationwide-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: currentColor;
+  user-select: none;
+}
+.n-nationwide-banner-text { flex: 1; }
+.n-nationwide-banner-text b { color: #450a0a; font-weight: 800; }
+.n-nationwide-banner-code { font-family: monospace; direction: ltr; display: inline-block; }
+.theme-dark .n-nationwide-banner-box {
+  background-color: rgba(127, 29, 29, 0.28);
+  border-color: #991b1b;
+  color: #fecaca;
+}
+.theme-dark .n-nationwide-banner-text b { color: #ffffff; }

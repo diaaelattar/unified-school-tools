@@ -41,8 +41,66 @@ const DEFAULT_SERVER_URL = process.env.NEPRAS_LICENSE_SERVER_URL || SUPABASE_LIC
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OFFLINE_GRACE_MS = 7 * DAY_MS; // 7 أيام سماح للعمل أوفلاين للمدرسة المفعّلة مسبقاً
 const WARN_DAYS = 10; // التنبيه قبل انتهاء الاشتراك السنوي بـ 10 أيام
-const MACHINE_SALT = "NEPRAS_HMAC_SEC_v1.3.2_EMIS_2027";
+const MACHINE_KEY_FILENAME = ".nepras_machine_key";
 const MAX_CLOCK_DRIFT_MS = 15 * 60 * 1000; // 15 دقيقة فقط كحد أقصى مسموح به لانحراف أو تراجع ساعة الجهاز
+
+let _processMachineSecret = null;
+const _dirMachineSecretCache = new Map();
+
+function getElectronSafeStorage() {
+  try {
+    const electron = require("electron");
+    if (electron?.safeStorage?.isEncryptionAvailable?.()) {
+      return electron.safeStorage;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function getLocalMachineSecret(storageDir) {
+  if (storageDir && _dirMachineSecretCache.has(storageDir)) {
+    return _dirMachineSecretCache.get(storageDir);
+  }
+
+  if (storageDir) {
+    const keyFile = path.join(storageDir, MACHINE_KEY_FILENAME);
+    try {
+      if (fs.existsSync(keyFile)) {
+        const raw = fs.readFileSync(keyFile);
+        const safeStorage = getElectronSafeStorage();
+        let secret = "";
+        if (safeStorage && raw.toString("utf8").startsWith("dpapi:")) {
+          secret = safeStorage.decryptString(Buffer.from(raw.toString("utf8").slice(6), "base64"));
+        } else {
+          secret = raw.toString("utf8").trim();
+        }
+        if (secret && secret.length >= 32) {
+          _dirMachineSecretCache.set(storageDir, secret);
+          return secret;
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (!_processMachineSecret) {
+    _processMachineSecret = crypto.randomBytes(32).toString("hex");
+  }
+
+  if (storageDir) {
+    try {
+      if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+      const keyFile = path.join(storageDir, MACHINE_KEY_FILENAME);
+      const safeStorage = getElectronSafeStorage();
+      const payload = safeStorage
+        ? `dpapi:${safeStorage.encryptString(_processMachineSecret).toString("base64")}`
+        : _processMachineSecret;
+      fs.writeFileSync(keyFile, payload, { encoding: "utf8", mode: 0o600 });
+      _dirMachineSecretCache.set(storageDir, _processMachineSecret);
+    } catch (_) {}
+  }
+
+  return _processMachineSecret;
+}
 
 const BANNED_PAGE_TITLES = [
   "تعديل بيان",
@@ -108,76 +166,56 @@ function areSchoolNamesMatching(nameA, nameB) {
   return false;
 }
 
-function getMachineFingerprint() {
+function getMachineFingerprint(storageDir = null) {
+  const localSecret = getLocalMachineSecret(storageDir);
   try {
     const host = os.hostname() || "localhost";
     const plat = os.platform();
     const arch = os.arch();
-    // هوية مستقرة للجهاز تمنع الخطأ عند التبديل بين حساب المستخدم وحساب المسؤول (Administrator)
-    return crypto.createHash("sha256").update(`${host}|${plat}|${arch}|${MACHINE_SALT}`).digest("hex");
+    // هوية مستقرة للجهاز مقترنة بسر عشوائي فريد لكل تثبيت (دون ملح ثابت في المصدر)
+    return crypto.createHash("sha256").update(`${host}|${plat}|${arch}|${localSecret}`).digest("hex");
   } catch (_) {
-    return crypto.createHash("sha256").update(`fallback|${MACHINE_SALT}`).digest("hex");
+    return crypto.createHash("sha256").update(`fallback|${localSecret}`).digest("hex");
   }
 }
 
-function computeTicketHmac(schoolCode, expiresAt, status, legacy = false) {
-  let fp = "";
-  if (legacy) {
-    try {
-      const host = os.hostname() || "localhost";
-      const user = os.userInfo ? os.userInfo().username : "user";
-      const plat = os.platform();
-      const arch = os.arch();
-      fp = crypto.createHash("sha256").update(`${host}|${user}|${plat}|${arch}|${MACHINE_SALT}`).digest("hex");
-    } catch (_) {
-      fp = crypto.createHash("sha256").update(`fallback|${MACHINE_SALT}`).digest("hex");
-    }
-  } else {
-    fp = getMachineFingerprint();
-  }
+function computeTicketHmac(schoolCode, expiresAt, status, storageDir = null) {
+  const fp = getMachineFingerprint(storageDir);
   const data = `NEPRAS_TICKET:${normalizeSchoolCode(schoolCode)}:${Number(expiresAt)}:${String(status || "active").toLowerCase()}:${fp}`;
   return crypto.createHmac("sha256", fp).update(data).digest("hex");
 }
 
-function createSupabaseTicket(schoolCode, expiresAt, status) {
+function createSupabaseTicket(schoolCode, expiresAt, status, storageDir = null) {
   const normCode = normalizeSchoolCode(schoolCode);
   const expNum = Number(expiresAt || 0);
   const cleanStatus = String(status || "active").toLowerCase();
-  const hmac = computeTicketHmac(normCode, expNum, cleanStatus);
+  const hmac = computeTicketHmac(normCode, expNum, cleanStatus, storageDir);
   return `SUPABASE_VERIFIED.${normCode}.${expNum}.${cleanStatus}.${hmac}`;
 }
 
-function verifySupabaseTicket(ticket, schoolCode, expiresAt, status) {
+function verifySupabaseTicket(ticket, schoolCode, expiresAt, status, storageDir = null) {
   if (!ticket || typeof ticket !== "string") return false;
   const parts = ticket.split(".");
   const normCode = normalizeSchoolCode(schoolCode);
   const expNum = Number(expiresAt || 0);
   const cleanStatus = String(status || "active").toLowerCase();
 
-  // النمط المحمي الجديد: SUPABASE_VERIFIED.<schoolCode>.<expiresAt>.<status>.<hmac>
+  // النمط المحمي: SUPABASE_VERIFIED.<schoolCode>.<expiresAt>.<status>.<hmac>
   if (parts.length === 5 && parts[0] === "SUPABASE_VERIFIED") {
     const [, tSchool, tExpires, tStatus, tHmac] = parts;
     if (normalizeSchoolCode(tSchool) !== normCode) return false;
     if (Number(tExpires) !== expNum) return false;
     if (String(tStatus).toLowerCase() !== cleanStatus) return false;
-    const expected = computeTicketHmac(normCode, expNum, cleanStatus);
+    const expected = computeTicketHmac(normCode, expNum, cleanStatus, storageDir);
     try {
       if (crypto.timingSafeEqual(Buffer.from(tHmac, "hex"), Buffer.from(expected, "hex"))) {
         return true;
       }
     } catch (_) {}
-    // دعم التوافق الرجعي مع التذاكر القديمة التي تضمنت اسم المستخدم
-    const legacyExpected = computeTicketHmac(normCode, expNum, cleanStatus, true);
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(tHmac, "hex"), Buffer.from(legacyExpected, "hex"))) {
-        return true;
-      }
-    } catch (_) {}
     return false;
   }
-    // SEC-04: حذف مسار التذاكر القديمة ثلاثية المقاطع (SUPABASE_VERIFIED) نهائياً
-    // وعدم قبول التذاكر إلا بنظام HMAC المحمي أو Ed25519
-    return false;
+  // SEC-04: حذف مسار التذاكر القديمة ثلاثية المقاطع نهائياً
+  return false;
 }
 
 /**
@@ -352,10 +390,11 @@ function extractSchoolFromEmisHeaders(requestHeaders) {
 }
 
 class DesktopLicenseManager {
-  constructor({ storageDir, onUpdate } = {}) {
+  constructor({ storageDir, onUpdate, publicKeyPem } = {}) {
     this.storageDir = storageDir || path.join(os.homedir(), ".nepras-desktop");
     this.storageFile = path.join(this.storageDir, "school-subscriptions-v1.json");
     this.onUpdate = typeof onUpdate === "function" ? onUpdate : () => {};
+    this.publicKeyPem = publicKeyPem || null;
 
     this.state = {
       serverUrl: DEFAULT_SERVER_URL,
@@ -394,7 +433,7 @@ class DesktopLicenseManager {
           // ترقية أي تذاكر قديمة إلى النمط المشفر ببصمة الجهاز المحدثة
           for (const [code, entry] of Object.entries(this.state.ticketsBySchool)) {
             if (entry && String(entry.ticket || "").startsWith("SUPABASE_VERIFIED.") && entry.ticket.split(".").length === 3) {
-              entry.ticket = createSupabaseTicket(code, entry.expiresAt, entry.status || "active");
+              entry.ticket = createSupabaseTicket(code, entry.expiresAt, entry.status || "active", this.storageDir);
               cleanedDuplicates = true;
             }
           }
@@ -583,7 +622,7 @@ class DesktopLicenseManager {
 
     if (String(entry.ticket || "").startsWith("SUPABASE_VERIFIED.")) {
       const verifyCode = entry.aliasedFrom || schoolCode;
-      const isValidHmac = verifySupabaseTicket(entry.ticket, verifyCode, entry.expiresAt, entry.status) || verifySupabaseTicket(entry.ticket, schoolCode, entry.expiresAt, entry.status);
+      const isValidHmac = verifySupabaseTicket(entry.ticket, verifyCode, entry.expiresAt, entry.status, this.storageDir) || verifySupabaseTicket(entry.ticket, schoolCode, entry.expiresAt, entry.status, this.storageDir);
       if (!isValidHmac) {
         return {
           platform: "desktop",
@@ -605,7 +644,7 @@ class DesktopLicenseManager {
         expiresAt
       };
     } else {
-      const verified = verifyTicketSignature(entry.ticket);
+      const verified = verifyTicketSignature(entry.ticket, this.publicKeyPem);
       const ticketCode = normalizeSchoolCode(verified.payload?.schoolCode);
       if (!verified.valid || (ticketCode !== schoolCode && ticketCode !== normalizeSchoolCode(entry.aliasedFrom))) {
         return {
@@ -732,7 +771,7 @@ class DesktopLicenseManager {
         // ربط الكود الفرعي أو المسلسل بالترخيص السنوي المفعل فوراً وتوريث التفعيل
         if (normCode && normCode !== activePaidCode) {
           this.state.ticketsBySchool[normCode] = {
-            ticket: createSupabaseTicket(normCode, activePaidEntry.expiresAt, "active"),
+            ticket: createSupabaseTicket(normCode, activePaidEntry.expiresAt, "active", this.storageDir),
             verifiedAt: Date.now(),
             expiresAt: activePaidEntry.expiresAt,
             schoolName: activePaidEntry.schoolName || cleanName,
@@ -867,7 +906,7 @@ class DesktopLicenseManager {
           const finalExpiresAt = (prevIsActivePaid && isTrial) ? prevEntry.expiresAt : expiresAt;
 
           if (data.ticket) {
-            const verified = verifyTicketSignature(data.ticket);
+            const verified = verifyTicketSignature(data.ticket, this.publicKeyPem);
             if (verified.valid) {
               this.state.ticketsBySchool[normCode] = {
                 ticket: data.ticket,
@@ -881,7 +920,7 @@ class DesktopLicenseManager {
             this.state.ticketsBySchool[normCode] = {
               ticket: (prevIsActivePaid && isTrial && prevEntry.ticket)
                 ? prevEntry.ticket
-                : createSupabaseTicket(normCode, finalExpiresAt, finalStatus),
+                : createSupabaseTicket(normCode, finalExpiresAt, finalStatus, this.storageDir),
               verifiedAt: Date.now(),
               expiresAt: finalExpiresAt,
               schoolName: resolvedSchoolName,
@@ -915,7 +954,7 @@ class DesktopLicenseManager {
 
           if (activePaidEntry) {
             this.state.ticketsBySchool[normCode] = {
-              ticket: createSupabaseTicket(normCode, activePaidEntry.expiresAt, "active"),
+              ticket: createSupabaseTicket(normCode, activePaidEntry.expiresAt, "active", this.storageDir),
               verifiedAt: Date.now(),
               expiresAt: activePaidEntry.expiresAt,
               schoolName: activePaidEntry.schoolName,
@@ -997,7 +1036,7 @@ class DesktopLicenseManager {
 
     // 1) دعم التذكرة الموقعة ذاتياً (NEPRAS1.<base64url>.<sig>) للتفعيل المباشر
     if (/^NEPRAS1\./i.test(cleanKey) || cleanKey.split(".").length === 2) {
-      const verified = verifyTicketSignature(cleanKey);
+      const verified = verifyTicketSignature(cleanKey, this.publicKeyPem);
       if (verified.valid) {
         const ticketSchool = normalizeSchoolCode(verified.payload?.schoolCode);
         if (ticketSchool && ticketSchool !== normCode) {
@@ -1071,7 +1110,7 @@ class DesktopLicenseManager {
         const resolvedSchoolName = data.school_name || data.schoolName || this.state.activeSchoolName || `مدرسة ${normCode}`;
 
         if (data.ticket) {
-          const verified = verifyTicketSignature(data.ticket);
+          const verified = verifyTicketSignature(data.ticket, this.publicKeyPem);
           if (verified.valid) {
             this.state.ticketsBySchool[normCode] = {
               ticket: data.ticket,
@@ -1083,7 +1122,7 @@ class DesktopLicenseManager {
           }
         } else if (isSupabase) {
           this.state.ticketsBySchool[normCode] = {
-            ticket: createSupabaseTicket(normCode, expiresAt, "active"),
+            ticket: createSupabaseTicket(normCode, expiresAt, "active", this.storageDir),
             verifiedAt: Date.now(),
             expiresAt,
             schoolName: resolvedSchoolName,
